@@ -10,7 +10,25 @@ class VersionTests(unittest.TestCase):
 
     def test_scheme_values(self):
         self.assertEqual([s.value for s in Scheme],
-                         ["semver", "dotted", "debian", "opaque"])
+                         ["semver", "dotted", "debian", "opaque", "python"])
+
+    def test_python_release_precedence(self):
+        versions = ['3.14.0a0', '3.14.0a1', '3.14.0a10', '3.14.0b0',
+                    '3.14.0b1', '3.14.0rc0', '3.14.0rc1', '3.14.0', '3.14.1a0']
+        for left, right in zip(versions, versions[1:]):
+            self.assert_order(left, right, Scheme('python'), -1)
+        self.assert_order('v03.014.00RC01', '3.14.0rc1', Scheme('python'), 0)
+
+    def test_python_unsupported_forms_are_unknown(self):
+        for value in ('3.14', '3.14.0.dev1', '3.14.0.post1', '3.14.0+local',
+                      '1!3.14.0', '3.14.0-rc.1', '3.14.0a', '3.14.0alpha1',
+                      '3.14.0a-1', 'vV3.14.0', ' 3.14.0', '3.14.0\n', '٣.14.0'):
+            self.assertIsNone(compare(value, value, Scheme('python')))
+
+    def test_python_large_numeric_components(self):
+        huge = '9' * 5000
+        self.assert_order('3.14.0a' + huge, '3.14.0b0', Scheme('python'), -1)
+        self.assert_order('3.14.' + huge, '3.15.0a0', Scheme('python'), -1)
 
     def test_semver_release_after_prerelease(self):
         self.assert_order("1.0.0-rc.1", "1.0.0", Scheme.SEMVER, -1)
@@ -63,7 +81,7 @@ class VersionTests(unittest.TestCase):
 
     def test_dotted_numeric_order(self):
         self.assert_order("7.2.2", "7.2.10", Scheme.DOTTED, -1)
-        self.assert_order("1.43.5.11029", "1.43.5.11030", Scheme.DOTTED, -1)
+        self.assert_order("1.43.5.11031", "1.43.5.11032", Scheme.DOTTED, -1)
         self.assert_order("21.02.7", "21.2.7", Scheme.DOTTED, 0)
         self.assert_order("7.1", "7.2.3", Scheme.DOTTED, -1)
 

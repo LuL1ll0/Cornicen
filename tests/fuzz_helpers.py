@@ -238,7 +238,7 @@ def write_report():
               'when defaultStatus is affected; otherwise they are unknown. '
               'Opaque ordering, ranges and status changes are unknown.', '',
               'The §5 oracle uses independent version parsers and Debian Policy §5.6.12 '
-              'ordering, point evaluation, and interval union/coverage for a restricted '
+              'ordering, point evaluation, uniform affected-default uncertainty, and interval union/coverage for a restricted '
               'decidable range domain. It abstains on malformed or ambiguous schema '
               'semantics; malformed data is still covered by never-raises. Random ASCII '
               'case/whitespace variations apply to identities, not case-sensitive SemVer '

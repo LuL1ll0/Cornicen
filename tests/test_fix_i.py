@@ -69,8 +69,9 @@ class FixITests(unittest.TestCase):
         # ordering of its own, so the watch's semver scheme decides it.
         result = self.check(rec, watched, State.AFFECTED)
         self.assertIn('nginx open source', result.evidence)
-        # Outside the listed ranges, the CNA's explicit unknown default applies.
+        # Both the fix and later patch lie outside every listed affected range.
         self.check(rec, watch('nginx:nginx', '1.31.3'), State.UNKNOWN)
+        self.check(rec, watch('nginx:nginx', '1.31.303'), State.UNKNOWN)
         # A named, different ordering (rpm, git) is still a conflict and stays unknown.
         for row in rec['containers']['cna']['affected'][1]['versions']:
             row['versionType'] = 'rpm'
@@ -116,9 +117,9 @@ class FixITests(unittest.TestCase):
             with self.subTest(version=version):
                 self.check(rec, watch('example:service', version), expected)
 
-    def test_explicit_defaults_and_statuses_take_precedence(self):
+    def test_explicit_defaults_statuses_and_history_exclusion(self):
         for status, default, version, expected in [
-                ('affected', 'unknown', '3.0.0', State.UNKNOWN),
+                ('affected', 'unknown', '3.0.0', State.NOT_AFFECTED),
                 ('unaffected', 'affected', '1.0.0', State.NOT_AFFECTED),
                 ('unaffected', 'affected', '3.0.0', State.AFFECTED),
                 ('unknown', 'unaffected', '1.0.0', State.UNKNOWN),
@@ -126,6 +127,9 @@ class FixITests(unittest.TestCase):
             with self.subTest(status=status, default=default, version=version):
                 self.check(record({'version': '<2.0.0', 'status': status}, defaultStatus=default),
                            watch('example:service', version), expected)
+        self.check(record({'version': '>=1.0.0, <2.0.0', 'status': 'affected'},
+                          defaultStatus='unknown'),
+                   watch('example:service', '3.0.0'), State.UNKNOWN)
 
     def test_constraint_status_changes(self):
         rec = record({'version': '>=1.0.0, <3.0.0', 'status': 'affected',

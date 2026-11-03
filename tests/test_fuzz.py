@@ -22,9 +22,12 @@ SEMVER = 'docs/spec.md:96 (SemVer 2.0 precedence)'
 DOTTED = 'docs/spec.md:97 (numeric segments; padding cannot prove equality)'
 DEBIAN = 'docs/spec.md:98 (Debian Policy §5.6.12 ordering)'
 OPAQUE = 'docs/spec.md:99 (opaque equality/defaultStatus; no ordering or changes)'
+PYTHON = 'docs/spec.md §§4–5 (CPython a/b/rc/release ordering)'
 UNKNOWN = 'docs/spec.md:101 (undecidable comparisons yield unknown)'
 AGGREGATION = 'docs/spec.md §5 (affected > unaffected > unknown across entries)'
-RULES = {'semver': SEMVER, 'dotted': DOTTED, 'debian': DEBIAN, 'opaque': OPAQUE}
+RULES = {'semver': SEMVER, 'dotted': DOTTED, 'debian': DEBIAN, 'opaque': OPAQUE,
+         'python': PYTHON}
+ORDERED = ('semver', 'dotted', 'debian', 'python')
 OPS = ('=', '>=', '>', '<=', '<')
 STATUSES = ('affected', 'unaffected', 'unknown')
 PLACEHOLDERS = ('', 'n/a', 'NA', 'unknown', '-', 'none', 'not available')
@@ -130,6 +133,18 @@ def reference_compare(a, b, scheme):
         return 0 if a == b else None
     if scheme == 'debian':
         return debian_reference(a, b)
+    if scheme == 'python':
+        def key(text):
+            if text.startswith(('v', 'V')):
+                text = text[1:]
+            if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+(?:(?:a|b|rc)[0-9]+)?', text.lower()):
+                return None
+            numbers = list(map(natural, re.findall(r'[0-9]+', text)))
+            stage = ''.join(re.findall(r'[a-z]+', text.lower()))
+            return (*numbers[:3], ['', 'a', 'b', 'rc'].index(stage) if stage else 4,
+                    numbers[3] if len(numbers) == 4 else 0)
+        left, right = key(a), key(b)
+        return None if left is None or right is None else sign(left, right)
     if scheme == 'semver':
         ap, bp = semver_parts(a), semver_parts(b)
         if ap is None or bp is None:
@@ -161,7 +176,11 @@ def reference_compare(a, b, scheme):
 
 
 def version(rng, scheme):
-    if scheme == 'semver':
+    if scheme == 'python':
+        result = '.'.join('0' * rng.randrange(2) + str(rng.randrange(20)) for _ in range(3))
+        if rng.randrange(2):
+            result += rng.choice(['a', 'b', 'rc', 'RC']) + str(rng.randrange(20))
+    elif scheme == 'semver':
         result = '.'.join(str(rng.randrange(20)) for _ in range(3))
         if rng.randrange(2):
             result += '-' + rng.choice(['alpha', 'rc', '0', 'beta.2', 'rc.10', 'x-y.0'])
@@ -178,13 +197,13 @@ def version(rng, scheme):
             result = str(rng.randrange(5)) + ':' + result
     else:
         return rng.choice(['build-a', 'build-b', '0', 'RomePI 1.0.G', 'Ω', 'release-x'])
-    if scheme in ('semver', 'dotted') and rng.randrange(4) == 0:
+    if scheme in ('semver', 'dotted', 'python') and rng.randrange(4) == 0:
         result = rng.choice('vV') + result
     return result
 
 
 def lattice_version(number, scheme):
-    return f'{number}.0.0' if scheme == 'semver' else str(number)
+    return f'{number}.0.0' if scheme in ('semver', 'python') else str(number)
 
 
 def version_case(rng, scheme, count=2, arbitrary=False):
@@ -239,12 +258,12 @@ def kev(rng, matching=True):
 
 
 def generated_application(rng, index, corrupt=False, ranges=False):
-    scheme = tuple(RULES)[index % 4]
+    scheme = tuple(RULES)[index % len(RULES)]
     watched = lattice_version(rng.randrange(1, 7), scheme)
     if scheme == 'opaque':
         watched = version(rng, scheme)
     if ranges:
-        scheme = ('semver', 'dotted', 'debian')[index % 3]
+        scheme = ORDERED[index % len(ORDERED)]
         low, high = sorted(rng.sample(range(1, 9), 2))
         watched = (rng.choice(['>', '>=']) + lattice_version(low, scheme) + ', '
                    + rng.choice(['<', '<=']) + lattice_version(high, scheme))
@@ -267,6 +286,8 @@ def generated_application(rng, index, corrupt=False, ranges=False):
                     row['changes'] = changes
             elif scheme == 'opaque' and rng.randrange(4) == 0:
                 row['changes'] = [{'at': lower, 'status': rng.choice(STATUSES)}]
+            if ('lessThan' in row or 'lessThanOrEqual' in row) and rng.randrange(5) == 0:
+                row['version'] = rng.choice(['0', '*', '0.0', '0.0.0'])
             if rng.randrange(2) == 0:
                 space = rng.choice(['', ' ', '\t', '\n'])
                 upper = row.pop('lessThan', None)
@@ -278,7 +299,7 @@ def generated_application(rng, index, corrupt=False, ranges=False):
                 else:
                     row['version'] = rng.choice(OPS) + space + lower
             if rng.randrange(3) != 0:
-                row['versionType'] = rng.choice([scheme, 'custom', 'rpm', 'git'])
+                row['versionType'] = rng.choice([scheme, 'custom', 'semver', 'python', 'rpm', 'git'])
             rows.append(row)
         vendor = rng.choice(['example corp'] * 6 + ['other corp'] + list(PLACEHOLDERS))
         product = rng.choice(['test-service'] * 8 + ['testservice'] + list(PLACEHOLDERS))
@@ -328,7 +349,7 @@ def state_name(status):
 
 def generated_constraint_application(rng, index, ranges=False):
     """Decidable comparator domain with guaranteed matching CNA identities."""
-    scheme = ('semver', 'dotted', 'debian')[index % 3]
+    scheme = ORDERED[index % len(ORDERED)]
     rows = []
     affected_only = index % 2 == 0
     for _ in range(rng.randrange(1, 5)):
@@ -375,6 +396,8 @@ def comparator_terms(row):
 
 
 def default_status(item):
+    if history_exclusion(item):
+        return 'unaffected'
     if 'defaultStatus' in item:
         return item['defaultStatus']
     rows = item.get('versions', [])
@@ -383,7 +406,28 @@ def default_status(item):
     return 'unaffected' if rows and len(affected_constraints) == len(rows) else 'unknown'
 
 
-def entry_oracle(item, watched, scheme):
+def history_exclusion(item):
+    """Independent §5 predicate: an unknown default plus affected history."""
+    if item.get('defaultStatus', 'unknown') != 'unknown':
+        return False
+    for row in item.get('versions', []):
+        if row.get('status') != 'affected':
+            continue
+        if ('lessThan' in row or 'lessThanOrEqual' in row):
+            if row.get('version') in ('0', '*', '0.0', '0.0.0'):
+                return True
+        else:
+            terms = comparator_terms(row)
+            if terms is not None:
+                lower_bounds = [(op, bound) for op, bound in terms if op not in ('<', '<=')]
+                if (len(lower_bounds) < len(terms)
+                        and all(op == '>=' and bound in ('0', '0.0', '0.0.0')
+                                for op, bound in lower_bounds)):
+                    return True
+    return False
+
+
+def entry_oracle(item, watched, scheme, weak=None):
     """Literal §5 point rules, abstaining on undefined malformed schema shapes."""
     rows = item.get('versions', [])
     if not isinstance(rows, list) or item.get('defaultStatus', 'unknown') not in STATUSES:
@@ -391,7 +435,7 @@ def entry_oracle(item, watched, scheme):
     for row in rows:
         if not isinstance(row, dict) or not isinstance(row.get('version'), str):
             return ABSTAIN
-        if row.get('versionType') not in (None, 'custom', scheme):
+        if row.get('versionType') not in (None, 'custom', 'semver', 'python', scheme):
             return 'unknown'
         if row.get('status') not in STATUSES:
             return ABSTAIN
@@ -469,6 +513,21 @@ def entry_oracle(item, watched, scheme):
         states.append(state_name(status))
     if states:
         return combine(states)
+    if (scheme != 'opaque' and item.get('defaultStatus') == 'affected'
+            and any(row.get('status') == 'affected' and (
+                'lessThan' in row or 'lessThanOrEqual' in row
+                or any(op != '=' for op, _ in (comparator_terms(row) or []))) for row in rows)):
+        return 'unknown'
+    if scheme != 'opaque' and history_exclusion(item):
+        for row in rows:
+            for change in row.get('changes', []):
+                if (not isinstance(change, dict) or not isinstance(change.get('at'), str)
+                        or change.get('status') not in STATUSES):
+                    return ABSTAIN
+                if reference_compare(watched, change['at'], scheme) is None:
+                    return 'unknown'
+        if weak is not None:
+            weak.append(True)
     default = state_name(default_status(item))
     if scheme == 'opaque' and default != 'affected':
         return 'unknown'
@@ -502,7 +561,7 @@ def subtract_all(intervals, cuts):
 
 
 def numeric_endpoint(text, scheme):
-    pattern = r'([1-9][0-9]*)\.0\.0' if scheme == 'semver' else r'([1-9][0-9]*)'
+    pattern = r'([1-9][0-9]*)\.0\.0' if scheme in ('semver', 'python') else r'([1-9][0-9]*)'
     match = re.fullmatch(pattern, text) if isinstance(text, str) else None
     return natural(match[1]) if match else None
 
@@ -525,7 +584,7 @@ def constraint_interval(terms, scheme):
     return lo, lc, hi, hc
 
 
-def range_entry_oracle(item, watched, scheme):
+def range_entry_oracle(item, watched, scheme, weak=None):
     if scheme == 'opaque':
         return 'unknown'
     terms = comparator_terms({'version': watched})
@@ -543,7 +602,7 @@ def range_entry_oracle(item, watched, scheme):
             return ABSTAIN
         if row.get('status') not in STATUSES:
             return ABSTAIN
-        if row.get('versionType') not in (None, 'custom', scheme):
+        if row.get('versionType') not in (None, 'custom', 'semver', 'python', scheme):
             return 'unknown'
     for row in rows:
         terms = comparator_terms(row)
@@ -557,6 +616,9 @@ def range_entry_oracle(item, watched, scheme):
         for field in ('version', 'lessThan', 'lessThanOrEqual'):
             if terms is not None and field == 'version':
                 continue
+            if (field == 'version' and ('lessThan' in row or 'lessThanOrEqual' in row)
+                    and row.get('version') in ('0', '*', '0.0', '0.0.0')):
+                continue
             if field in row:
                 text = row[field]
                 if not isinstance(text, str):
@@ -564,8 +626,9 @@ def range_entry_oracle(item, watched, scheme):
                 if reference_compare(text, text, scheme) is None:
                     return 'unknown'
         if whole is None:
-            low = numeric_endpoint(row.get('version'), scheme)
             upper = row.get('lessThan', row.get('lessThanOrEqual'))
+            low = (-math.inf if upper is not None and row.get('version') in ('0', '*', '0.0', '0.0.0')
+                   else numeric_endpoint(row.get('version'), scheme))
             high = numeric_endpoint(upper, scheme) if upper is not None else low
             if low is None or high is None or low > high:
                 return ABSTAIN
@@ -607,10 +670,17 @@ def range_entry_oracle(item, watched, scheme):
         return 'affected'
     unlisted = subtract_all([watch_interval], listed)
     default = default_status(item)
-    if default == 'affected' and unlisted:
+    has_affected_range = any(row.get('status') == 'affected' and (
+        'lessThan' in row or 'lessThanOrEqual' in row
+        or any(op != '=' for op, _ in (comparator_terms(row) or []))) for row in rows)
+    if default == 'affected' and unlisted and not has_affected_range:
         return 'affected'
     excluded = negative + (unlisted if default == 'unaffected' else [])
-    return 'not_affected' if not subtract_all([watch_interval], excluded) else 'unknown'
+    if subtract_all([watch_interval], excluded):
+        return 'unknown'
+    if (weak is not None and history_exclusion(item) and unlisted):
+        weak.append(True)
+    return 'not_affected'
 
 
 def identity_kind(vendor, product, loose):
@@ -619,9 +689,10 @@ def identity_kind(vendor, product, loose):
     vendor, product = ' '.join(vendor.lower().split()), ' '.join(product.lower().split())
     placeholders = {'', 'na', 'unknown', 'none', 'null', 'tbd', 'unspecified',
                     'notapplicable', 'notavailable'}
-    if any(re.sub(r'[\W_]+', '', text) in placeholders for text in (vendor, product)):
+    if re.sub(r'[\W_]+', '', product) in placeholders:
         return None
-    if (vendor, product) == ('example corp', 'test-service'):
+    if (re.sub(r'[\W_]+', '', vendor) not in placeholders
+            and (vendor, product) == ('example corp', 'test-service')):
         return 'exact'
     return 'loose' if loose and product == 'test-service' else None
 
@@ -662,10 +733,16 @@ def oracle(case, range_watch=False):
     if not exact:
         return 'unknown'
     evaluate = range_entry_oracle if range_watch else entry_oracle
-    states = [evaluate(item, case['version'].strip(), case['scheme']) for item in exact]
+    states, strong = [], []
+    for item in exact:
+        weak = []
+        state = evaluate(item, case['version'].strip(), case['scheme'], weak)
+        states.append(state)
+        if state != 'not_affected' or not weak:
+            strong.append(state)
     if ABSTAIN in states:
         return ABSTAIN
-    return combine(states)
+    return combine(strong) if strong else 'not_affected'
 
 
 def resolved_state(case):
@@ -690,6 +767,16 @@ def check_oracle(case, range_watch=False):
 
 
 class VersionFuzzTests(unittest.TestCase):
+    def test_python_matches_release_reference(self):
+        def check(case):
+            if not version_domain(case) or case['scheme'] != 'python':
+                return False
+            equal(compare(case['a'], case['b'], Scheme.PYTHON),
+                  reference_compare(case['a'], case['b'], 'python'), PYTHON,
+                  'CPython release and pre-release order must agree with the reference')
+        run_property(self, 'versions.python_reference',
+                     lambda rng, index: version_case(rng, 'python', arbitrary=True), check, PYTHON)
+
     def schemes(self, name, generate, check):
         for scheme in RULES:
             with self.subTest(scheme=scheme):
@@ -816,7 +903,7 @@ class VersionFuzzTests(unittest.TestCase):
 
     def test_parse_constraint_round_trip(self):
         def generate(rng, index):
-            scheme = tuple(RULES)[index % 4]
+            scheme = tuple(RULES)[index % len(RULES)]
             terms = [[rng.choice(OPS), version(rng, scheme).replace(' ', '-')]
                      for _ in range(rng.randrange(1, 6))]
             return {'terms': terms, 'space': rng.choice(['', ' ', '\t', '\n'])}
@@ -848,6 +935,13 @@ class ApplicabilityFuzzTests(unittest.TestCase):
                 huge = '1.0.' + '9' * 5000
                 return {'scheme': 'semver', 'version': '>=1.0.0, <2.0.0',
                         'record': record([entry([{'version': huge, 'status': 'unaffected'}])])}
+            if index % 4 == 1:
+                # Exercise sentinel starts through equality and range rank lookups.
+                watched = rng.choice(['=2.5.6', '>=2.5.6, <=2.5.7', '>=0.5.0, <=2.5.6'])
+                lower = rng.choice(['0', '*', '0.0', '0.0.0'])
+                return {'scheme': 'semver', 'version': watched,
+                        'record': record([entry([{'version': lower, 'lessThan': '1.0.0',
+                                                 'status': 'affected'}], 'affected')])}
             return generated_application(rng, index, corrupt=True, ranges=index % 5 == 0)
 
         def check(case):
@@ -860,7 +954,7 @@ class ApplicabilityFuzzTests(unittest.TestCase):
 
     def test_needed_undecidable_comparison(self):
         def generate(rng, index):
-            scheme = tuple(RULES)[index % 4]
+            scheme = tuple(RULES)[index % len(RULES)]
             watched = lattice_version(3, scheme) if scheme != 'opaque' else 'build-a'
             range_watch = (index // 4) % 2 == 0 and scheme != 'opaque'
             if range_watch:
@@ -931,7 +1025,7 @@ class ApplicabilityFuzzTests(unittest.TestCase):
 
     def test_kev_never_overrides_cna_not_affected(self):
         def generate(rng, index):
-            scheme = tuple(RULES)[index % 4]
+            scheme = tuple(RULES)[index % len(RULES)]
             watched = version(rng, scheme)
             item = entry([{'version': watched, 'status': 'unaffected', 'versionType': scheme}],
                          rng.choice(STATUSES), decorated(rng, 'example corp'), decorated(rng, 'test-service'))

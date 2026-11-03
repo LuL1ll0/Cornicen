@@ -2,14 +2,22 @@
 
 Cornicen is a self-hosted CVE alerting tool for homelabs and small networks. One container watches public vulnerability data, matches it locally against a private list of the products and versions you run, and pushes an alert when something you run is affected. It stays silent when nothing is, and it says so loudly when it has gone blind.
 
-## What it guarantees
+## How it's built to behave
 
-1. **It catches what hits your gear.** For each new match, KEV addition or correction on a watched item, Cornicen enqueues exactly one notification within one poll cycle of *successfully ingesting* the record that causes it. Urgent events are sent at once; normal ones go in the next digest.
-2. **Delivery is durable and at-least-once.** An enqueued notification survives crashes and outages and is retried until accepted. A lost acknowledgement can cause a rare duplicate; it never causes a loss.
-3. **It stays quiet otherwise.** No notification for a product you don't run, a version a record authoritatively excludes, or a record edit that doesn't change applicability or a defined event.
-4. **It never mistakes blindness for safety.** A source that cannot be fetched, returns incomplete data, or stops advancing is reported as unhealthy, never as "no new CVEs."
-5. **It says what it knows and what it doesn't.** Every alert states its evidence, and every unknown is shown as unknown — never as a negative ("not in KEV" means not listed, not "not exploited").
-6. **It's usable by strangers.** No account or key for any v1 source; a fictional example watch list; one documented install.
+These are the design goals for this v0.1 tool:
+
+1. **Catch what hits your gear.** The matching and event rules aim to enqueue exactly one notification within one poll cycle of *successfully ingesting* each new match, KEV addition or correction on a watched item. Urgent events go at once; normal ones go in the next digest.
+2. **Make delivery durable and at-least-once.** The outbox is designed to preserve notifications across crashes and outages and retry until accepted. A lost acknowledgement can cause a duplicate; retries are intended to prevent loss.
+3. **Stay quiet otherwise.** Matching and deduplication are designed to suppress notifications for products you don't run, versions a record authoritatively excludes, and edits that don't change applicability or a defined event.
+4. **Report blindness.** Health checks are designed to report sources that cannot be fetched, return incomplete data, or stop advancing as unhealthy, rather than as "no new CVEs."
+5. **Show what is known and unknown.** Alerts are designed to state their evidence and show unknowns explicitly ("not in KEV" means not listed, not "not exploited").
+6. **Be usable by strangers.** The project aims to need no account or key for any v1 source and provides a fictional example watch list and one documented install.
+
+### What it cannot promise
+
+Cornicen only knows what the CVE List, KEV and EPSS publish. CNA data is
+inconsistent, and matching can miss vulnerabilities or over-report them. Treat
+it as an early-warning aid, not an audit.
 
 For the ingestion, matching and delivery design, see [docs/spec.md](docs/spec.md).
 
@@ -77,12 +85,32 @@ data and belongs in private storage. No ntfy requests are made in file mode.
 Each `[[watch]]` needs a stable `id`, display `name`, vendor-scoped `match`
 identities, `version`, and comparison `scheme`. Changing a name keeps its identity;
 changing a version re-matches stored records. Use `semver`, numeric `dotted`,
-`debian`, or equality-only `opaque`. Comparator ranges such as
+`debian`, CPython `python`, or equality-only `opaque`. Comparator ranges such as
 `">=1.0.0, <2.0.0"` are supported. Declare `eol = true` for unsupported versions.
 
 `product_only` is an explicit loose match across vendors and caps applicability at
 unknown. Prefer scoped identities. Normalisation trims and collapses whitespace
-and ignores case while keeping punctuation. Placeholder identities never match.
+and ignores case while keeping punctuation. Placeholder products never match;
+a placeholder vendor can match a real product only through `product_only`.
+For CPython use `python`, which orders three numeric components and optional
+`aN`, `bN` or `rcN` pre-releases. Other PEP 440 forms remain unknown.
+Synology DSM build/update strings can use `debian`;
+wildcards, `unspecified` bounds and prose remain unknown.
+When a version is outside every affected range a CNA entry lists and all
+comparisons are decidable, `defaultStatus: affected` yields **unknown**, with
+evidence “outside every range the CNA listed; the CNA's default says affected”.
+This rule applies equally before, between and after the listed ranges.
+Explicit status rows and covering ranges take precedence. An entry with no
+affected ranges retains its existing default behavior. Range watches evaluate
+all allowed versions: any affected cell yields **affected**, and every cell must
+be excluded to return **not affected**. Starts of `0`, `0.0`, `0.0.0` or `*` in
+explicit ranges mean unbounded below and never enter version ranking or lookup.
+Across matching entries, an affected result wins. An unknown result wins over
+an exclusion inferred only from another entry's history.
+History inference requires an omitted/unknown default, decidable rows and
+transitions, no covering row, and affected history starting at zero or `*`
+(or an upper-bounded comparator unbounded below). Explicit unaffected rows and
+unaffected defaults retain their precedence. Undecidable comparisons stay unknown.
 The versioned built-in alias map accounts for spelling variants; extend it with
 a local `aliases_path` containing `version` and `[[alias]]` groups of `identities`.
 

@@ -5,7 +5,7 @@ from enum import Enum
 from functools import cmp_to_key
 
 from cornicen.identity import AliasMap, is_placeholder, normalise
-from cornicen.versions import Scheme, compare, parse_constraint
+from cornicen.versions import Scheme, compare, parse_constraint, python_successor
 from cornicen.watchlist import Watch
 
 
@@ -60,9 +60,11 @@ def _identity_match(vendor, product, watch, aliases, prepared=None, identities=N
     key = vendor, product
     cached = identities.get(key) if identities is not None else None
     if cached is None:
-        if is_placeholder(vendor) or is_placeholder(product):
+        if is_placeholder(product):
             return None
         identity = normalise(vendor), normalise(product)
+        # Placeholder vendors expand to no scoped identities; a real product
+        # can still match the explicitly opted-in loose names below.
         expanded = aliases.expand(identity)
         if identities is not None:
             identities[key] = identity, expanded
@@ -101,9 +103,9 @@ def _check_types(entry, scheme):
             if not isinstance(change.get('status'), str):
                 raise _Undecidable('invalid change status')
         version_type = version.get('versionType')
-        # "custom" supplies no ordering algorithm; use the declared watch scheme, which still
-        # returns unknown for anything it cannot decide. ~20% of real version entries are custom.
-        if version_type not in (None, 'custom', scheme.value):
+        # CNAs also use semver/python loosely. The watch chooses the comparator;
+        # accepting a label never makes an unorderable boundary decidable.
+        if version_type not in (None, 'custom', 'semver', 'python', scheme.value):
             raise _Undecidable(f'versionType {version_type} conflicts with {scheme.value}')
 
 
@@ -119,10 +121,12 @@ def _constraints(version):
 def _default_state(entry):
     versions = entry.get('versions', [])
     # CNA comparator-only affected lists describe their complete affected set.
-    # Explicit defaults and mixed/plain version lists retain their semantics.
+    # Other lists require explicit history evidence before inferring exclusion.
     if ('defaultStatus' not in entry and versions
             and all(row.get('status') == 'affected' and _constraints(row)
                     for row in versions)):
+        return State.NOT_AFFECTED
+    if _history_exclusion(entry):
         return State.NOT_AFFECTED
     return _state(entry.get('defaultStatus'))
 
@@ -132,7 +136,24 @@ def _unbounded_start(version):
             and version.get('version') in ('0', '0.0', '0.0.0', '*'))
 
 
-def _at(entry, relation, scheme):
+def _history_exclusion(entry):
+    if entry.get('defaultStatus', 'unknown') != 'unknown':
+        return False
+    for row in entry.get('versions', []):
+        if row.get('status') != 'affected':
+            continue
+        if _unbounded_start(row):
+            return True
+        terms = _constraints(row)
+        if (terms and any(op in ('<', '<=') for op, _ in terms)
+                and all(op in ('<', '<=') or (
+                    op == '>=' and bound in ('0', '0.0', '0.0.0'))
+                        for op, bound in terms)):
+            return True
+    return False
+
+
+def _at(entry, relation, scheme, inferred=None):
     """Evaluate a point, or a whole open cell with no CNA boundary inside it."""
     states = []
     for version in entry.get('versions', []):
@@ -189,6 +210,31 @@ def _at(entry, relation, scheme):
         states.append(_state(status))
     if states:
         return _combine(states)
+    if (scheme != Scheme.OPAQUE and entry.get('defaultStatus') == 'affected'
+            and any(row.get('status') == 'affected' and (
+                'lessThan' in row or 'lessThanOrEqual' in row
+                or any(op != '=' for op, _ in (_constraints(row) or [])))
+                    for row in entry.get('versions', []))):
+        # All rows missed. Transitions outside the watch must also be decidable.
+        for row in entry.get('versions', []):
+            for change in row.get('changes', []):
+                relation(change['at'])
+        if inferred is not None:
+            inferred.setdefault('outside', set()).add(
+                "outside every range the CNA listed; the CNA's default says affected")
+        return State.UNKNOWN
+    if scheme != Scheme.OPAQUE and _history_exclusion(entry):
+        # Exclusion needs every row decidable, including transitions in rows
+        # outside the watch. An invalid transition must not prove safety.
+        for row in entry.get('versions', []):
+            if row.get('status') not in ('affected', 'unaffected', 'unknown'):
+                raise _Undecidable('invalid status')
+            for change in row.get('changes', []):
+                relation(change['at'])
+                if change['status'] not in ('affected', 'unaffected', 'unknown'):
+                    raise _Undecidable('invalid change status')
+        if inferred is not None:
+            inferred.setdefault('history', set()).add('outside every affected range the CNA listed')
     default = _default_state(entry)
     if scheme == Scheme.OPAQUE and default != State.AFFECTED:
         return State.UNKNOWN
@@ -233,13 +279,22 @@ def _cell_exists(position, bounds, scheme):
         if index == len(bounds):
             return True
         return _compare(_semver_successor(bounds[index - 1]), bounds[index], scheme) < 0
+    if scheme == Scheme.PYTHON:
+        if index == 0:
+            return _compare('0.0.0a0', bounds[0], scheme) < 0
+        if index == len(bounds):
+            return True
+        successor = python_successor(bounds[index - 1])
+        if successor is None:
+            raise _Undecidable('version comparison unknown')
+        return _compare(successor, bounds[index], scheme) < 0
     if scheme == Scheme.DOTTED and index == 0:
         # Numeric dotted versions have no negative versions.
         return _compare('0', bounds[0], scheme) < 0
     return True
 
 
-def _range(entry, constraints, scheme):
+def _range(entry, constraints, scheme, inferred=None):
     if scheme == Scheme.OPAQUE:
         if any(op != '=' for op, _ in constraints):
             raise _Undecidable('opaque range comparison unknown')
@@ -247,7 +302,7 @@ def _range(entry, constraints, scheme):
         first = constraints[0][1]
         for _, bound in constraints:
             _compare(first, bound, scheme)
-        return _at(entry, lambda b: _compare(first, b, scheme), scheme)
+        return _at(entry, lambda b: _compare(first, b, scheme), scheme, inferred)
 
     bounds = set(_boundaries(entry)) | {b for _, b in constraints}
     if any(not isinstance(bound, str) for bound in bounds):
@@ -274,7 +329,7 @@ def _range(entry, constraints, scheme):
                         '<': relation < 0, '<=': relation <= 0}[op]
         if allowed and _cell_exists(position, unique, scheme):
             states.append(_at(entry, lambda b: (position > ranks[b]) - (position < ranks[b]),
-                              scheme))
+                              scheme, inferred))
     if State.AFFECTED in states:
         return State.AFFECTED
     if states and all(state == State.NOT_AFFECTED for state in states):
@@ -286,10 +341,11 @@ def _evaluate(entry, watch):
     try:
         _check_types(entry, watch.scheme)
         version = watch.version.strip()
+        inferred = {}
         if version.startswith(('=', '>', '<')) or ',' in version:
-            state = _range(entry, parse_constraint(version), watch.scheme)
+            state = _range(entry, parse_constraint(version), watch.scheme, inferred)
         else:
-            state = _at(entry, lambda b: _compare(version, b, watch.scheme), watch.scheme)
+            state = _at(entry, lambda b: _compare(version, b, watch.scheme), watch.scheme, inferred)
         descriptions = []
         for row in entry.get('versions', []):
             text = row.get('version', '?')
@@ -301,15 +357,21 @@ def _evaluate(entry, watch):
                 text += ' (status changes)'
             descriptions.append(text)
         detail = '; '.join(descriptions) or 'defaultStatus ' + entry.get('defaultStatus', 'unknown')
+        if inferred and (state == State.NOT_AFFECTED or 'outside' in inferred):
+            detail = '; '.join(sorted(set().union(*inferred.values()))) + '; ' + detail
         types = sorted({row['versionType'] for row in entry.get('versions', [])
                         if row.get('versionType')})
         if types:
             detail += '; versionType ' + ', '.join(types)
         if len(detail) > 180:
             detail = detail[:177] + '...'
-        return state, detail
+        # An inferred exclusion cannot settle another entry's uncertainty. An
+        # explicit unaffected default still excludes these unlisted versions.
+        weak = ('history' in inferred
+                and entry.get('defaultStatus') != 'unaffected')
+        return state, detail, weak
     except _Undecidable as error:
-        return State.UNKNOWN, str(error)
+        return State.UNKNOWN, str(error), False
 
 
 def rejected(record: dict) -> bool:
@@ -363,8 +425,12 @@ def resolve(record: dict, kev_entry: dict | None, watch: Watch,
     exact = [entry for entry, kind in matches if kind == 'exact']
     if exact:
         evaluated = [(entry, *_evaluate(entry, watch)) for entry in exact]
-        state = _combine([state for _, state, _ in evaluated])
-        entry, _, detail = next(item for item in evaluated if item[1] == state)
+        # Keep explicit exclusions' existing precedence, but let uncertainty
+        # win over another entry's history inference.
+        decisive = [item for item in evaluated
+                    if item[1] != State.NOT_AFFECTED or not item[3]]
+        state = _combine([item[1] for item in decisive]) if decisive else State.NOT_AFFECTED
+        entry, _, detail, _ = next(item for item in (decisive or evaluated) if item[1] == state)
         label = 'unaffected' if state == State.NOT_AFFECTED else state.value
         evidence = f'CNA {label} {normalise(entry["product"])}: {detail}'
         return Result(state, kev_entry is not None, evidence,

@@ -10,6 +10,7 @@ class Scheme(str, Enum):
     DOTTED = "dotted"
     DEBIAN = "debian"
     OPAQUE = "opaque"
+    PYTHON = "python"
 
 
 _SEMVER = re.compile(
@@ -18,6 +19,7 @@ _SEMVER = re.compile(
     r"(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
 )
 _DOTTED = re.compile(r"[0-9]+(?:\.[0-9]+)*")
+_PYTHON = re.compile(r"([0-9]+)\.([0-9]+)\.([0-9]+)(?:(a|b|rc)([0-9]+))?", re.I)
 _CONSTRAINT = re.compile(r"(>=|<=|=|>|<)\s*([^\s,=<>!|]+)")
 
 
@@ -64,6 +66,47 @@ def _compare_semver(a, b):
         if result:
             return result
     return _sign(len(ap), len(bp))
+
+
+def _python(version):
+    version = version[1:] if version.startswith(('v', 'V')) else version
+    match = _PYTHON.fullmatch(version)
+    if match is None:
+        return None
+    major, minor, patch, stage, serial = match.groups()
+    core = tuple(part.lstrip('0') or '0' for part in (major, minor, patch))
+    return core, stage.lower() if stage else '', (serial or '0').lstrip('0') or '0'
+
+
+def _compare_python(a, b):
+    a, b = _python(a), _python(b)
+    if a is None or b is None:
+        return None
+    for x, y in zip(a[0], b[0]):
+        result = _numeric(x, y)
+        if result:
+            return result
+    stages = {'a': 0, 'b': 1, 'rc': 2, '': 3}
+    return _sign(stages[a[1]], stages[b[1]]) or _numeric(a[2], b[2])
+
+
+def python_successor(version):
+    """Immediate successor in the supported CPython grammar, or None if invalid.
+
+    Needed to avoid inventing versions between adjacent pre-release serials
+    when proving coverage of range watches. No integer conversion size limit.
+    """
+    parsed = _python(version)
+    if parsed is None:
+        return None
+    core, stage, serial = parsed
+    value = serial if stage else core[2]
+    prefix = value.rstrip('9')
+    next_value = (prefix[:-1] + chr(ord(prefix[-1]) + 1) if prefix else '1')
+    next_value += '0' * (len(value) - len(prefix))
+    if stage:
+        return '.'.join(core) + stage + next_value
+    return '.'.join((*core[:2], next_value)) + 'a0'
 
 
 def _debian(version):
@@ -128,6 +171,8 @@ def compare(a: str, b: str, scheme: Scheme) -> int | None:
         b = b[1:] if b.startswith(("v", "V")) else b
     if scheme == Scheme.SEMVER:
         return _compare_semver(a, b)
+    if scheme == Scheme.PYTHON:
+        return _compare_python(a, b)
     if scheme == Scheme.DOTTED:
         if not _DOTTED.fullmatch(a) or not _DOTTED.fullmatch(b):
             return None

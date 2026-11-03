@@ -90,6 +90,75 @@ class ApplicabilityTests(unittest.TestCase):
         for version, expected in [('3.0.3', State.AFFECTED), ('3.0.4', State.NOT_AFFECTED)]:
             self.check(rec, expected, watch=self.fixture_watch(rec, version, Scheme.SEMVER))
 
+    def test_uniform_default_endpoints_defaults_and_row_order(self):
+        rows = [row('1.0', lessThan='1.5'), row('2.0', lessThanOrEqual='2.5')]
+        for default in ('affected', 'unaffected', 'unknown'):
+            for versions in (rows, list(reversed(rows))):
+                for version, expected in [('1.0', State.AFFECTED), ('1.4', State.AFFECTED),
+                                          ('1.5', State.NOT_AFFECTED if default == 'unaffected' else State.UNKNOWN),
+                                          ('1.9', State.NOT_AFFECTED if default == 'unaffected' else State.UNKNOWN),
+                                          ('2.5', State.AFFECTED),
+                                          ('2.6', State.NOT_AFFECTED if default == 'unaffected' else State.UNKNOWN),
+                                          ('3.0', State.NOT_AFFECTED if default == 'unaffected' else State.UNKNOWN)]:
+                    with self.subTest(default=default, version=version, rows=versions):
+                        self.check(record(entry(versions, default)), expected,
+                                   watch=replace(self.watch, version=version))
+        self.check(record(entry(rows, 'affected')), State.UNKNOWN,
+                   watch=replace(self.watch, version='0.9'))
+
+    def test_uniform_default_preserves_explicit_rows_and_overlaps(self):
+        rows = [row('1.0', lessThan='1.5'), row('2.0', lessThan='2.5')]
+        for status, expected in [('affected', State.AFFECTED),
+                                 ('unaffected', State.NOT_AFFECTED), ('unknown', State.UNKNOWN)]:
+            self.check(record(entry(rows + [row('3.0', status)], 'affected')), expected,
+                       watch=replace(self.watch, version='3.0'))
+        self.check(record(entry(rows + [row('1.0', lessThan='4.0')], 'affected')),
+                   State.AFFECTED, watch=replace(self.watch, version='3.0'))
+        self.check(record(entry(rows + [row('2.0', lessThan='4.0')], 'affected')),
+                   State.AFFECTED, watch=replace(self.watch, version='3.0'))
+        other = entry([row('3.0')])
+        self.check(record(entry(rows, 'affected'), other), State.AFFECTED,
+                   watch=replace(self.watch, version='3.0'))
+
+    def test_uniform_default_aggregation_preserves_unknown_and_explicit_exclusions(self):
+        outside = entry([row('41', lessThan='41.5')], 'affected')
+        unknowns = [entry(), entry([row('41.6', 'unknown')]),
+                    entry([row('41.0', lessThan='42.0'), row('unorderable')])]
+        strong = [entry([row('41.6', 'unaffected', lessThanOrEqual='41.7')]),
+                  entry(default='unaffected'),
+                  entry(outside['versions'], 'unaffected')]
+        for version in ('41.6', '>=41.6, <=41.7'):
+            watched = replace(self.watch, version=version)
+            for unknown in unknowns:
+                for entries in ((outside, unknown), (unknown, outside)):
+                    with self.subTest(version=version, entries=entries):
+                        self.check(record(*entries), State.UNKNOWN, watch=watched)
+                for exclusion in strong:
+                    result = self.check(record(outside, unknown, exclusion), State.NOT_AFFECTED,
+                                        watch=watched)
+                self.check(record(outside, unknown, entry(default='affected')),
+                           State.AFFECTED, watch=watched)
+            self.check(record(outside), State.UNKNOWN, watch=watched)
+
+    def test_uniform_default_undecidable_comparisons_keep_previous_behavior(self):
+        for extra in [row('unspecified', lessThan='4.0'),
+                      row('2.0', lessThan='unorderable'),
+                      row('2.0', lessThan='2.5', changes=[{'at': 'bad', 'status': 'affected'}])]:
+            self.check(record(entry([row('1.0', lessThan='1.5'), extra], 'affected')),
+                       State.UNKNOWN,
+                       watch=replace(self.watch, version='3.0'))
+
+    def test_uniform_default_range_watch_coverage(self):
+        rows = [row('1.0', lessThan='1.5'), row('2.0', lessThanOrEqual='2.5')]
+        for version, expected in [('>=1.5, <2.0', State.UNKNOWN),
+                                  ('>=2.6, <4.0', State.UNKNOWN),
+                                  ('>=1.4, <2.0', State.AFFECTED),
+                                  ('>=0.5, <1.0', State.UNKNOWN),
+                                  ('>=2.5, <3.0', State.AFFECTED)]:
+            with self.subTest(version=version):
+                self.check(record(entry(rows, 'affected')), expected,
+                           watch=replace(self.watch, version=version))
+
     def test_default_status_affected_unlisted_version(self):
         rec = raw('CVE-2026-103399')
         self.check(rec, State.AFFECTED, watch=self.fixture_watch(rec, '10.0'))
@@ -193,7 +262,7 @@ class ApplicabilityTests(unittest.TestCase):
         self.assertTrue(self.check(record(), State.UNKNOWN, kev,
                                  replace(self.watch, match=(('nginx', 'nginx'),))).exploited)
 
-    def test_placeholder_vendor_ignored(self):
+    def test_placeholder_product_ignored_and_vendor_requires_product_only(self):
         rec = raw('CVE-2016-0012')
         watch = replace(self.watch, product_only=('n/a',), match=())
         self.assertIsNone(resolve(rec, None, watch, self.aliases))
@@ -201,16 +270,25 @@ class ApplicabilityTests(unittest.TestCase):
             for vendor, product in [(value, 'service'), ('examplecorp', value)]:
                 rec = record(entry([row('1.6')], vendor=vendor, product=product))
                 watch = replace(self.watch, product_only=(product,), match=((vendor, product),))
-                self.assertIsNone(resolve(rec, None, watch, self.aliases))
-                self.assertIsNone(resolve(record(), {'cveID': 'CVE-2026-1000',
-                                                    'vendorProject': vendor, 'product': product},
-                                          watch, self.aliases))
+                results = [resolve(rec, None, watch, self.aliases),
+                           resolve(record(), {'cveID': 'CVE-2026-1000',
+                                              'vendorProject': vendor, 'product': product},
+                                   watch, self.aliases)]
+                for result in results:
+                    if product == 'service':
+                        self.assertEqual(result.state, State.UNKNOWN)
+                        self.assertEqual(result.confidence, 'low')
+                    else:
+                        self.assertIsNone(result)
+                self.assertIsNone(resolve(rec, None, replace(watch, product_only=()), self.aliases))
 
-    def test_missing_vendor_ignored_with_product_only(self):
+    def test_missing_vendor_requires_product_only(self):
         e = entry([row('1.6')])
         del e['vendor']
-        self.assertIsNone(resolve(record(e), None, replace(self.watch, product_only=('service',)),
-                                  self.aliases))
+        result = self.check(record(e), State.UNKNOWN,
+                            watch=replace(self.watch, product_only=('service',)))
+        self.assertEqual(result.confidence, 'low')
+        self.assertIsNone(resolve(record(e), None, self.watch, self.aliases))
 
     def test_product_only_caps_at_unknown(self):
         for status in ('affected', 'unaffected'):
@@ -250,7 +328,7 @@ class ApplicabilityTests(unittest.TestCase):
             self.check(record(*(entry([row('1.6', s)]) for s in states)), expected)
 
     def test_version_type_conflict_unknown(self):
-        for version_type in ('semver', 'rpm', 'git'):
+        for version_type in ('rpm', 'git', 'maven', 'original_commit_for_fix'):
             self.check(record(entry([row('1.6', versionType=version_type)], 'affected')),
                        State.UNKNOWN)
 

@@ -42,7 +42,7 @@ def _watch(entry: dict) -> Watch:
     try:
         scheme = Scheme(entry.get("scheme"))
     except (ValueError, TypeError):
-        raise ValueError("scheme must be semver, dotted, debian or opaque") from None
+        raise ValueError("scheme must be semver, dotted, debian, opaque or python") from None
     # Opaque versions may contain spaces ("RomePI 1.0.0.G"); only operators make them a range.
     range_chars = r"[=<>!,~^]" if scheme == Scheme.OPAQUE else r"[=<>!,~^\s]"
     if re.search(range_chars, version):

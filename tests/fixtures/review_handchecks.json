@@ -1,0 +1,2481 @@
+[
+  {
+    "cve": "CVE-2026-6205",
+    "version": "7.4-90075+review1",
+    "scheme": "debian",
+    "identity": [
+      "synology",
+      "diskstation manager (dsm)"
+    ],
+    "affected": [
+      {
+        "defaultStatus": "affected",
+        "product": "DiskStation Manager (DSM)",
+        "vendor": "Synology",
+        "versions": [
+          {
+            "lessThan": "7.4-90075",
+            "status": "affected",
+            "version": "7.4",
+            "versionType": "semver"
+          },
+          {
+            "lessThan": "7.3.2-86009-4",
+            "status": "affected",
+            "version": "7.3.2",
+            "versionType": "semver"
+          },
+          {
+            "lessThan": "7.2.2-72806-9",
+            "status": "affected",
+            "version": "7.2.2",
+            "versionType": "semver"
+          },
+          {
+            "lessThan": "7.2.1-69057-12",
+            "status": "affected",
+            "version": "7.2.1",
+            "versionType": "semver"
+          },
+          {
+            "lessThan": "7.2.1",
+            "status": "unknown",
+            "version": "0",
+            "versionType": "semver"
+          }
+        ]
+      }
+    ],
+    "expected": "unknown"
+  },
+  {
+    "cve": "CVE-2026-40539",
+    "version": "77.88.99",
+    "scheme": "debian",
+    "identity": [
+      "synology",
+      "diskstation manager (dsm)"
+    ],
+    "affected": [
+      {
+        "vendor": "Synology",
+        "product": "DiskStation Manager (DSM)",
+        "versions": [
+          {
+            "version": "7.3",
+            "status": "affected",
+            "lessThan": "7.3.2-86009-2",
+            "versionType": "semver"
+          },
+          {
+            "version": "7.2.2",
+            "status": "affected",
+            "lessThan": "7.2.2-72806-7",
+            "versionType": "semver"
+          },
+          {
+            "version": "7.2.1",
+            "status": "affected",
+            "lessThan": "7.2.1-69057-10",
+            "versionType": "semver"
+          },
+          {
+            "version": "0",
+            "status": "unknown",
+            "lessThan": "7.2.1",
+            "versionType": "semver"
+          }
+        ],
+        "defaultStatus": "affected"
+      }
+    ],
+    "expected": "unknown"
+  },
+  {
+    "cve": "CVE-2026-40538",
+    "version": "7.3.2-86009-2+review1",
+    "scheme": "debian",
+    "identity": [
+      "synology",
+      "diskstation manager (dsm)"
+    ],
+    "affected": [
+      {
+        "defaultStatus": "affected",
+        "product": "DiskStation Manager (DSM)",
+        "vendor": "Synology",
+        "versions": [
+          {
+            "lessThan": "7.3.2-86009-2",
+            "status": "affected",
+            "version": "7.3.2",
+            "versionType": "semver"
+          },
+          {
+            "lessThan": "7.2.2-72806-7",
+            "status": "affected",
+            "version": "7.2.2",
+            "versionType": "semver"
+          },
+          {
+            "lessThan": "7.2.1-69057-10",
+            "status": "affected",
+            "version": "7.2.1",
+            "versionType": "semver"
+          },
+          {
+            "lessThan": "7.2.1",
+            "status": "unknown",
+            "version": "0",
+            "versionType": "semver"
+          }
+        ]
+      }
+    ],
+    "expected": "unknown"
+  },
+  {
+    "cve": "CVE-2026-76531",
+    "version": "8.7.0+review1",
+    "scheme": "semver",
+    "identity": [
+      "splunk",
+      "splunk soar"
+    ],
+    "affected": [
+      {
+        "product": "Splunk SOAR",
+        "vendor": "Splunk",
+        "versions": [
+          {
+            "version": "0",
+            "status": "affected",
+            "versionType": "custom",
+            "lessThan": "8.7.0"
+          }
+        ]
+      }
+    ],
+    "expected": "not_affected"
+  },
+  {
+    "cve": "CVE-2026-76530",
+    "version": "8.7.0+review1",
+    "scheme": "semver",
+    "identity": [
+      "splunk",
+      "splunk soar"
+    ],
+    "affected": [
+      {
+        "product": "Splunk SOAR",
+        "vendor": "Splunk",
+        "versions": [
+          {
+            "version": "0",
+            "status": "affected",
+            "versionType": "custom",
+            "lessThan": "8.7.0"
+          }
+        ]
+      }
+    ],
+    "expected": "not_affected"
+  },
+  {
+    "cve": "CVE-2026-76529",
+    "version": "8.7.0+review1",
+    "scheme": "semver",
+    "identity": [
+      "splunk",
+      "splunk soar"
+    ],
+    "affected": [
+      {
+        "product": "Splunk SOAR",
+        "vendor": "Splunk",
+        "versions": [
+          {
+            "version": "0",
+            "status": "affected",
+            "versionType": "custom",
+            "lessThan": "8.7.0"
+          }
+        ]
+      }
+    ],
+    "expected": "not_affected"
+  },
+  {
+    "cve": "CVE-2026-57032",
+    "version": "23.2R2-S7+review1",
+    "scheme": "debian",
+    "identity": [
+      "juniper networks",
+      "junos os"
+    ],
+    "affected": [
+      {
+        "defaultStatus": "unaffected",
+        "platforms": [
+          "EX3400",
+          "EX4100",
+          "EX4400",
+          "EX2300",
+          "EX4000"
+        ],
+        "product": "Junos OS",
+        "vendor": "Juniper Networks",
+        "versions": [
+          {
+            "lessThan": "23.2R2-S7",
+            "status": "affected",
+            "version": "0",
+            "versionType": "custom"
+          },
+          {
+            "lessThan": "23.4R2-S8",
+            "status": "affected",
+            "version": "23.4",
+            "versionType": "custom"
+          },
+          {
+            "lessThan": "24.2R2-S5",
+            "status": "affected",
+            "version": "24.2",
+            "versionType": "custom"
+          },
+          {
+            "lessThan": "24.4R2",
+            "status": "affected",
+            "version": "24.4",
+            "versionType": "custom"
+          }
+        ]
+      }
+    ],
+    "expected": "not_affected"
+  },
+  {
+    "cve": "CVE-2026-57031",
+    "version": "23.2R2-S7+review1",
+    "scheme": "debian",
+    "identity": [
+      "juniper networks",
+      "junos os"
+    ],
+    "affected": [
+      {
+        "defaultStatus": "unaffected",
+        "modules": [
+          "MPC10",
+          "MPC11",
+          "LC4800",
+          "LC9600",
+          "MX304-LMIC16"
+        ],
+        "platforms": [
+          "MX Series"
+        ],
+        "product": "Junos OS",
+        "vendor": "Juniper Networks",
+        "versions": [
+          {
+            "lessThan": "23.2R2-S7",
+            "status": "affected",
+            "version": "23.2R2-S1",
+            "versionType": "custom"
+          },
+          {
+            "lessThan": "23.4R2-S7",
+            "status": "affected",
+            "version": "23.4R2",
+            "versionType": "custom"
+          },
+          {
+            "lessThan": "24.2R2-S3",
+            "status": "affected",
+            "version": "24.2",
+            "versionType": "custom"
+          },
+          {
+            "lessThan": "24.4R2-S2",
+            "status": "affected",
+            "version": "24.4",
+            "versionType": "custom"
+          },
+          {
+            "lessThan": "25.2R2",
+            "status": "affected",
+            "version": "25.2",
+            "versionType": "custom"
+          }
+        ]
+      }
+    ],
+    "expected": "not_affected"
+  },
+  {
+    "cve": "CVE-2026-57030",
+    "version": "24.2R2-S3+review1",
+    "scheme": "debian",
+    "identity": [
+      "juniper networks",
+      "junos os"
+    ],
+    "affected": [
+      {
+        "defaultStatus": "unaffected",
+        "platforms": [
+          "SRX Series"
+        ],
+        "product": "Junos OS",
+        "vendor": "Juniper Networks",
+        "versions": [
+          {
+            "lessThan": "24.2R2-S3",
+            "status": "affected",
+            "version": "24.2",
+            "versionType": "custom"
+          },
+          {
+            "lessThan": "24.4R2-S1",
+            "status": "affected",
+            "version": "24.4",
+            "versionType": "custom"
+          },
+          {
+            "lessThan": "25.2R1-S2",
+            "status": "affected",
+            "version": "25.2",
+            "versionType": "custom"
+          },
+          {
+            "lessThan": "24.2R1",
+            "status": "unaffected",
+            "version": "0",
+            "versionType": "custom"
+          }
+        ]
+      }
+    ],
+    "expected": "not_affected"
+  },
+  {
+    "cve": "CVE-2026-97844",
+    "version": "10.0.14393.9612.987",
+    "scheme": "dotted",
+    "identity": [
+      "microsoft",
+      "windows 10 version 1607"
+    ],
+    "affected": [
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 10 Version 1607",
+        "platforms": [
+          "32-bit Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.14393.0",
+            "lessThan": "10.0.14393.9612",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 10 Version 1809",
+        "platforms": [
+          "32-bit Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.17763.0",
+            "lessThan": "10.0.17763.9376",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 10 Version 21H2",
+        "platforms": [
+          "32-bit Systems",
+          "ARM64-based Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.19044.0",
+            "lessThan": "10.0.19044.7807",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 10 Version 22H2",
+        "platforms": [
+          "32-bit Systems",
+          "ARM64-based Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.19045.0",
+            "lessThan": "10.0.19045.7807",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 11 version 23H2",
+        "platforms": [
+          "ARM64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.22631.0",
+            "lessThan": "10.0.22631.7652",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 11 Version 23H2",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.22631.0",
+            "lessThan": "10.0.22631.7652",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 11 Version 24H2",
+        "platforms": [
+          "ARM64-based Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.26100.0",
+            "lessThan": "10.0.26100.9711",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 11 Version 25H2",
+        "platforms": [
+          "ARM64-based Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.26200.0",
+            "lessThan": "10.0.26200.9711",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 11 version 26H1",
+        "platforms": [
+          "ARM64-based Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.28000.0",
+            "lessThan": "10.0.28000.3231",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 11 Version 26H2",
+        "platforms": [
+          "ARM64-based Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.26300.0",
+            "lessThan": "10.0.26300.9711",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2012",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "6.2.9200.0",
+            "lessThan": "6.2.9200.26434",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2012 (Server Core installation)",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "6.2.9200.0",
+            "lessThan": "6.2.9200.26434",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2012 R2",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "6.3.9600.0",
+            "lessThan": "6.3.9600.23470",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2012 R2 (Server Core installation)",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "6.3.9600.0",
+            "lessThan": "6.3.9600.23470",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2016",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.14393.0",
+            "lessThan": "10.0.14393.9612",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2016 (Server Core installation)",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.14393.0",
+            "lessThan": "10.0.14393.9612",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2019",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.17763.0",
+            "lessThan": "10.0.17763.9376",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2019 (Server Core installation)",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.17763.0",
+            "lessThan": "10.0.17763.9376",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2022",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.20348.0",
+            "lessThan": "10.0.20348.5761",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2025",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.26100.0",
+            "lessThan": "10.0.26100.33650",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2025 (Server Core installation)",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.26100.0",
+            "lessThan": "10.0.26100.33650",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      }
+    ],
+    "expected": "unknown"
+  },
+  {
+    "cve": "CVE-2026-97843",
+    "version": "10.0.14393.9612.987",
+    "scheme": "dotted",
+    "identity": [
+      "microsoft",
+      "windows 10 version 1607"
+    ],
+    "affected": [
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 10 Version 1607",
+        "platforms": [
+          "32-bit Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.14393.0",
+            "lessThan": "10.0.14393.9612",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 10 Version 1809",
+        "platforms": [
+          "32-bit Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.17763.0",
+            "lessThan": "10.0.17763.9376",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 10 Version 21H2",
+        "platforms": [
+          "32-bit Systems",
+          "ARM64-based Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.19044.0",
+            "lessThan": "10.0.19044.7807",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 10 Version 22H2",
+        "platforms": [
+          "32-bit Systems",
+          "ARM64-based Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.19045.0",
+            "lessThan": "10.0.19045.7807",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 11 version 23H2",
+        "platforms": [
+          "ARM64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.22631.0",
+            "lessThan": "10.0.22631.7652",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 11 Version 23H2",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.22631.0",
+            "lessThan": "10.0.22631.7652",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 11 Version 24H2",
+        "platforms": [
+          "ARM64-based Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.26100.0",
+            "lessThan": "10.0.26100.9711",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 11 Version 25H2",
+        "platforms": [
+          "ARM64-based Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.26200.0",
+            "lessThan": "10.0.26200.9711",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 11 version 26H1",
+        "platforms": [
+          "ARM64-based Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.28000.0",
+            "lessThan": "10.0.28000.3231",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 11 Version 26H2",
+        "platforms": [
+          "ARM64-based Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.26300.0",
+            "lessThan": "10.0.26300.9711",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2012",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "6.2.9200.0",
+            "lessThan": "6.2.9200.26434",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2012 (Server Core installation)",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "6.2.9200.0",
+            "lessThan": "6.2.9200.26434",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2012 R2",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "6.3.9600.0",
+            "lessThan": "6.3.9600.23470",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2012 R2 (Server Core installation)",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "6.3.9600.0",
+            "lessThan": "6.3.9600.23470",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2016",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.14393.0",
+            "lessThan": "10.0.14393.9612",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2016 (Server Core installation)",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.14393.0",
+            "lessThan": "10.0.14393.9612",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2019",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.17763.0",
+            "lessThan": "10.0.17763.9376",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2019 (Server Core installation)",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.17763.0",
+            "lessThan": "10.0.17763.9376",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2022",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.20348.0",
+            "lessThan": "10.0.20348.5761",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2025",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.26100.0",
+            "lessThan": "10.0.26100.33650",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2025 (Server Core installation)",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.26100.0",
+            "lessThan": "10.0.26100.33650",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      }
+    ],
+    "expected": "unknown"
+  },
+  {
+    "cve": "CVE-2026-97842",
+    "version": "10.0.14393.9612.987",
+    "scheme": "dotted",
+    "identity": [
+      "microsoft",
+      "windows 10 version 1607"
+    ],
+    "affected": [
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 10 Version 1607",
+        "platforms": [
+          "32-bit Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.14393.0",
+            "lessThan": "10.0.14393.9612",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 10 Version 1809",
+        "platforms": [
+          "32-bit Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.17763.0",
+            "lessThan": "10.0.17763.9376",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 10 Version 21H2",
+        "platforms": [
+          "32-bit Systems",
+          "ARM64-based Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.19044.0",
+            "lessThan": "10.0.19044.7807",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 10 Version 22H2",
+        "platforms": [
+          "32-bit Systems",
+          "ARM64-based Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.19045.0",
+            "lessThan": "10.0.19045.7807",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 11 version 23H2",
+        "platforms": [
+          "ARM64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.22631.0",
+            "lessThan": "10.0.22631.7652",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 11 Version 23H2",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.22631.0",
+            "lessThan": "10.0.22631.7652",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 11 Version 24H2",
+        "platforms": [
+          "ARM64-based Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.26100.0",
+            "lessThan": "10.0.26100.9711",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 11 Version 25H2",
+        "platforms": [
+          "ARM64-based Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.26200.0",
+            "lessThan": "10.0.26200.9711",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 11 version 26H1",
+        "platforms": [
+          "ARM64-based Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.28000.0",
+            "lessThan": "10.0.28000.3231",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows 11 Version 26H2",
+        "platforms": [
+          "ARM64-based Systems",
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.26300.0",
+            "lessThan": "10.0.26300.9711",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2012",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "6.2.9200.0",
+            "lessThan": "6.2.9200.26434",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2012 (Server Core installation)",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "6.2.9200.0",
+            "lessThan": "6.2.9200.26434",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2012 R2",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "6.3.9600.0",
+            "lessThan": "6.3.9600.23470",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2012 R2 (Server Core installation)",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "6.3.9600.0",
+            "lessThan": "6.3.9600.23470",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2016",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.14393.0",
+            "lessThan": "10.0.14393.9612",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2016 (Server Core installation)",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.14393.0",
+            "lessThan": "10.0.14393.9612",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2019",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.17763.0",
+            "lessThan": "10.0.17763.9376",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2019 (Server Core installation)",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.17763.0",
+            "lessThan": "10.0.17763.9376",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2022",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.20348.0",
+            "lessThan": "10.0.20348.5761",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2025",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.26100.0",
+            "lessThan": "10.0.26100.33650",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Microsoft",
+        "product": "Windows Server 2025 (Server Core installation)",
+        "platforms": [
+          "x64-based Systems"
+        ],
+        "versions": [
+          {
+            "version": "10.0.26100.0",
+            "lessThan": "10.0.26100.33650",
+            "versionType": "custom",
+            "status": "affected"
+          }
+        ]
+      }
+    ],
+    "expected": "unknown"
+  },
+  {
+    "cve": "CVE-2026-86992",
+    "version": "27.2.987",
+    "scheme": "dotted",
+    "identity": [
+      "apple",
+      "ios and ipados"
+    ],
+    "affected": [
+      {
+        "vendor": "Apple",
+        "product": "iOS and iPadOS",
+        "versions": [
+          {
+            "version": "0",
+            "status": "affected",
+            "lessThan": "26.7.2",
+            "versionType": "custom"
+          },
+          {
+            "version": "0",
+            "status": "affected",
+            "lessThan": "27.2",
+            "versionType": "custom"
+          }
+        ]
+      },
+      {
+        "vendor": "Apple",
+        "product": "macOS",
+        "versions": [
+          {
+            "version": "0",
+            "status": "affected",
+            "lessThan": "15.8.2",
+            "versionType": "custom"
+          },
+          {
+            "version": "0",
+            "status": "affected",
+            "lessThan": "26.7.2",
+            "versionType": "custom"
+          },
+          {
+            "version": "0",
+            "status": "affected",
+            "lessThan": "27.2",
+            "versionType": "custom"
+          }
+        ]
+      },
+      {
+        "vendor": "Apple",
+        "product": "tvOS",
+        "versions": [
+          {
+            "version": "0",
+            "status": "affected",
+            "lessThan": "27.2",
+            "versionType": "custom"
+          }
+        ]
+      },
+      {
+        "vendor": "Apple",
+        "product": "visionOS",
+        "versions": [
+          {
+            "version": "0",
+            "status": "affected",
+            "lessThan": "27.2",
+            "versionType": "custom"
+          }
+        ]
+      },
+      {
+        "vendor": "Apple",
+        "product": "watchOS",
+        "versions": [
+          {
+            "version": "0",
+            "status": "affected",
+            "lessThan": "27.2",
+            "versionType": "custom"
+          }
+        ]
+      }
+    ],
+    "expected": "not_affected"
+  },
+  {
+    "cve": "CVE-2026-86991",
+    "version": "27.2.987",
+    "scheme": "dotted",
+    "identity": [
+      "apple",
+      "ios and ipados"
+    ],
+    "affected": [
+      {
+        "vendor": "Apple",
+        "product": "iOS and iPadOS",
+        "versions": [
+          {
+            "version": "0",
+            "status": "affected",
+            "lessThan": "26.7.2",
+            "versionType": "custom"
+          },
+          {
+            "version": "0",
+            "status": "affected",
+            "lessThan": "27.2",
+            "versionType": "custom"
+          }
+        ]
+      },
+      {
+        "vendor": "Apple",
+        "product": "macOS",
+        "versions": [
+          {
+            "version": "0",
+            "status": "affected",
+            "lessThan": "15.8.2",
+            "versionType": "custom"
+          },
+          {
+            "version": "0",
+            "status": "affected",
+            "lessThan": "26.7.2",
+            "versionType": "custom"
+          },
+          {
+            "version": "0",
+            "status": "affected",
+            "lessThan": "27.2",
+            "versionType": "custom"
+          }
+        ]
+      },
+      {
+        "vendor": "Apple",
+        "product": "visionOS",
+        "versions": [
+          {
+            "version": "0",
+            "status": "affected",
+            "lessThan": "27.2",
+            "versionType": "custom"
+          }
+        ]
+      }
+    ],
+    "expected": "not_affected"
+  },
+  {
+    "cve": "CVE-2026-86990",
+    "version": "27.2.987",
+    "scheme": "dotted",
+    "identity": [
+      "apple",
+      "ios and ipados"
+    ],
+    "affected": [
+      {
+        "vendor": "Apple",
+        "product": "iOS and iPadOS",
+        "versions": [
+          {
+            "version": "0",
+            "status": "affected",
+            "lessThan": "18.7.11",
+            "versionType": "custom"
+          },
+          {
+            "version": "0",
+            "status": "affected",
+            "lessThan": "26.7.2",
+            "versionType": "custom"
+          },
+          {
+            "version": "0",
+            "status": "affected",
+            "lessThan": "27.2",
+            "versionType": "custom"
+          }
+        ]
+      },
+      {
+        "vendor": "Apple",
+        "product": "macOS",
+        "versions": [
+          {
+            "version": "0",
+            "status": "affected",
+            "lessThan": "26.7.2",
+            "versionType": "custom"
+          },
+          {
+            "version": "0",
+            "status": "affected",
+            "lessThan": "27.2",
+            "versionType": "custom"
+          }
+        ]
+      },
+      {
+        "vendor": "Apple",
+        "product": "visionOS",
+        "versions": [
+          {
+            "version": "0",
+            "status": "affected",
+            "lessThan": "27.2",
+            "versionType": "custom"
+          }
+        ]
+      }
+    ],
+    "expected": "not_affected"
+  },
+  {
+    "cve": "CVE-2026-99151",
+    "version": "7.2.13.987",
+    "scheme": "dotted",
+    "identity": [
+      "linux",
+      "linux"
+    ],
+    "affected": [
+      {
+        "product": "Linux",
+        "vendor": "Linux",
+        "defaultStatus": "unaffected",
+        "repo": "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git",
+        "programFiles": [
+          "drivers/gpu/drm/amd/display/dc/link/link_dpms.c"
+        ],
+        "versions": [
+          {
+            "version": "0b1eebd359685dd681f6e0df5540a5bb985a27bf",
+            "lessThan": "4c8b5e5b9776ad08138d79b14238c5742b32911b",
+            "status": "affected",
+            "versionType": "git"
+          },
+          {
+            "version": "8fa813b7fd1eccbed13e126166cf764f1f11a7d3",
+            "lessThan": "55a67aa89342545b89f469dea6f29bfb6fac6f3d",
+            "status": "affected",
+            "versionType": "git"
+          }
+        ]
+      },
+      {
+        "product": "Linux",
+        "vendor": "Linux",
+        "defaultStatus": "unaffected",
+        "repo": "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git",
+        "programFiles": [
+          "drivers/gpu/drm/amd/display/dc/link/link_dpms.c"
+        ],
+        "versions": [
+          {
+            "version": "7.2.9",
+            "lessThan": "7.2.13",
+            "status": "affected",
+            "versionType": "semver"
+          }
+        ]
+      }
+    ],
+    "expected": "not_affected"
+  },
+  {
+    "cve": "CVE-2026-99093",
+    "version": "6.18.57.987",
+    "scheme": "dotted",
+    "identity": [
+      "linux",
+      "linux"
+    ],
+    "affected": [
+      {
+        "product": "Linux",
+        "vendor": "Linux",
+        "defaultStatus": "unaffected",
+        "repo": "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git",
+        "programFiles": [
+          "mm/pgtable-generic.c"
+        ],
+        "versions": [
+          {
+            "version": "84e0cd79d57f06b872154eb5d8f610584133f260",
+            "lessThan": "7a25ca170c12a9328f6fcf4410713beb516b01c0",
+            "status": "affected",
+            "versionType": "git"
+          },
+          {
+            "version": "922873cf4fc34124215070a8ad391bf831538bb9",
+            "lessThan": "df6c704a08bc0925d5db047b0a6221f962bda4d9",
+            "status": "affected",
+            "versionType": "git"
+          },
+          {
+            "version": "9e4a3ec3411bb6bb59e3c1f29b75609f1e87aac4",
+            "lessThan": "2fb552b0bee70c24c092720028ab4620f5eb2646",
+            "status": "affected",
+            "versionType": "git"
+          }
+        ]
+      },
+      {
+        "product": "Linux",
+        "vendor": "Linux",
+        "defaultStatus": "unaffected",
+        "repo": "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git",
+        "programFiles": [
+          "mm/pgtable-generic.c"
+        ],
+        "versions": [
+          {
+            "version": "6.18.53",
+            "lessThan": "6.18.57",
+            "status": "affected",
+            "versionType": "semver"
+          },
+          {
+            "version": "7.2.7",
+            "lessThan": "7.2.11",
+            "status": "affected",
+            "versionType": "semver"
+          }
+        ]
+      }
+    ],
+    "expected": "not_affected"
+  },
+  {
+    "cve": "CVE-2026-99009",
+    "version": "5.10.273.987",
+    "scheme": "dotted",
+    "identity": [
+      "linux",
+      "linux"
+    ],
+    "affected": [
+      {
+        "product": "Linux",
+        "vendor": "Linux",
+        "defaultStatus": "unaffected",
+        "repo": "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git",
+        "programFiles": [
+          "include/net/bluetooth/rfcomm.h",
+          "net/bluetooth/rfcomm/core.c"
+        ],
+        "versions": [
+          {
+            "version": "62ce8b33eb238cf18c15207332fbdc26d858f592",
+            "lessThan": "d7a3bf6f55ab77d465206b25fe3418091c3d4b92",
+            "status": "affected",
+            "versionType": "git"
+          },
+          {
+            "version": "3873f3449701b3dc98cba577923be6493598e7a1",
+            "lessThan": "172b152119643018a2ed792e5096f33a4491c7de",
+            "status": "affected",
+            "versionType": "git"
+          },
+          {
+            "version": "7ded3264106418c6456ccceaafd9fda596ce12c3",
+            "lessThan": "caf78390f78a005d5cdc1db2eb467b2794bbf020",
+            "status": "affected",
+            "versionType": "git"
+          },
+          {
+            "version": "82425b14f0fb22e46cfddc56d6465570f5ed0ce6",
+            "lessThan": "4dc3d5a004b8fd59f3c905631dbb18cb601b1b41",
+            "status": "affected",
+            "versionType": "git"
+          },
+          {
+            "version": "1b7841ffad08e911e8c4b9470f3fa08423568940",
+            "lessThan": "d2206e8c78be69d21d4f5343c3e99fbaeef41cbb",
+            "status": "affected",
+            "versionType": "git"
+          },
+          {
+            "version": "946d76db77ee5f922968ce558629ae47b381e3fc",
+            "lessThan": "cc7732b8549ecb6f02457edeb8db1f6d255e381c",
+            "status": "affected",
+            "versionType": "git"
+          },
+          {
+            "version": "fbf7961964a6e93360179f64712320ae9a1e9577",
+            "lessThan": "f492de11b325446b0b11bc2eb86e1f546eaa61b6",
+            "status": "affected",
+            "versionType": "git"
+          },
+          {
+            "version": "759c185d0bbdb131357408f50b8735e04ed3caff",
+            "lessThan": "ac022970e9fb0a5f7e7d1f6c8e104c1ed924dd1c",
+            "status": "affected",
+            "versionType": "git"
+          }
+        ]
+      },
+      {
+        "product": "Linux",
+        "vendor": "Linux",
+        "defaultStatus": "unaffected",
+        "repo": "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git",
+        "programFiles": [
+          "include/net/bluetooth/rfcomm.h",
+          "net/bluetooth/rfcomm/core.c"
+        ],
+        "versions": [
+          {
+            "version": "5.10.270",
+            "lessThan": "5.10.273",
+            "status": "affected",
+            "versionType": "semver"
+          },
+          {
+            "version": "5.15.221",
+            "lessThan": "5.15.224",
+            "status": "affected",
+            "versionType": "semver"
+          },
+          {
+            "version": "6.1.188",
+            "lessThan": "6.1.191",
+            "status": "affected",
+            "versionType": "semver"
+          },
+          {
+            "version": "6.6.157",
+            "lessThan": "6.6.160",
+            "status": "affected",
+            "versionType": "semver"
+          },
+          {
+            "version": "6.12.109",
+            "lessThan": "6.12.114",
+            "status": "affected",
+            "versionType": "semver"
+          },
+          {
+            "version": "6.18.50",
+            "lessThan": "6.18.58",
+            "status": "affected",
+            "versionType": "semver"
+          },
+          {
+            "version": "7.2.4",
+            "lessThan": "7.2.11",
+            "status": "affected",
+            "versionType": "semver"
+          }
+        ]
+      }
+    ],
+    "expected": "not_affected"
+  },
+  {
+    "cve": "CVE-2025-64438",
+    "version": "3.4.1.987",
+    "scheme": "dotted",
+    "identity": [
+      "eprosima",
+      "fast-dds"
+    ],
+    "affected": [
+      {
+        "vendor": "eProsima",
+        "product": "Fast-DDS",
+        "repo": "https://github.com/eProsima/Fast-DDS",
+        "versions": [
+          {
+            "status": "affected",
+            "version": "3.4.0",
+            "lessThan": "3.4.1",
+            "versionType": "custom"
+          },
+          {
+            "status": "affected",
+            "version": "3.0.0",
+            "lessThan": "3.3.1",
+            "versionType": "custom"
+          },
+          {
+            "status": "affected",
+            "version": "0",
+            "lessThan": "2.6.11",
+            "versionType": "custom"
+          }
+        ],
+        "defaultStatus": "unaffected"
+      }
+    ],
+    "expected": "not_affected"
+  },
+  {
+    "cve": "CVE-2025-64324",
+    "version": "1.6.1+review1",
+    "scheme": "debian",
+    "identity": [
+      "kubevirt",
+      "kubevirt"
+    ],
+    "affected": [
+      {
+        "defaultStatus": "unaffected",
+        "product": "kubevirt",
+        "repo": "https://github.com/kubevirt/kubevirt",
+        "vendor": "kubevirt",
+        "versions": [
+          {
+            "lessThan": "1.6.1",
+            "status": "affected",
+            "version": "0",
+            "versionType": "custom"
+          },
+          {
+            "lessThan": "1.7.0-rc.0",
+            "status": "affected",
+            "version": "1.7.0-alpha.0",
+            "versionType": "custom"
+          }
+        ]
+      }
+    ],
+    "expected": "not_affected"
+  },
+  {
+    "cve": "CVE-2025-64098",
+    "version": "3.4.1.987",
+    "scheme": "dotted",
+    "identity": [
+      "eprosima",
+      "fast-dds"
+    ],
+    "affected": [
+      {
+        "vendor": "eProsima",
+        "product": "Fast-DDS",
+        "repo": "https://github.com/eProsima/Fast-DDS",
+        "versions": [
+          {
+            "status": "affected",
+            "version": "3.4.0",
+            "lessThan": "3.4.1",
+            "versionType": "custom"
+          },
+          {
+            "status": "affected",
+            "version": "3.0.0",
+            "lessThan": "3.3.1",
+            "versionType": "custom"
+          },
+          {
+            "status": "affected",
+            "version": "0",
+            "lessThan": "2.6.11",
+            "versionType": "custom"
+          }
+        ],
+        "defaultStatus": "unaffected"
+      }
+    ],
+    "expected": "not_affected"
+  },
+  {
+    "cve": "CVE-2026-84393",
+    "version": "7.6.6.987",
+    "scheme": "dotted",
+    "identity": [
+      "fortinet",
+      "fortios"
+    ],
+    "affected": [
+      {
+        "vendor": "Fortinet",
+        "product": "FortiOS",
+        "cpes": [
+          "cpe:2.3:o:fortinet:fortios:7.6.6:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.6.5:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.6.4:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.6.3:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.6.2:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.6.1:*:*:*:*:*:*:*"
+        ],
+        "defaultStatus": "unaffected",
+        "versions": [
+          {
+            "versionType": "semver",
+            "version": "7.6.1",
+            "lessThanOrEqual": "7.6.6",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Fortinet",
+        "product": "FortiProxy",
+        "cpes": [
+          "cpe:2.3:a:fortinet:fortiproxy:7.6.6:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.6.5:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.6.4:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.6.3:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.6.2:*:*:*:*:*:*:*"
+        ],
+        "defaultStatus": "unaffected",
+        "versions": [
+          {
+            "versionType": "semver",
+            "version": "7.6.2",
+            "lessThanOrEqual": "7.6.6",
+            "status": "affected"
+          }
+        ]
+      }
+    ],
+    "expected": "not_affected"
+  },
+  {
+    "cve": "CVE-2026-84392",
+    "version": "7.4.13.987",
+    "scheme": "dotted",
+    "identity": [
+      "fortinet",
+      "fortios"
+    ],
+    "affected": [
+      {
+        "vendor": "Fortinet",
+        "product": "FortiOS",
+        "cpes": [
+          "cpe:2.3:o:fortinet:fortios:7.4.13:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.4.12:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.4.11:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.4.10:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.4.9:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.4.8:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.4.7:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.4.6:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.4.5:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.4.4:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.4.3:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.4.2:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.4.1:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.4.0:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.2.14:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.2.13:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.2.12:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.2.11:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.2.10:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.2.9:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.2.8:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.2.7:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.2.6:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.2.5:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.2.4:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.2.3:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.2.2:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.2.1:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.2.0:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.0.19:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.0.18:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.0.17:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.0.16:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.0.15:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.0.14:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.0.13:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.0.12:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.0.11:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.0.10:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.0.9:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.0.8:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.0.7:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.0.6:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.0.5:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.0.4:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.0.3:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.0.2:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.0.1:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:7.0.0:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:6.4.16:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:6.4.15:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:6.4.14:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:6.4.13:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:6.4.12:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:6.4.11:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:6.4.10:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:6.4.9:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:6.4.8:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:6.4.7:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:6.4.6:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:6.4.5:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:6.4.4:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:6.4.3:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:6.4.2:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:6.4.1:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortios:6.4.0:*:*:*:*:*:*:*"
+        ],
+        "defaultStatus": "unaffected",
+        "versions": [
+          {
+            "versionType": "semver",
+            "version": "7.4.0",
+            "lessThanOrEqual": "7.4.13",
+            "status": "affected"
+          },
+          {
+            "versionType": "semver",
+            "version": "7.2.0",
+            "lessThanOrEqual": "7.2.14",
+            "status": "affected"
+          },
+          {
+            "versionType": "semver",
+            "version": "7.0.0",
+            "lessThanOrEqual": "7.0.19",
+            "status": "affected"
+          },
+          {
+            "versionType": "semver",
+            "version": "6.4.0",
+            "lessThanOrEqual": "6.4.16",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Fortinet",
+        "product": "FortiProxy",
+        "cpes": [
+          "cpe:2.3:a:fortinet:fortiproxy:7.6.6:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.6.5:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.6.4:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.6.3:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.6.2:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.6.1:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.6.0:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.4.14:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.4.13:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.4.12:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.4.11:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.4.10:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.4.9:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.4.8:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.4.7:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.4.6:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.4.5:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.4.4:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.4.3:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.4.2:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.4.1:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.4.0:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.2.16:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.2.15:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.2.14:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.2.13:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.2.12:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.2.11:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.2.10:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.2.9:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.2.8:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.2.7:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.2.6:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.2.5:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.2.4:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.2.3:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.2.2:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.2.1:*:*:*:*:*:*:*",
+          "cpe:2.3:a:fortinet:fortiproxy:7.2.0:*:*:*:*:*:*:*"
+        ],
+        "defaultStatus": "unaffected",
+        "versions": [
+          {
+            "versionType": "semver",
+            "version": "7.6.0",
+            "lessThanOrEqual": "7.6.6",
+            "status": "affected"
+          },
+          {
+            "versionType": "semver",
+            "version": "7.4.0",
+            "lessThanOrEqual": "7.4.14",
+            "status": "affected"
+          },
+          {
+            "versionType": "semver",
+            "version": "7.2.0",
+            "lessThanOrEqual": "7.2.16",
+            "status": "affected"
+          }
+        ]
+      },
+      {
+        "vendor": "Fortinet",
+        "product": "FortiPAM",
+        "cpes": [
+          "cpe:2.3:o:fortinet:fortipam:1.9.0:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.8.4:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.8.3:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.8.2:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.8.1:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.8.0:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.7.2:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.7.1:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.7.0:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.6.2:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.6.1:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.6.0:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.5.1:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.5.0:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.4.3:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.4.2:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.4.1:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.4.0:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.3.1:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.3.0:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.2.0:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.1.2:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.1.1:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.1.0:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.0.3:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.0.2:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.0.1:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortipam:1.0.0:*:*:*:*:*:*:*"
+        ],
+        "defaultStatus": "unaffected",
+        "versions": [
+          {
+            "version": "1.9.0",
+            "status": "affected"
+          },
+          {
+            "versionType": "semver",
+            "version": "1.8.0",
+            "lessThanOrEqual": "1.8.4",
+            "status": "affected"
+          },
+          {
+            "versionType": "semver",
+            "version": "1.7.0",
+            "lessThanOrEqual": "1.7.2",
+            "status": "affected"
+          },
+          {
+            "versionType": "semver",
+            "version": "1.6.0",
+            "lessThanOrEqual": "1.6.2",
+            "status": "affected"
+          },
+          {
+            "versionType": "semver",
+            "version": "1.5.0",
+            "lessThanOrEqual": "1.5.1",
+            "status": "affected"
+          },
+          {
+            "versionType": "semver",
+            "version": "1.4.0",
+            "lessThanOrEqual": "1.4.3",
+            "status": "affected"
+          },
+          {
+            "versionType": "semver",
+            "version": "1.3.0",
+            "lessThanOrEqual": "1.3.1",
+            "status": "affected"
+          },
+          {
+            "version": "1.2.0",
+            "status": "affected"
+          },
+          {
+            "versionType": "semver",
+            "version": "1.1.0",
+            "lessThanOrEqual": "1.1.2",
+            "status": "affected"
+          },
+          {
+            "versionType": "semver",
+            "version": "1.0.0",
+            "lessThanOrEqual": "1.0.3",
+            "status": "affected"
+          }
+        ]
+      }
+    ],
+    "expected": "not_affected"
+  },
+  {
+    "cve": "CVE-2026-84391",
+    "version": "7.6.6.987",
+    "scheme": "dotted",
+    "identity": [
+      "fortinet",
+      "fortianalyzer"
+    ],
+    "affected": [
+      {
+        "vendor": "Fortinet",
+        "product": "FortiAnalyzer",
+        "cpes": [
+          "cpe:2.3:o:fortinet:fortianalyzer:7.6.6:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortianalyzer:7.6.5:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortianalyzer:7.6.4:*:*:*:*:*:*:*",
+          "cpe:2.3:o:fortinet:fortianalyzer:7.6.3:*:*:*:*:*:*:*"
+        ],
+        "defaultStatus": "unaffected",
+        "versions": [
+          {
+            "versionType": "semver",
+            "version": "7.6.3",
+            "lessThanOrEqual": "7.6.6",
+            "status": "affected"
+          }
+        ]
+      }
+    ],
+    "expected": "not_affected"
+  },
+  {
+    "cve": "CVE-2026-91615",
+    "version": "19.32.987",
+    "scheme": "dotted",
+    "identity": [
+      "oracle corporation",
+      "oracle database server"
+    ],
+    "affected": [
+      {
+        "vendor": "Oracle Corporation",
+        "product": "Oracle Database Server",
+        "versions": [
+          {
+            "version": "19.3",
+            "status": "affected",
+            "lessThanOrEqual": "19.32",
+            "versionType": "custom"
+          },
+          {
+            "version": "21.3",
+            "status": "affected",
+            "lessThanOrEqual": "21.23",
+            "versionType": "custom"
+          },
+          {
+            "version": "23.4.0",
+            "status": "affected",
+            "lessThanOrEqual": "23.26.3",
+            "versionType": "custom"
+          }
+        ]
+      }
+    ],
+    "expected": "unknown"
+  },
+  {
+    "cve": "CVE-2026-91610",
+    "version": "26.2.2.987",
+    "scheme": "dotted",
+    "identity": [
+      "oracle corporation",
+      "oracle rest data services"
+    ],
+    "affected": [
+      {
+        "vendor": "Oracle Corporation",
+        "product": "Oracle REST Data Services",
+        "versions": [
+          {
+            "version": "24.2.0",
+            "status": "affected",
+            "lessThanOrEqual": "26.2.2",
+            "versionType": "custom"
+          }
+        ]
+      }
+    ],
+    "expected": "unknown"
+  },
+  {
+    "cve": "CVE-2026-91609",
+    "version": "26.2.1.987",
+    "scheme": "dotted",
+    "identity": [
+      "oracle corporation",
+      "oracle rest data services"
+    ],
+    "affected": [
+      {
+        "vendor": "Oracle Corporation",
+        "product": "Oracle REST Data Services",
+        "versions": [
+          {
+            "version": "24.2.0",
+            "status": "affected",
+            "lessThanOrEqual": "26.2.1",
+            "versionType": "custom"
+          }
+        ]
+      }
+    ],
+    "expected": "unknown"
+  },
+  {
+    "cve": "CVE-2026-9860",
+    "version": "1.10.2.987",
+    "scheme": "dotted",
+    "identity": [
+      "vanyukov",
+      "offload, ai & optimize with cloudflare images"
+    ],
+    "affected": [
+      {
+        "vendor": "vanyukov",
+        "product": "Offload, AI & Optimize with Cloudflare Images",
+        "versions": [
+          {
+            "version": "0",
+            "status": "affected",
+            "lessThanOrEqual": "1.10.2",
+            "versionType": "semver"
+          }
+        ],
+        "defaultStatus": "unaffected"
+      }
+    ],
+    "expected": "not_affected"
+  },
+  {
+    "cve": "CVE-2026-9858",
+    "version": "3.4.987",
+    "scheme": "dotted",
+    "identity": [
+      "wpexpertshub",
+      "partial shipment for woocommerce"
+    ],
+    "affected": [
+      {
+        "vendor": "wpexpertshub",
+        "product": "Partial Shipment for WooCommerce",
+        "versions": [
+          {
+            "version": "0",
+            "status": "affected",
+            "lessThanOrEqual": "3.4",
+            "versionType": "semver"
+          }
+        ],
+        "defaultStatus": "unaffected"
+      }
+    ],
+    "expected": "not_affected"
+  },
+  {
+    "cve": "CVE-2026-9857",
+    "version": "1.7.0.987",
+    "scheme": "dotted",
+    "identity": [
+      "saskaita123",
+      "invoice123"
+    ],
+    "affected": [
+      {
+        "vendor": "saskaita123",
+        "product": "Invoice123",
+        "versions": [
+          {
+            "version": "0",
+            "status": "affected",
+            "lessThanOrEqual": "1.7.0",
+            "versionType": "semver"
+          }
+        ],
+        "defaultStatus": "unaffected"
+      }
+    ],
+    "expected": "not_affected"
+  },
+  {
+    "cve": "CVE-2022-2846",
+    "version": "1.4.07.987",
+    "scheme": "dotted",
+    "identity": null,
+    "affected": [
+      {
+        "vendor": "Unknown",
+        "product": "Calendar Event Multi View",
+        "versions": [
+          {
+            "version": "1.4.07",
+            "status": "affected",
+            "lessThan": "1.4.07",
+            "versionType": "custom"
+          }
+        ]
+      }
+    ],
+    "expected": "unknown"
+  }
+]
