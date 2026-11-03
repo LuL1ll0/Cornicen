@@ -8,7 +8,7 @@ import zipfile as z
 
 
 from collections.abc import Sequence
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from http.client import HTTPException
 import json
@@ -315,16 +315,11 @@ class CveListSource:
 
     def _archive(self, release, origin, now):
         snapshot = origin == Origin.SNAPSHOT
-        suffix = ('_all_CVEs_at_midnight.zip.zip' if snapshot else
-                  '_delta_CVEs_at_end_of_day.zip' if release['tag_name'].endswith('_at_end_of_day') else
-                  f'_delta_CVEs_at_{_stamp(release["tag_name"]):%H}00Z.zip')
         path = None
         records = _Records(self.directory)
         errors = []
         try:
-            asset = next((a for a in release['assets'] if a['name'].endswith(suffix)), None)
-            if asset is None:
-                raise ValueError('Required release asset missing')
+            asset, stamp = validate.release_asset(release['tag_name'], release['assets'], snapshot=snapshot)
             response = self._get(asset['browser_download_url'], now, to_file=True,
                                  budget='cvelist_snapshot' if snapshot else 'cvelist_delta')
             path = response.path
@@ -353,9 +348,6 @@ class CveListSource:
                     self._read_records(zipped, records, errors, False)
             if snapshot and not records and not errors:
                 raise ValueError('Empty CVE snapshot')
-            stamp = _stamp(release['tag_name'])
-            if snapshot:
-                stamp = datetime.combine(stamp.date(), time(), timezone.utc)
             # The engine stores snapshot identity separately from delta coverage.
             cursor = release['tag_name']
             return IngestResult('cvelist', FetchStatus.PARTIAL if errors else FetchStatus.COMPLETE,
@@ -416,7 +408,7 @@ class CveListSource:
                 if reconcile:
                     self.store.set_meta('reconcile_at', now.isoformat())
                 pinned = self.store.get_meta('cvelist_snapshot_release') if not snapshot_complete else None
-                snapshots = [r for r in releases if any(a['name'].endswith('_all_CVEs_at_midnight.zip.zip') for a in r['assets'])]
+                snapshots = [r for r in releases if validate.release_assets(r['tag_name'], r['assets'], snapshot=True)]
                 if pinned:
                     snapshot_release = next((r for r in snapshots if r['tag_name'] == pinned), None)
                     if snapshot_release is None:
@@ -441,7 +433,27 @@ class CveListSource:
                 chosen = [r for day, r in sorted(by_day.items()) if day == _stamp(snapshot_release['tag_name']).date()]
             else:
                 chosen = [r for day, r in sorted(by_day.items()) if _stamp(r['tag_name']) > _stamp(cursor)]
+
+            def delta_order(candidate):
+                return (validate.release_asset(candidate['tag_name'], candidate['assets'])[1],
+                        _stamp(candidate['tag_name']))
+
             for release in chosen:
+                # The newest tag must be complete. Older incomplete releases
+                # cannot block it, since each daily delta is cumulative.
+                # Asset times order coverage; tags identify releases and break ties.
+                order = delta_order(release)
+                for candidate in releases:
+                    if _stamp(candidate['tag_name']).date() != order[0].date():
+                        continue
+                    try:
+                        candidate_order = delta_order(candidate)
+                    except ValueError:
+                        continue
+                    if candidate_order > order:
+                        release, order = candidate, candidate_order
+                if cursor and not reconcile and _stamp(release['tag_name']) <= _stamp(cursor):
+                    continue
                 result = self._archive(release, Origin.DELTA, now)
                 results.append(result)
                 # A later complete ingest must never move the cursor past an

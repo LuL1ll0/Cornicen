@@ -7,6 +7,8 @@ import unicodedata
 
 CVE_ID = re.compile(r'CVE-[0-9]{4}-[0-9]{4,}\Z')
 TAG = re.compile(r'cve_(\d{4}-\d{2}-\d{2})_(?:(\d{2})00Z|at_end_of_day)\Z')
+DELTA_ASSET = re.compile(r'(\d{4}-\d{2}-\d{2})_delta_CVEs_at_(\d{4}Z|end_of_day)\.zip\Z')
+SNAPSHOT_ASSET = re.compile(r'(\d{4}-\d{2}-\d{2})_all_CVEs_at_midnight\.zip\.zip\Z')
 SNAPSHOT_DIRECTORY = re.compile(r'cves/(\d{4}/(\d+xxx/)?)?\Z')
 SNAPSHOT_MANIFESTS = ('cves/delta.json', 'cves/deltaLog.json')
 
@@ -102,6 +104,38 @@ def release_stamp(tag):
     if hour is None:
         return stamp.replace(hour=23, minute=59, second=59)
     return stamp.replace(hour=int(hour))
+
+
+def release_assets(tag, assets, *, snapshot=False):
+    pattern = SNAPSHOT_ASSET if snapshot else DELTA_ASSET
+    day = release_stamp(tag).date().isoformat()
+    return [asset for asset in assets
+            if (match := pattern.fullmatch(asset['name'])) and match[1] == day]
+
+
+def release_asset(tag, assets, *, snapshot=False):
+    """Select one same-day archive and its coverage time, retaining tag identity."""
+    matches = release_assets(tag, assets, snapshot=snapshot)
+    kind = 'snapshot' if snapshot else 'delta'
+    if not matches:
+        raise ValueError(f'{tag}: Required release asset missing ({kind}, same date)')
+    if len(matches) != 1:
+        raise ValueError(f'{tag}: Expected exactly one {kind} release asset; found {len(matches)}')
+    asset = matches[0]
+    tag_stamp = release_stamp(tag)
+    stamp = tag_stamp.replace(hour=0, minute=0, second=0)
+    if not snapshot:
+        clock = DELTA_ASSET.fullmatch(asset['name'])[2]
+        if clock == 'end_of_day':
+            stamp = stamp.replace(hour=23, minute=59, second=59)
+        else:
+            try:
+                stamp = stamp.replace(hour=int(clock[:2]), minute=int(clock[2:4]))
+            except ValueError:
+                raise ValueError(f'{tag}: Invalid delta asset time: {asset["name"]}') from None
+        if abs(stamp - tag_stamp) > timedelta(hours=2):
+            raise ValueError(f'{tag}: delta asset time differs from tag by more than 2 hours: {asset["name"]}')
+    return asset, stamp
 
 
 def timestamp(value):
