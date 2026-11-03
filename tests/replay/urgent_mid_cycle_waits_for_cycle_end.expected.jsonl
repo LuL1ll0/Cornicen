@@ -1,0 +1,3 @@
+{"#": "An initially urgent activation waits for every ingest and sends all reasons once."}
+{"t": "2026-11-03T07:00:00Z", "watch": "", "record": "baseline", "reasons": ["baseline"], "urgency": "normal"}
+{"t": "2026-11-03T07:15:00Z", "watch": "service", "record": "CVE-2025-54831", "reasons": ["new match", "KEV added"], "urgency": "urgent"}

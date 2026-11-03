@@ -1,0 +1,4 @@
+{"#": "Spec §§6.5 and 9, with Task 5 binding conventions: a greater-than-20-percent row-count collapse is a failed ingest and triggers unhealthy followed by cycle-end recovery."}
+{"t": "2026-11-03T07:00:00Z", "watch": "", "record": "baseline", "reasons": ["baseline"], "urgency": "normal"}
+{"t": "2026-11-03T07:11:00Z", "watch": "", "record": "epss", "reasons": ["unhealthy"], "urgency": "health"}
+{"t": "2026-11-03T07:21:00Z", "watch": "", "record": "epss", "reasons": ["healthy"], "urgency": "health"}

@@ -1,0 +1,4 @@
+{"#": "Reactivation discards an undelivered correction so no stale clearance follows the new episode."}
+{"t": "2026-11-03T07:00:00Z", "watch": "", "record": "baseline", "reasons": ["baseline"], "urgency": "normal"}
+{"t": "2026-11-03T07:10:00Z", "watch": "service", "record": "CVE-2025-54831", "reasons": ["new match", "KEV added"], "urgency": "urgent"}
+{"t": "2026-11-03T07:30:00Z", "watch": "service", "record": "CVE-2025-54831", "reasons": ["new match"], "urgency": "urgent"}

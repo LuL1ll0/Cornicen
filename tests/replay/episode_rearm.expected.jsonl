@@ -1,0 +1,5 @@
+{"#": "Spec §7.2: affected to excluded to affected produces a correction and a second new match; replaying the final release adds nothing."}
+{"t": "2026-11-03T07:00:00Z", "watch": "", "record": "baseline", "reasons": ["baseline"], "urgency": "normal"}
+{"t": "2026-11-03T07:11:00Z", "watch": "service", "record": "CVE-2025-54831", "reasons": ["new match"], "urgency": "urgent"}
+{"t": "2026-11-03T08:00:00Z", "watch": "service", "record": "CVE-2025-54831", "reasons": ["correction"], "urgency": "normal"}
+{"t": "2026-11-03T08:11:00Z", "watch": "service", "record": "CVE-2025-54831", "reasons": ["new match"], "urgency": "urgent"}

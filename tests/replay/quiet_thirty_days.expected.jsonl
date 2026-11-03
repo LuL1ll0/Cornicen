@@ -1,0 +1,2 @@
+{"#": "Spec §§7.3 and 9: thirty days of fresh empty CVE deltas, successful unchanged KEV fetches and daily EPSS stay healthy and silent after baseline."}
+{"t": "2026-11-03T07:00:00Z", "watch": "", "record": "baseline", "reasons": ["baseline"], "urgency": "normal"}

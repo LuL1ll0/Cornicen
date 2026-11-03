@@ -1,0 +1,3 @@
+{"#": "The sent first episode is superseded; the unsent second episode gets no correction."}
+{"t": "2026-11-03T07:00:00Z", "watch": "", "record": "baseline", "reasons": ["baseline"], "urgency": "normal"}
+{"t": "2026-11-03T07:11:00Z", "watch": "service", "record": "CVE-2025-54831", "reasons": ["new match"], "urgency": "urgent"}

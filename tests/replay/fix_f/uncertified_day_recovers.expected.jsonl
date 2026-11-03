@@ -1,0 +1,5 @@
+{"#": "Health stays unhealthy until the day is certified; recovery delivers the omitted final-hour match once, including when successful releases are replayed."}
+{"t":"2026-11-02T00:00:00Z","watch":"","record":"baseline","reasons":["baseline"],"urgency":"normal"}
+{"t":"2026-11-03T08:00:00Z","watch":"","record":"cvelist","reasons":["unhealthy"],"urgency":"health"}
+{"t":"2026-11-03T09:00:00Z","watch":"service","record":"CVE-2025-54831","reasons":["new match"],"urgency":"urgent"}
+{"t":"2026-11-03T09:00:00Z","watch":"","record":"cvelist","reasons":["healthy"],"urgency":"health"}

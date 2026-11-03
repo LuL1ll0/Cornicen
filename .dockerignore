@@ -1,0 +1,7 @@
+**
+!Dockerfile
+!src/
+!src/cornicen/
+!src/cornicen/**
+**/__pycache__
+**/*.pyc

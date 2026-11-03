@@ -1,0 +1,15 @@
+# Curated spelling equivalents, not corporate ownership or product-family rules.
+# Extend locally with version and [[alias]] identities groups in the same format.
+version = "2026-11-03.2"
+
+[[alias]]
+identities = ["f5:nginx open source", "nginx:nginx", "f5:nginx"]
+
+[[alias]]
+identities = ["microsoft:windows", "microsoft corporation:windows"]
+
+[[alias]]
+identities = ["apache:http server", "apache software foundation:http server"]
+
+[[alias]]
+identities = ["cisco:ios", "cisco systems:ios"]

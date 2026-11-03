@@ -1,0 +1,2 @@
+{"#": "Spec §7.3: historical affected and exploited matches produce only one summary, after all three sources complete, with no later unchanged-data alert."}
+{"t": "2026-11-03T07:00:00Z", "watch": "", "record": "baseline", "reasons": ["baseline"], "urgency": "normal"}

@@ -1,0 +1,5 @@
+{"#": "Retention preserves the affected KEV pair and its evidence through a later catalog refresh."}
+{"t": "2026-11-03T07:00:00Z", "watch": "", "record": "baseline", "reasons": ["baseline"], "urgency": "normal"}
+{"t": "2026-11-03T07:10:00Z", "watch": "service", "record": "CVE-2025-54831", "reasons": ["new match", "KEV added"], "urgency": "urgent"}
+{"t": "2026-12-04T07:10:00Z", "watch": "", "record": "epss", "reasons": ["unhealthy"], "urgency": "health"}
+{"t": "2026-12-04T07:10:00Z", "watch": "", "record": "cvelist", "reasons": ["unhealthy"], "urgency": "health"}

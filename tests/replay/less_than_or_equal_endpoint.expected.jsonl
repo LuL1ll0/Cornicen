@@ -1,0 +1,3 @@
+{"#": "Spec §5: lessThanOrEqual includes 1.01.06 and the unaffected default excludes 1.01.07."}
+{"t": "2026-11-03T07:00:00Z", "watch": "", "record": "baseline", "reasons": ["baseline"], "urgency": "normal"}
+{"t": "2026-11-03T08:00:00Z", "watch": "endpoint", "record": "CVE-2013-20009", "reasons": ["new match"], "urgency": "normal"}

@@ -1,0 +1,19 @@
+db_path = "/data/cornicen.db"
+watchlist_path = "/config/watchlist.toml"
+# Optional local alias map, mounted read-only:
+# aliases_path = "/config/aliases.toml"
+ntfy_url = "https://ntfy.invalid"
+ntfy_topic = "cornicen-example"
+notifier = "ntfy"
+# Dry run: set notifier = "file"; JSONL stays in the data volume.
+notification_path = "/data/notifications.jsonl"
+owner = "<owner>"
+epss_threshold = 0.10
+digest_time = "08:00"
+timezone = "UTC"
+overdue_minutes = 60
+retention_days = 365
+
+# Optional, per-host User-Agent:
+# [user_agent_overrides]
+# "www.cisa.gov" = "Cornicen/0.1.0"

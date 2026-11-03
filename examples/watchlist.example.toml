@@ -1,0 +1,29 @@
+# Fictional inventory. Keep your actual inventory outside the repository.
+[[watch]]
+id = "proxy"
+name = "Example reverse proxy"
+match = ["nginx:nginx"] # Also matches F5's NGINX Open Source spelling, not NGINX Plus.
+version = "1.25.3"
+scheme = "semver"
+
+[[watch]]
+id = "router"
+name = "Example router"
+match = ["openwrt:openwrt"]
+version = "21.02.7"
+scheme = "dotted"
+eol = true
+
+[[watch]]
+id = "nginx-ui"
+name = "Example nginx admin interface"
+match = ["0xJacky:nginx-ui"]
+version = "2.3.0"
+scheme = "semver"
+
+[[watch]]
+id = "media"
+name = "Example media server"
+match = ["jellyfin:jellyfin"]
+version = "10.8.0"
+scheme = "semver"

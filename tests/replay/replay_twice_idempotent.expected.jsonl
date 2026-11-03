@@ -1,0 +1,3 @@
+{"#": "Spec §7.2 and §11: replaying same_cycle_coalesce twice on one store delivers only the first baseline summary and coalesced notification."}
+{"t": "2026-11-03T07:00:00Z", "watch": "", "record": "baseline", "reasons": ["baseline"], "urgency": "normal"}
+{"t": "2026-11-03T07:11:00Z", "watch": "service", "record": "CVE-2025-54831", "reasons": ["new match", "KEV added"], "urgency": "urgent"}

@@ -1,0 +1,9 @@
+.build/
+*.db
+__pycache__/
+
+# Private local deployment files used by the Compose example.
+/config/
+/secrets/
+/compose.yml
+.codex-tmp/

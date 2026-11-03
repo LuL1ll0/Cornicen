@@ -1,0 +1,3 @@
+{"#": "Spec §5: an unlisted opaque version inherits affected, but the explicit unaffected equality wins for the fixed version."}
+{"t": "2026-11-03T07:00:00Z", "watch": "", "record": "baseline", "reasons": ["baseline"], "urgency": "normal"}
+{"t": "2026-11-03T08:00:00Z", "watch": "old", "record": "CVE-2023-20577", "reasons": ["new match"], "urgency": "normal"}

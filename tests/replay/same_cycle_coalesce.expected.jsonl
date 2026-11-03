@@ -1,0 +1,3 @@
+{"#": "Spec §7.2: CVE, KEV and EPSS are processed in source order and new match plus KEV added are delivered once at cycle end."}
+{"t": "2026-11-03T07:00:00Z", "watch": "", "record": "baseline", "reasons": ["baseline"], "urgency": "normal"}
+{"t": "2026-11-03T07:11:00Z", "watch": "service", "record": "CVE-2025-54831", "reasons": ["new match", "KEV added"], "urgency": "urgent"}

@@ -1,0 +1,22 @@
+[[watch]]
+id = "proxy"
+name = "Reverse proxy"
+match = ["f5:nginx", "nginx:nginx"]
+version = "1.25.3"
+scheme = "semver"
+
+[[watch]]
+id = "router"
+name = "Edge router"
+match = ["openwrt:openwrt"]
+version = "21.02.7"
+scheme = "dotted"
+eol = true
+
+[[watch]]
+id = "nas"
+name = "File server"
+match = ["examplecorp:examplenas_os"]
+product_only = ["examplenas os"]
+version = "7.2.2-72806"
+scheme = "opaque"

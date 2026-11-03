@@ -1,0 +1,3 @@
+{"#": "Spec §4 reload: changing an excluded watch version into the stored vulnerable range emits one new match."}
+{"t": "2026-11-03T07:00:00Z", "watch": "", "record": "baseline", "reasons": ["baseline"], "urgency": "normal"}
+{"t": "2026-11-03T07:11:00Z", "watch": "router", "record": "CVE-2013-20009", "reasons": ["new match"], "urgency": "urgent"}

@@ -1,0 +1,2 @@
+{"#": "Spec §5 and §1 guarantee 3: KEV cannot override the explicit CNA exclusion or cause an alert for the excluded version."}
+{"t": "2026-11-03T07:00:00Z", "watch": "", "record": "baseline", "reasons": ["baseline"], "urgency": "normal"}

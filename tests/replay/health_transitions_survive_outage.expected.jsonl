@@ -1,0 +1,4 @@
+{"#": "Each health transition survives channel downtime as a separate row."}
+{"t": "2026-11-03T07:00:00Z", "watch": "", "record": "baseline", "reasons": ["baseline"], "urgency": "normal"}
+{"t": "2026-11-03T07:31:00Z", "watch": "", "record": "kev", "reasons": ["unhealthy"], "urgency": "health"}
+{"t": "2026-11-03T07:31:00Z", "watch": "", "record": "kev", "reasons": ["healthy"], "urgency": "health"}

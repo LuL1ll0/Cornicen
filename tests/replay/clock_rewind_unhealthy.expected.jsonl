@@ -1,0 +1,5 @@
+{"#": "Rewinding UTC makes persisted future coverage unhealthy without waiting for a poll."}
+{"t": "2026-11-03T07:00:00Z", "watch": "", "record": "baseline", "reasons": ["baseline"], "urgency": "normal"}
+{"t": "2026-11-01T07:00:00Z", "watch": "", "record": "cvelist", "reasons": ["unhealthy"], "urgency": "health"}
+{"t": "2026-11-01T07:00:00Z", "watch": "", "record": "kev", "reasons": ["unhealthy"], "urgency": "health"}
+{"t": "2026-11-01T07:00:00Z", "watch": "", "record": "epss", "reasons": ["unhealthy"], "urgency": "health"}

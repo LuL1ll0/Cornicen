@@ -1,0 +1,3 @@
+{"#": "Spec §§7.2 and 7.4: KEV added merges into the queued low-EPSS new match and promotes it at cycle end; the next digest sends nothing."}
+{"t": "2026-11-03T07:00:00Z", "watch": "", "record": "baseline", "reasons": ["baseline"], "urgency": "normal"}
+{"t": "2026-11-03T07:21:00Z", "watch": "service", "record": "CVE-2025-54831", "reasons": ["new match", "KEV added"], "urgency": "urgent"}

@@ -1,0 +1,26 @@
+services:
+  cornicen:
+    build: .
+    image: cornicen:local
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - cornicen-data:/data
+      - ./config/cornicen.toml:/config/cornicen.toml:ro
+      - ./config/watchlist.toml:/config/watchlist.toml:ro
+    environment:
+      CORNICEN_NTFY_TOKEN_FILE: /run/secrets/ntfy_token
+    secrets:
+      - ntfy_token
+
+volumes:
+  cornicen-data:
+
+secrets:
+  ntfy_token:
+    file: ./secrets/ntfy_token
