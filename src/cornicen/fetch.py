@@ -267,6 +267,8 @@ class Http:
             chunk = read(min(CHUNK_BYTES, limit - total + 1))
             deadline.check()
             if not chunk:
+                if isinstance(response, HTTPResponse) and response.length:
+                    raise EOFError('Truncated HTTP response body')
                 return
             total += len(chunk)
             if total > limit:

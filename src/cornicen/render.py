@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 import re
+import unicodedata
 
 from cornicen.model import Notification
 
@@ -108,4 +109,14 @@ def render(n: Notification) -> tuple[str, str, int, list[str]]:
     if body.get('fix'):
         lines.append('Fix: ' + body['fix'])
     lines.append('https://www.cve.org/CVERecord?id=' + n.record_id)
+    cve_title = body.get('cve_title')
+    if isinstance(cve_title, str):
+        cve_title = ' '.join(''.join(
+            ' ' if unicodedata.category(char).startswith('C') else char
+            for char in cve_title).split())[:160]
+    else:
+        cve_title = None
+    lines.append('CVE title: ' + (cve_title or 'unknown'))
+    score = body.get('cna_cvss_score')
+    lines.append('CNA CVSS score: ' + (str(score) if type(score) in (int, float) else 'unknown'))
     return title, '\n'.join(lines), 5 if n.urgency == 'urgent' else 3, ['rotating_light'] if n.urgency == 'urgent' else ['information_source']

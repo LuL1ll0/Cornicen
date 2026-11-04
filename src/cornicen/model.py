@@ -29,6 +29,7 @@ class IngestResult:
     epss: dict[str, tuple[float, float]] | None = None
     epss_date: date | None = None
     errors: tuple[str, ...] = ()
+    unchanged: bool = False
 
 
 @dataclass(frozen=True)

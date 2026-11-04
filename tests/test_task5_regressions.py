@@ -84,7 +84,7 @@ class Task5Tests(unittest.TestCase):
         self.assertEqual(row['due_at'], due)
         self.clock.now += timedelta(minutes=59)
         self.assertFalse(container_healthy(self.store, self.clock(), self.config))
-        self.engine.run_cycle([self.baseline[1], self.baseline[2]])
+        self.engine.run_cycle([replace(self.baseline[1], content_time=self.clock()), self.baseline[2]])
         row = self.store.connection.execute('SELECT * FROM outbox WHERE id=?', (row['id'],)).fetchone()
         self.assertEqual(row['urgency'], 'normal')
         self.assertEqual(row['due_at'], self.engine._digest())

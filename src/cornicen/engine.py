@@ -96,7 +96,12 @@ class Engine:
         return json.loads(value)
 
     def _record(self, record_id):
-        return self._json_row('records', 'id', record_id)
+        record = self._json_row('records', 'id', record_id)
+        if record is None and self.store.get_meta('kev_only:' + record_id):
+            # Evaluation context only; never store this as an accepted CNA record.
+            return {'cveMetadata': {'cveId': record_id, 'state': 'PUBLISHED'},
+                    'containers': {'cna': {'affected': []}}}
+        return record
 
     def _body(self, watch, record_id, result):
         epss = self.db.execute('SELECT score,pct,date FROM epss WHERE cve=?', (record_id,)).fetchone()
@@ -104,15 +109,18 @@ class Engine:
         containers = record.get('containers')
         cna = containers.get('cna') if isinstance(containers, dict) else None
         metrics = cna.get('metrics', []) if isinstance(cna, dict) else []
-        severity = max((value.get('baseScore', 0) for metric in metrics if isinstance(metric, dict)
+        score = max((value.get('baseScore', 0) for metric in metrics if isinstance(metric, dict)
             for key, value in metric.items() if key.startswith('cvss') and isinstance(value, dict)
-            and type(value.get('baseScore')) in (float, int)), default=0) if isinstance(metrics, list) else 0
+            and type(value.get('baseScore')) in (float, int)), default=None) if isinstance(metrics, list) else None
+        severity = score if score is not None else 0
         return {'severity': severity, 'watch_id': watch.id, 'record_id': record_id, 'name': watch.name,
                 'product': watch.match[0][1] if watch.match else watch.product_only[0],
                 'version': watch.version, 'eol': watch.eol, 'state': result.state.value,
                 'evidence': result.evidence, 'confidence': result.confidence,
                 'kev': self._json_row('kev', 'cve', record_id),
-                'epss': dict(epss) if epss else None, 'epss_threshold': self.config.epss_threshold}
+                'epss': dict(epss) if epss else None, 'epss_threshold': self.config.epss_threshold,
+                'cve_title': cna.get('title') if isinstance(cna, dict) else None,
+                'cna_cvss_score': score}
 
     def _urgent(self, body, reasons):
         if not set(reasons) & {'new match', 'KEV added'}:
@@ -120,8 +128,10 @@ class Engine:
         return bool(body.get('kev') or (body['state'] == 'affected' and body.get('epss')
                                        and body['epss']['score'] >= self.config.epss_threshold))
 
-    def _event(self, watch_id, record_id, kind, episode, body, immediate=False):
+    def _event(self, watch_id, record_id, kind, episode, body, immediate=False, resolution=False):
         key = f'{watch_id}|{record_id}|{kind}|{episode}'
+        if resolution:
+            key += '|resolution'
         added = self.db.execute('INSERT OR IGNORE INTO events VALUES (?,?,?,?,?,?)',
             (key, watch_id, record_id, kind, episode, self._now().isoformat())).rowcount
         if not added:
@@ -143,7 +153,7 @@ class Engine:
         return state == 'affected' or (state == 'unknown' and exploited)
 
     def _evaluate(self, record, record_id, baseline=False, kev_added=False,
-                  kev_baseline=False, reload=False, watches=None):
+                  kev_baseline=False, reload=False, watches=None, resolving_kev_only=False):
         if record is None:
             self._health('records', 'unhealthy', 'Missing stored record: ' + record_id)
             return
@@ -177,10 +187,10 @@ class Engine:
                 episode = 1 + self.db.execute(
                     'SELECT coalesce(max(episode),0) FROM events WHERE watch_id=? AND record_id=?',
                     (watch.id, record_id)).fetchone()[0]
-            clearing = was_active and result.state == State.NOT_AFFECTED
+            notified = old['notified'] if old else 0
+            clearing = (was_active or notified) and result.state == State.NOT_AFFECTED
             if clearing:
                 episode += 1
-            notified = old['notified'] if old else 0
             historical = old['baseline'] if old else int(baseline or kev_baseline)
             self.db.execute('''INSERT INTO pairs VALUES (?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(watch_id,record_id) DO UPDATE SET state=excluded.state,
@@ -196,10 +206,12 @@ class Engine:
                 self._drop_activation(watch.id, record_id)
                 if notified and not reload:
                     self._event(watch.id, record_id, 'correction', episode - 1, body)
+            elif resolving_kev_only and old and notified and old['state'] != result.state.value:
+                self._event(watch.id, record_id, 'correction', episode, body, resolution=True)
             if active and not was_active:
                 self.db.execute('DELETE FROM outbox WHERE pair_key=? AND sent_at IS NULL',
                                 (f'{watch.id}|{record_id}|correction',))
-            if active and not was_active and not baseline and not kev_baseline:
+            if active and not was_active and not baseline and not (kev_baseline and historical):
                 self._event(watch.id, record_id, 'new match', episode, body)
             if active and kev_added and not kev_baseline:
                 self._event(watch.id, record_id, 'KEV added', episode, body)
@@ -257,14 +269,20 @@ class Engine:
         kev = self._json_row('kev', 'cve', record_id)
         self._evaluate(record, record_id, baseline=baseline,
                        kev_added=bool(kev) and not seen
-                       and not self.store.get_meta('kev_baseline:' + record_id))
+                       and not self.store.get_meta('kev_baseline:' + record_id),
+                       resolving_kev_only=bool(self.store.get_meta('kev_only:' + record_id)))
+        self.db.execute('DELETE FROM meta WHERE k=?', ('kev_only:' + record_id,))
         if kev:
             self.db.execute('INSERT OR IGNORE INTO kev_seen VALUES (?)', (record_id,))
 
     def _evaluate_kev(self, record, record_id):
         seen = self.db.execute('SELECT 1 FROM kev_seen WHERE cve=?', (record_id,)).fetchone()
-        self._evaluate(record, record_id, kev_added=not seen,
-                       kev_baseline=bool(self.store.get_meta('kev_baseline:' + record_id)))
+        baseline = bool(self.store.get_meta('record_baseline:' + record_id))
+        self._evaluate(record, record_id,
+                       baseline=baseline,
+                       kev_added=not seen and self._json_row('kev', 'cve', record_id) is not None,
+                       kev_baseline=bool(self.store.get_meta('kev_baseline:' + record_id))
+                       or (baseline and not self.store.get_meta('baseline_complete')))
         self.db.execute('INSERT OR IGNORE INTO kev_seen VALUES (?)', (record_id,))
 
     def _retry_records(self):
@@ -341,6 +359,25 @@ class Engine:
 
     def _ingest(self, ingest):
         source = ingest.source
+        if ingest.unchanged and ingest.status == FetchStatus.COMPLETE and not ingest.errors:
+            self.db.execute("DELETE FROM retry_queue WHERE source=? AND record_id='@fetch'", (source,))
+            pending = self.db.execute('SELECT 1 FROM retry_queue WHERE source=? UNION ALL SELECT 1 FROM dead_letters WHERE source=? LIMIT 1',
+                                      (source, source)).fetchone()
+            if pending is None:
+                self.db.execute('DELETE FROM meta WHERE k=?', ('last_error:' + source,))
+            self._health_verdicts[source] = (('unhealthy', 'Incomplete ingest; retry pending', 'incomplete') if pending else
+                                             ('healthy', 'Successful unchanged fetch', 'recovered'))
+            return
+        if source == 'kev' and ingest.status != FetchStatus.FAILED and ingest.content_time:
+            previous = self.db.execute("SELECT content_time FROM cursors WHERE source='kev'").fetchone()
+            pending = self.store.get_meta('pending_ingest:kev')
+            times = [previous[0] if previous else None,
+                     json.loads(pending).get('content_time') if pending else None]
+            if any(stamp and ingest.content_time < validate.timestamp(stamp) for stamp in times):
+                detail = 'KEV dateReleased regressed'
+                self._retry(source, '@fetch', detail)
+                self._health_verdicts[source] = ('unhealthy', detail, 'failed')
+                return
         release_identity = release_position = None
         if source == 'cvelist':
             if ingest.cursor and validate.TAG.fullmatch(ingest.cursor):
@@ -384,7 +421,8 @@ class Engine:
                     else:
                         self.db.execute('DELETE FROM invalid_revisions WHERE record_id=?', (key,))
                         self.store.put_record(key, record, self._now().isoformat())
-                    self.store.set_meta('record_baseline:' + key, '1' if baseline else '')
+                    if baseline or not self.store.get_meta('record_baseline:' + key):
+                        self.store.set_meta('record_baseline:' + key, '1' if baseline else '')
                     if not self._isolated(source, record,
                                           lambda record=record: self._apply_record(record, baseline)):
                         complete = False
@@ -394,14 +432,22 @@ class Engine:
                 self.db.executemany('INSERT INTO incoming_kev VALUES (?,?)',
                                     ((key, json.dumps(entry)) for key, entry in payload.items()))
                 self._dirty_evidence('kev', ('json',), transport_complete)
+                removed = [row[0] for row in self.db.execute(
+                    'SELECT cve FROM kev EXCEPT SELECT cve FROM incoming_kev')] if transport_complete else []
                 if transport_complete:
                     self.db.execute('DELETE FROM kev')
                 self.db.execute('INSERT OR REPLACE INTO kev SELECT * FROM incoming_kev')
                 self.db.execute('DELETE FROM incoming_kev')
-                for record_id in payload:
-                    if first_kev:
+                for record_id in list(payload) + removed:
+                    if first_kev and record_id in payload:
                         self.store.set_meta('kev_baseline:' + record_id, '1')
                     record = self._record(record_id)
+                    if (record is None and record_id in payload and not first_kev
+                            and not self.store.get_meta('kev_baseline:' + record_id)):
+                        if not self.store.get_meta('baseline_complete'):
+                            self.store.set_meta('kev_baseline:' + record_id, '1')
+                        self.store.set_meta('kev_only:' + record_id, '1')
+                        record = self._record(record_id)
                     if record is None:
                         if self.db.execute('SELECT 1 FROM pairs WHERE record_id=?', (record_id,)).fetchone():
                             self._evaluate(None, record_id)

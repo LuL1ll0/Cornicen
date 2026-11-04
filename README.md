@@ -34,6 +34,7 @@ cp examples/watchlist.example.toml config/watchlist.toml
 ```
 
 Edit the config: replace the fictional ntfy URL and topic with your channel,
+using an HTTP(S) `ntfy_url` without userinfo, a query string or a fragment (path prefixes are allowed),
 set your repository owner for the default User-Agent, and choose your digest time
 and IANA time zone. Edit the watch list for your inventory. Create
 `secrets/ntfy_token` with your ntfy token using your editor, and keep it outside
@@ -70,6 +71,8 @@ items and affected items at or above the EPSS threshold are urgent. The first
 bootstrap sends a historical summary; later changes produce alerts.
 
 CVE List polls hourly, KEV every six hours, EPSS daily, and the outbox every minute.
+An older KEV `dateReleased` is a failed fetch: the accepted catalog and cursor
+stay unchanged, and KEV health stays or becomes unhealthy, including after restart.
 SIGTERM completes the current cycle and exits successfully. One JSON line per
 cycle reports source health and counts; it contains no inventory or record text.
 Delivery retries after 1, 2, 4, 8, 16, 32, then 60 minutes, capped at one hour.
@@ -138,7 +141,7 @@ to `match` or a local alias group. For example, F5 publishes nginx as
 `f5:nginx`, while keeping `F5:NGINX Plus` separate. The example inventory uses
 real CNA identities for nginx, OpenWrt, nginx-ui and Jellyfin. Review near
 misses after tuning to check coverage.
-Collisions are reported without rejecting an otherwise valid list.
+Collisions are reported without rejecting an otherwise valid list by default.
 
 The running scheduler reloads on file modification. Startup also compares the
 file with the last applied watch list stored in SQLite and re-matches changes
@@ -161,6 +164,81 @@ without known exploitation are omitted.
 healthy and 1 otherwise, including when the database is unavailable.
 Run locally on Python 3.11+ with `PYTHONPATH=src python3 -m cornicen --config
 /path/to/cornicen.toml status`. Runtime dependencies are standard library only.
+
+### Local CLI diagnostics
+
+Use the same `--config PATH` option as `status`. These commands perform no
+fetches or deliveries and never migrate databases. Database commands open the
+source read-only; backups write only a new destination. Version comparison works
+without configuration or a database.
+
+```sh
+cornicen db backup --output /backups/cornicen.db
+cornicen report --watch proxy --group open --format jsonl
+cornicen version compare 3.14.0rc1 3.14.0 --scheme python
+cornicen explain CVE-2026-4321 --watch proxy
+cornicen outbox list
+cornicen outbox list --failed
+cornicen status --json
+cornicen watch check --file /config/draft.toml --strict --days 90
+```
+
+- `db backup --output PATH`: copy the existing database through SQLite's backup
+  API, including committed WAL data, into a private mode-0600 staging file beside
+  PATH. Check the copy with `PRAGMA quick_check`, then publish without overwriting
+  any destination (including the source). Failure exits 1 and removes only this
+  invocation's staging file. The backup contains SQLite state only; back up the
+  watch list, configuration and alias files separately. Backups contain private
+  inventory and should stay local.
+- `report [--watch WATCH_ID ...] [--group GROUP ...] [--format {text,jsonl}]`:
+  intersect the selected watches and groups. Repeat either filter to select
+  multiple values. Groups are `baseline-affected`, `baseline-exploited`, `open`,
+  `not-affected` and `dead-letters`, in that order. Watch filters exclude dead
+  letters because those rows have no watch ID. Text (the default) keeps the
+  existing headings and reports filtered counts. JSONL emits only row objects,
+  adding `schema_version: 1` and `group` to the existing fields, ordered within
+  each group by watch/CVE (or source/CVE for dead letters). Empty JSONL is empty
+  output. Exports contain private inventory and should stay local.
+- `version compare LEFT RIGHT --scheme {semver,dotted,debian,python,opaque}`:
+  print exactly `less`, `equal`, `greater` or `unknown`. Decidable results exit 0;
+  unknown exits 1; argument errors exit 2. This command loads no configuration
+  and opens no database. Opaque equality normalizes case and whitespace like
+  applicability evaluation. This compares literal versions, not CNA range
+  coverage, support status or whether an upgrade fixes a CVE.
+
+Alerts append `CVE title` (one line, at most 160 characters) and `CNA CVSS score`.
+The score is the highest numeric retained CNA base score used for digest ordering;
+ADP scores are excluded. Missing title/score values, including old queued bodies,
+show `unknown`; a valid score of 0.0 remains visible. Existing fields retain their
+order, and EOL remains the leading warning. Urgency and digest ordering do not change.
+
+- `explain CVE_ID --watch WATCH_ID` shows the current watch version/scheme,
+  applicability, exploitation, evidence, confidence and alias-map version.
+  Stored pair state is labeled separately because an edited watch file may
+  differ from the scheduler's last applied state. Identity misses exit 0;
+  unknown watches and unavailable retained records exit 1. Missing data is
+  unknown, never a safe result.
+- `outbox list [--failed]` prints pending rows as JSON lines followed by
+  `Pending rows: N`. Rows include ID, watch/CVE or operational component,
+  urgency, reasons, enqueue/due times, attempts, retry time and `eligible_at`
+  (`max(due_at, next_attempt_at or due_at)`), ordered by eligibility then ID.
+  `--failed` selects attempts greater than zero. Dirty rows say `awaiting
+  revalidation`; displayed scheduling may change after revalidation. Health
+  and baseline rows remain visible. An empty queue exits 0; unavailable DBs exit 1.
+- `status --json` emits one object with exactly `schema_version` (1),
+  `available`, `container_healthy`, `sources`, `baseline_complete` and
+  `reconcile_at`. Each source has `state`, sanitized `detail`, `cursor` and
+  `content_time`. Flags are booleans; absent cursor/time/reconciliation values
+  are null. An unavailable database emits false availability/health, empty
+  sources, false baseline completion and null reconciliation, then exits 1.
+  Available status exits 0 even when unhealthy; use `container_healthy` for
+  monitoring. Plain `status` and `healthcheck` keep their existing behavior.
+- `watch check [--file PATH] [--strict]` validates the candidate file only for
+  this invocation. It works without a database. Explicit `--file` or `--strict`
+  preflight prints detailed local validation errors; plain `watch check` keeps
+  its sanitized validation errors. `--strict` exits 1 for identity collisions or alias-map
+  warnings; default warnings exit 0. Invalid files exit 1 in either mode.
+  Neither mode rewrites the active file or persists validation problems.
 
 Stored CVEs use the [projection documented in the spec](docs/spec.md#66-stored-cve-projection):
 metadata, affected products/versions, title, CNA short name and CNA/ADP CVSS.

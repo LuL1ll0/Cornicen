@@ -128,6 +128,7 @@ Implemented to the CVE 5 schema, with boundary fixtures for each rule:
 
 1. An authoritative version result from the CNA record (affected or not affected) decides.
 2. A KEV listing without version data never overrides a CNA "not affected." With no CNA version data, a KEV identity match yields **unknown, exploited** — which is alerted (§7) because exploitation makes "check now" worth a ping.
+   This rule applies even before the CNA record is retained.
 3. `product_only` matches cap at unknown, including a real product name paired with a placeholder vendor (`n/a`, empty, `unknown`, etc.). Placeholder vendors never establish a scoped exact identity; placeholder products never match, even through `product_only` or KEV. The loose match requires explicit opt-in for that product name.
 4. Rejected records are **not affected** from the moment the rejection is ingested.
 
@@ -142,6 +143,7 @@ First run downloads the latest **full snapshot** of CVE List V5, then the cumula
 - Each source keeps a durable cursor (CVE List: last fully processed release; KEV: `catalogVersion`; EPSS: score date).
 - CVE List deltas are **cumulative since midnight UTC**. Catch-up processes one release per missed day, in date order, plus the latest release today. For past days it fetches the direct GitHub `/releases/tags/` endpoint for `cve_YYYY-MM-DD_at_end_of_day`, ordered after `2300Z`, with asset `YYYY-MM-DD_delta_CVEs_at_end_of_day.zip`; on HTTP 404 it falls back to the latest listed hourly `cve_YYYY-MM-DD_HH00Z` release. End-of-day releases need not carry a snapshot. Listing stops after passing the cursor day; HTTP 422 “Only the first 1000 results are available” ends the listing. A missed day older than the available releases requires full-snapshot reconciliation. If a day is missing, Cornicen reconciles from the latest available full snapshot and says so in health output. Unknown tags are skipped with a warning; a listing with no supported releases fails, including during bootstrap. Without a completed CVE List fetch, bootstrap becomes unhealthy after a two-hour grace period. Poll deadlines and loop elapsed time use a monotonic clock; UTC remains authoritative for metadata and digests. Persisted content times and cursor timestamps are checked for future skew; timestamps more than two hours in the future are unhealthy and cannot advance coverage.
 - The cursor and committed CVE release identity advance only with the release's records and resulting events in one transaction. Already committed or older releases are ignored before applying records; incomplete releases remain retryable.
+- A KEV catalog whose `dateReleased` precedes the stored content time is a failed fetch, including after restart. It leaves the accepted catalog and cursor untouched and keeps or makes KEV unhealthy.
 
 ### 6.3 Completeness
 
@@ -241,10 +243,13 @@ Stated in the README exactly like this:
 - **v1.1 caveat:** repository-specific checks (latest-release, GitHub advisories) and per-CVE lookups reveal what you watch to those hosts. Each will be opt-in and say so.
 - Runs as non-root, read-only root filesystem, writable volume only for SQLite, watch list mounted read-only. No inbound port. Secrets (ntfy token) from environment or file, never the shareable TOML.
 - User-Agent configurable, default `Cornicen/<version> (+<repo URL>)`.
+- `ntfy_url` must be HTTP(S) with a host and no userinfo, query string or fragment. Path prefixes are allowed; invalid values are rejected at configuration loading with an error naming the key.
 
 ## 9. Health
 
 - Cornicen keeps **one state per source**. Its detail names **fetch health** (did requests succeed), **completeness** (§6.3), and **content-age findings** against a per-source expectation. Failed or partial ingestion retains a sanitised last error (control characters removed, at most 200 characters) in health detail and `cornicen status`:
+
+A successful unchanged CVE release listing clears fetch failure without advancing coverage. Pending record retries and content-age problems still keep the source unhealthy.
 
 | Source | Expected to change | Stale when |
 |---|---|---|
@@ -262,6 +267,76 @@ Stated in the README exactly like this:
 - Budget: ≤256 MB steady state; bootstrap streams the snapshot rather than holding it in memory.
 - Retention: record history prunable by setting; event keys and baseline markers never pruned.
 - Python (§13).
+
+### Local CLI commands
+
+All commands accept the global `--config PATH`. Existing commands are `run`,
+`status`, `healthcheck`, `report`, `watch check [--days N]`,
+`replay --list PATH` and `notify test`.
+
+- `db backup --output PATH`: copy the existing database through SQLite's backup
+  API, including committed WAL data, into a private mode-0600 staging file beside
+  PATH. Check the copy with `PRAGMA quick_check`, then publish without overwriting
+  any destination (including the source). Failure exits 1 and removes only this
+  invocation's staging file. The backup contains SQLite state only; back up the
+  watch list, configuration and alias files separately. Backups contain private
+  inventory and should stay local.
+- `report [--watch WATCH_ID ...] [--group GROUP ...] [--format {text,jsonl}]`:
+  intersect the selected watches and groups. Repeat either filter to select
+  multiple values. Groups are `baseline-affected`, `baseline-exploited`, `open`,
+  `not-affected` and `dead-letters`, in that order. Watch filters exclude dead
+  letters because those rows have no watch ID. Text (the default) keeps the
+  existing headings and reports filtered counts. JSONL emits only row objects,
+  adding `schema_version: 1` and `group` to the existing fields, ordered within
+  each group by watch/CVE (or source/CVE for dead letters). Empty JSONL is empty
+  output. Exports contain private inventory and should stay local.
+- `version compare LEFT RIGHT --scheme {semver,dotted,debian,python,opaque}`:
+  print exactly `less`, `equal`, `greater` or `unknown`. Decidable results exit 0;
+  unknown exits 1; argument errors exit 2. This command loads no configuration
+  and opens no database. Opaque equality normalizes case and whitespace like
+  applicability evaluation. This compares literal versions, not CNA range
+  coverage, support status or whether an upgrade fixes a CVE.
+
+Alerts append `CVE title` (one line, at most 160 characters) and `CNA CVSS score`.
+The score is the highest numeric retained CNA base score used for digest ordering;
+ADP scores are excluded. Missing title/score values, including old queued bodies,
+show `unknown`; a valid score of 0.0 remains visible. Existing fields retain their
+order, and EOL remains the leading warning. Urgency and digest ordering do not change.
+
+- `explain CVE_ID --watch WATCH_ID`: resolve the locally retained CVE and KEV
+  against the current watch file. Print version/scheme, applicability,
+  exploitation, evidence, confidence and alias-map version. Label stored pair
+  state separately from current-file evaluation. An identity miss exits 0;
+  unknown watch IDs and unavailable retained records exit 1. Missing retained
+  data is explicitly unavailable, never not affected.
+- `outbox list [--failed]`: print pending rows only, ordered by effective
+  eligibility then row ID. Include ID, watch/CVE or operational component,
+  urgency, reasons, enqueue/due times, attempts, retry time and `eligible_at =
+  max(due_at, next_attempt_at or due_at)`. `--failed` selects attempts greater
+  than zero. Dirty rows say `awaiting revalidation`; health and baseline rows
+  remain visible without a watch ID. Output is JSON lines followed by
+  `Pending rows: N`; an empty queue exits 0, unavailable databases exit 1.
+  Persisted scheduling may change during revalidation.
+- `status --json`: emit one object with exactly `schema_version` (integer 1),
+  `available` (boolean), `container_healthy` (boolean), `sources` (object),
+  `baseline_complete` (boolean) and `reconcile_at` (string or null).
+  Each source has exactly `state`, sanitized `detail`, `cursor` and
+  `content_time`; the latter two are strings or null. Reuse source assessment
+  and container health policies. An unavailable/unreadable database emits
+  false availability/health/baseline, empty sources and null reconciliation,
+  then exits 1. Available status exits 0 even when unhealthy. Plain `status`
+  and `healthcheck` retain their behavior.
+- `watch check [--days N] [--file PATH] [--strict]`: optionally validate a
+  candidate instead of the configured file for this invocation. Strict mode
+  exits 1 for identity collisions or existing alias-map warnings; default
+  warnings exit 0. Validation errors exit 1 in either mode. Explicit `--file`
+  or `--strict` preflight shows detailed problems locally; plain `watch check`
+  retains sanitized errors. Validation works without a database, never rewrites watch
+  files, and never persists or notifies validation problems.
+
+These diagnostics make no network or notification calls. They open existing
+databases read-only without migrations and leave state unchanged. No new
+configuration keys are required.
 
 ## 11. Testing and acceptance
 

@@ -34,7 +34,7 @@ def zipped(entries, *, snapshot=False, compression=ZIP_STORED):
 
 
 def record(number=10000, **extra):
-    return json.dumps({'cveMetadata': {'cveId': f'CVE-2026-{number}', 'state': 'PUBLISHED'}, 'containers': {'cna': {}}, **extra})
+    return json.dumps({'cveMetadata': {'cveId': f'CVE-2026-{number}', 'state': 'PUBLISHED'}, 'containers': {'cna': {'affected': []}}, **extra})
 
 
 # Reuse the source setup helpers without inheriting its tests a second time.

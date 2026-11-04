@@ -40,6 +40,6 @@ class KevSource:
             self.modified = response.headers.get('last-modified')
             self.accepted = ingest
             return [ingest]
-        except (OSError, HTTPException, ValueError, TypeError, KeyError, RecursionError) as error:
+        except (OSError, EOFError, HTTPException, ValueError, TypeError, KeyError, RecursionError) as error:
             return [IngestResult('kev', FetchStatus.FAILED, Origin.CATALOG, None, None,
                                  errors=(f'{type(error).__name__}: {error}',))]

@@ -15,6 +15,7 @@ from cornicen.engine import Engine
 from cornicen.fetch import Http
 from cornicen.health import assess, container_healthy
 from cornicen.identity import AliasMap, normalise, is_placeholder
+from cornicen.maintenance import backup
 from cornicen.model import Notification
 from cornicen.notify.file import FileNotifier
 from cornicen.notify.ntfy import NtfyNotifier, post
@@ -24,6 +25,7 @@ from cornicen.sources.epss import EpssSource
 from cornicen.sources.kev import KevSource
 from cornicen.store import Store
 from cornicen.watchlist import collisions, load_watchlist, WatchlistError
+from cornicen.versions import Scheme, compare
 
 
 def _notifier(config):
@@ -121,16 +123,142 @@ def replay(store, watches, aliases, path):
     return 0 if success else 1
 
 
+def explain(store, watches, aliases, cve, watch_id):
+    watch = next((watch for watch in watches if watch.id == watch_id), None)
+    if watch is None:
+        print('unknown watch ID: ' + watch_id)
+        return 1
+    print(f'Current-file evaluation: {watch.id} {cve}; version={watch.version}; '
+          f'scheme={watch.scheme.value}; alias_map_version={aliases.version}')
+    pair = store.connection.execute(
+        'SELECT * FROM pairs WHERE watch_id=? AND record_id=?', (watch_id, cve)).fetchone()
+    print('Stored pair state: ' + (json.dumps(dict(pair), sort_keys=True) if pair else 'none'))
+    row = store.connection.execute('SELECT json FROM records WHERE id=?', (cve,)).fetchone()
+    if row is None:
+        print('Current decision: retained record unavailable; applicability unknown')
+        return 1
+    kev = store.connection.execute('SELECT json FROM kev WHERE cve=?', (cve,)).fetchone()
+    result = resolve(_record(row), json.loads(kev[0]) if kev else None, watch, aliases)
+    if result is None:
+        print('Current decision: identity miss; no identity match')
+    else:
+        print(f'Current decision: applicability={result.state.value}; '
+              f'exploited={str(result.exploited).lower()}; confidence={result.confidence}')
+        print('Evidence: ' + result.evidence)
+    return 0
+
+
+def outbox_list(store, failed):
+    query = '''SELECT *, max(due_at,coalesce(next_attempt_at,due_at)) AS eligible_at
+               FROM outbox WHERE sent_at IS NULL'''
+    if failed:
+        query += ' AND attempts > 0'
+    count = 0
+    for row in store.connection.execute(query + ' ORDER BY eligible_at,id'):
+        body = json.loads(row['body_json'])
+        item = {key: row[key] for key in ('id', 'urgency', 'enqueued_at', 'due_at',
+                                         'attempts', 'next_attempt_at', 'eligible_at')}
+        item.update(watch_id=body.get('watch_id'), record_id=body.get('record_id'),
+                    component=None if body.get('watch_id') else body.get('record_id'),
+                    pair_key=row['pair_key'], reasons=json.loads(row['reasons_json']),
+                    revalidation='awaiting revalidation' if row['dirty'] else 'clean')
+        print(json.dumps(item, sort_keys=True))
+        count += 1
+    print(f'Pending rows: {count}')
+    return 0
+
+
+def status_json(store, now, config):
+    result = dict(schema_version=1, available=False, container_healthy=False,
+                  sources={}, baseline_complete=False, reconcile_at=None)
+    if store is not None:
+        sources = {'cvelist', 'kev', 'epss'}
+        sources.update(row[0] for row in store.connection.execute('SELECT source FROM health'))
+        for source in sorted(sources):
+            state, detail = assess(source, store, now, config)
+            cursor = store.connection.execute(
+                'SELECT value,content_time FROM cursors WHERE source=?', (source,)).fetchone()
+            result['sources'][source] = dict(
+                state=state, detail=safe_message(RuntimeError(detail), config.ntfy_token),
+                cursor=cursor['value'] if cursor else None,
+                content_time=cursor['content_time'] if cursor else None)
+        result.update(available=True, container_healthy=container_healthy(store, now, config),
+                      baseline_complete=bool(store.get_meta('baseline_complete')),
+                      reconcile_at=store.get_meta('reconcile_at'))
+    print(json.dumps(result, sort_keys=True))
+    return 0 if result['available'] else 1
+
+
+REPORT_GROUPS = ('baseline-affected', 'baseline-exploited', 'open', 'not-affected', 'dead-letters')
+
+
+def report(store, args):
+    pair_columns = 'SELECT watch_id,record_id,state,alias_map_version FROM pairs WHERE '
+    groups = (
+        ('Baseline: affected', pair_columns + "baseline=1 AND state='affected'"),
+        ('Baseline: exploited (unknown version)', pair_columns +
+         "baseline=1 AND state='unknown' AND exploited=1"),
+        ('Open matches', pair_columns +
+         "baseline=0 AND (state='affected' OR (state='unknown' AND exploited=1))"),
+        ('Not affected (recorded, no alert)', pair_columns + "state='not_affected'"),
+        ('Dead letters', 'SELECT source,record_id,attempts FROM dead_letters'),
+    )
+    selected = []
+    for (group, (label, query)) in zip(REPORT_GROUPS, groups):
+        if args.group and group not in args.group:
+            continue
+        params = ()
+        if args.watch:
+            if group == 'dead-letters':
+                continue
+            query += ' AND watch_id IN (' + ','.join('?' for _ in args.watch) + ')'
+            params = tuple(args.watch)
+        selected.append((group, label, query, params))
+    if args.format == 'text':
+        print('Summary: ' + '; '.join(
+            f'{label}: {store.connection.execute("SELECT count(*) FROM (" + query + ")", params).fetchone()[0]}'
+            for _, label, query, params in selected))
+    for group, label, query, params in selected:
+        if args.format == 'text':
+            print(label + ':')
+        order = 'source,record_id' if group == 'dead-letters' else 'watch_id,record_id'
+        for row in store.connection.execute(query + ' ORDER BY ' + order, params):
+            item = dict(row)
+            if args.format == 'jsonl':
+                item.update(schema_version=1, group=group)
+            print(json.dumps(item, sort_keys=True))
+    return 0
+
+
 def _parser():
     parser = argparse.ArgumentParser(prog='cornicen')
     parser.add_argument('--config', type=Path,
                         default=Path(os.environ.get('CORNICEN_CONFIG', '/config/cornicen.toml')))
     commands = parser.add_subparsers(dest='command', required=True)
-    for name in ('run', 'status', 'healthcheck', 'report'):
+    for name in ('run', 'healthcheck'):
         commands.add_parser(name)
+    report_parser = commands.add_parser('report')
+    report_parser.add_argument('--watch', action='append')
+    report_parser.add_argument('--group', choices=REPORT_GROUPS, action='append')
+    report_parser.add_argument('--format', choices=('text', 'jsonl'), default='text')
+    db = commands.add_parser('db').add_subparsers(dest='db_command', required=True)
+    db.add_parser('backup').add_argument('--output', type=Path, required=True)
+    version = commands.add_parser('version').add_subparsers(dest='version_command', required=True)
+    comparison = version.add_parser('compare')
+    comparison.add_argument('left')
+    comparison.add_argument('right')
+    comparison.add_argument('--scheme', choices=[scheme.value for scheme in Scheme], required=True)
+    commands.add_parser('status').add_argument('--json', action='store_true')
+    explanation = commands.add_parser('explain')
+    explanation.add_argument('cve')
+    explanation.add_argument('--watch', required=True)
+    queue = commands.add_parser('outbox').add_subparsers(dest='outbox_command', required=True)
+    queue.add_parser('list').add_argument('--failed', action='store_true')
     watch = commands.add_parser('watch').add_subparsers(dest='watch_command', required=True)
     check = watch.add_parser('check')
     check.add_argument('--days', type=int, default=90)
+    check.add_argument('--file', type=Path)
+    check.add_argument('--strict', action='store_true')
     acceptance = commands.add_parser('replay')
     acceptance.add_argument('--list', type=Path, required=True)
     commands.add_parser('notify').add_subparsers(dest='notify_command', required=True).add_parser('test')
@@ -142,6 +270,15 @@ def main(argv=None):
     store = None
     config = None
     try:
+        if args.command == 'version':
+            scheme = Scheme(args.scheme)
+            left, right = args.left, args.right
+            if scheme == Scheme.OPAQUE:
+                left, right = normalise(left), normalise(right)
+            relation = compare(left, right, scheme)
+            print('unknown' if relation is None else
+                  'less' if relation < 0 else 'greater' if relation > 0 else 'equal')
+            return 1 if relation is None else 0
         config = load_config(args.config, os.environ)
         now = lambda: datetime.now(timezone.utc)
         if args.command == 'notify':
@@ -150,12 +287,18 @@ def main(argv=None):
             delivered = _notifier(config).send(n)
             print('delivered' if delivered else 'delivery failed')
             return 0 if delivered else 1
-        if args.command == 'watch' and not Path(config.db_path).is_file():
+        if args.command == 'watch':
             if args.days <= 0:
                 raise ValueError('days must be positive')
-            return watch_check(None, load_watchlist(config.watchlist_path),
-                               AliasMap.load(extra=config.aliases_path), args.days, now())
+            watches = load_watchlist(args.file if args.file is not None else config.watchlist_path)
+            aliases = AliasMap.load(extra=config.aliases_path)
+            if Path(config.db_path).is_file():
+                store = Store(config.db_path, read_only=True)
+            watch_check(store, watches, aliases, args.days, now())
+            return 1 if args.strict and (aliases.warnings or collisions(watches, aliases)) else 0
         if args.command != 'run' and not Path(config.db_path).is_file():
+            if args.command == 'status' and args.json:
+                return status_json(None, now(), config)
             print('unhealthy: database unavailable')
             return 1
         store = Store(config.db_path, read_only=args.command != 'run')
@@ -166,6 +309,8 @@ def main(argv=None):
             print('healthy' if healthy else 'unhealthy')
             return 0 if healthy else 1
         if args.command == 'status':
+            if args.json:
+                return status_json(store, now(), config)
             sources = {'cvelist', 'kev', 'epss'}
             sources.update(row[0] for row in store.connection.execute('SELECT source FROM health'))
             for source in sorted(sources):
@@ -175,32 +320,19 @@ def main(argv=None):
             print('container: ' + ('healthy' if container_healthy(store, now(), config) else 'unhealthy'))
             print('reconcile: ' + (store.get_meta('reconcile_at') or 'none'))
             return 0
+        if args.command == 'outbox':
+            return outbox_list(store, args.failed)
         if args.command == 'report':
-            pair_columns = 'SELECT watch_id,record_id,state,alias_map_version FROM pairs WHERE '
-            groups = (
-                ('Baseline: affected', pair_columns + "baseline=1 AND state='affected'"),
-                ('Baseline: exploited (unknown version)', pair_columns +
-                 "baseline=1 AND state='unknown' AND exploited=1"),
-                ('Open matches', pair_columns +
-                 "baseline=0 AND (state='affected' OR (state='unknown' AND exploited=1))"),
-                ('Not affected (recorded, no alert)', pair_columns + "state='not_affected'"),
-                ('Dead letters', 'SELECT source,record_id,attempts FROM dead_letters'),
-            )
-            print('Summary: ' + '; '.join(
-                f'{label}: {store.connection.execute("SELECT count(*) FROM (" + query + ")").fetchone()[0]}'
-                for label, query in groups))
-            for label, query in groups:
-                print(label + ':')
-                order = 'source,record_id' if label == 'Dead letters' else 'watch_id,record_id'
-                for row in store.connection.execute(query + ' ORDER BY ' + order):
-                    print(json.dumps(dict(row), sort_keys=True))
+            return report(store, args)
+        if args.command == 'db':
+            backup(store.connection, args.output)
+            print('SQLite backup created: ' + str(args.output))
+            print('Back up watch/config/alias files separately.')
             return 0
         watches = load_watchlist(config.watchlist_path)
         aliases = AliasMap.load(extra=config.aliases_path)
-        if args.command == 'watch':
-            if args.days <= 0:
-                raise ValueError('days must be positive')
-            return watch_check(store, watches, aliases, args.days, now())
+        if args.command == 'explain':
+            return explain(store, watches, aliases, args.cve, args.watch)
         if args.command == 'replay':
             return replay(store, watches, aliases, args.list)
         engine = Engine(store, watches, aliases, config, now, _notifier(config))
@@ -210,6 +342,13 @@ def main(argv=None):
         return Scheduler(engine, {'cvelist': CveListSource(http, store),
                                   'kev': KevSource(http), 'epss': EpssSource(http, store)}).run()
     except Exception as error:
+        if args.command == 'status' and args.json:
+            return status_json(None, None, config)
+        if (args.command == 'watch' and (args.file is not None or args.strict)
+                and isinstance(error, WatchlistError)):
+            for problem in error.problems:
+                print('watch validation error: ' + problem)
+            return 1
         message = safe_message(error, config.ntfy_token if config else None)
         print(f'command failed: {type(error).__name__}: {message}')
         return 1

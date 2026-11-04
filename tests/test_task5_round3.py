@@ -139,13 +139,18 @@ class Round3Tests(unittest.TestCase):
         columns = {r['name'] for r in self.store.connection.execute('PRAGMA table_info(retry_queue)')}
         self.assertEqual(columns, {'source', 'record_id', 'attempts', 'next_attempt_at', 'last_error'})
 
-    def test_uningested_kev_waits_for_record(self):
+    def test_uningested_kev_alerts_before_record_and_queues_correction(self):
         self.start()
         self.engine.run_cycle([self.kev()])
-        self.assertEqual(self.count('pairs'), 0)
-        self.assertEqual([n for n in self.notifier.delivered if n['watch']], [])
-        self.engine.run_cycle([self.ingest([self.record])])
+        pair = self.store.connection.execute('SELECT * FROM pairs').fetchone()
+        self.assertEqual((pair['state'], pair['exploited']), ('unknown', 1))
         self.assertEqual([n['reasons'] for n in self.notifier.delivered if n['watch']], [['new match', 'KEV added']])
+        self.assertEqual([n['urgency'] for n in self.notifier.delivered if n['watch']], ['urgent'])
+        self.engine.run_cycle([self.ingest([self.record])])
+        self.assertEqual(self.store.connection.execute('SELECT state FROM pairs').fetchone()[0], 'affected')
+        self.clock.now += timedelta(hours=1)
+        self.engine.run_cycle([])
+        self.assertEqual([n['reasons'] for n in self.notifier.delivered if n['watch']], [['new match', 'KEV added'], ['correction']])
 
     def test_reactivation_discards_pending_correction(self):
         self.start()

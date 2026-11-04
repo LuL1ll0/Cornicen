@@ -43,6 +43,8 @@ def record(value) -> list[str]:
     cna = containers.get('cna') if isinstance(containers, dict) else None
     if not isinstance(cna, dict):
         return problems + ['containers.cna must be an object']
+    if 'affected' not in cna:
+        problems.append('containers.cna.affected is required')
 
     def objects(parent, key, path):
         values = parent.get(key, [])

@@ -13,7 +13,7 @@ class SchedulerSummaryTests(unittest.TestCase):
         cve = self.sources['cvelist'].poll.return_value[0]
         self.sources['cvelist'].poll.return_value = [replace(cve, records=({
             'cveMetadata': {'cveId': 'CVE-2026-1000', 'state': 'PUBLISHED'},
-            'containers': {'cna': {}}},))]
+            'containers': {'cna': {'affected': []}}},))]
         epss = self.sources['epss'].poll.return_value[0]
         self.sources['epss'].poll.return_value = [replace(epss,
             status=FetchStatus.FAILED, cursor=None, content_time=None, errors=('bad CSV',))]

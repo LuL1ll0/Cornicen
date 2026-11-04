@@ -9,7 +9,7 @@ RUN useradd --system --uid 10001 --create-home cornicen \
     && mkdir -p /app /data /config \
     && chown cornicen:cornicen /data /config
 WORKDIR /app
-COPY src/ /app/src/
+COPY --chmod=a+rX src/ /app/src/
 USER cornicen
 VOLUME ["/data", "/config"]
 HEALTHCHECK CMD ["python","-m","cornicen","healthcheck"]

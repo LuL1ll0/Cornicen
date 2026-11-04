@@ -270,7 +270,8 @@ class CveListSource:
                 try:
                     self._check_entry(entry, MAX_RECORD_BYTES)
                     if entry.is_dir():
-                        if snapshot and validate.SNAPSHOT_DIRECTORY.fullmatch(entry.filename):
+                        if (snapshot and validate.SNAPSHOT_DIRECTORY.fullmatch(entry.filename)
+                                or not snapshot and entry.filename == root):
                             continue
                         raise ValueError('Unexpected record path')
                     match = RECORD_PATH.fullmatch(entry.filename)
@@ -323,6 +324,8 @@ class CveListSource:
             response = self._get(asset['browser_download_url'], now, to_file=True,
                                  budget='cvelist_snapshot' if snapshot else 'cvelist_delta')
             path = response.path
+            if stamp > now + timedelta(hours=2):
+                raise ValueError('CVE asset content time is more than 2 hours in the future')
             if path is None:
                 raise ValueError('Archive download has no file')
             with _SnapshotZip(path) as zipped:
@@ -460,8 +463,14 @@ class CveListSource:
                 # earlier incomplete day in the same engine cycle.
                 if result.status != FetchStatus.COMPLETE:
                     break
+            recovery_pending = self.store.connection.execute(
+                "SELECT 1 FROM health WHERE source='cvelist' AND state='unhealthy' UNION ALL "
+                "SELECT 1 FROM retry_queue WHERE source='cvelist' AND record_id='@fetch' LIMIT 1").fetchone()
+            if not results and recovery_pending:
+                results.append(IngestResult('cvelist', FetchStatus.COMPLETE, Origin.DELTA,
+                                            None, None, unchanged=True))
             return results
-        except (OSError, HTTPException, ValueError, TypeError, KeyError, RecursionError) as error:
+        except (OSError, EOFError, HTTPException, ValueError, TypeError, KeyError, RecursionError) as error:
             results.append(IngestResult('cvelist', FetchStatus.FAILED, Origin.DELTA, None, None,
                                         errors=(f'{type(error).__name__}: {error}',)))
             return results

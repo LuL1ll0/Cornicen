@@ -144,12 +144,13 @@ def load_config(path: Path, env: Mapping[str, str]) -> Config:
         url = urlsplit(ntfy_url)
         valid_url = (url.scheme in {"http", "https"} and bool(url.hostname)
                      and url.username is None and url.password is None
+                     and '?' not in ntfy_url and '#' not in ntfy_url
                      and not any(char.isspace() for char in ntfy_url)
                      and not _has_control(ntfy_url))
     except ValueError:
         valid_url = False
     if not valid_url:
-        raise ValueError("ntfy_url must be http or https with a host and no userinfo")
+        raise ValueError("ntfy_url must be http or https with a host and no userinfo, query or fragment")
     notifier = string("notifier", "ntfy")
     if notifier not in {"ntfy", "file"}:
         raise ValueError("notifier must be ntfy or file")
