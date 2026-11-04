@@ -372,11 +372,16 @@ class ContractTests(unittest.TestCase):
 
     def test_user_readme_and_approved_spec_contracts(self):
         readme = Path('README.md').read_text()
+        # User docs are the README plus the pages it links under docs/.
+        user_docs = readme + ''.join(Path('docs', name).read_text() for name in
+                                     ('install.md', 'watch-lists.md', 'cli.md', 'privacy.md', 'testing.md'))
         spec = Path('docs/spec.md').read_text()
         self.assertIn('(docs/spec.md)', readme)
-        self.assertNotIn('## 13. Decisions', readme)
-        self.assertIn('allow_shared_token_file', readme)
-        self.assertIn('release-assets.githubusercontent.com', readme)
+        for page in ('install', 'watch-lists', 'cli', 'privacy', 'testing'):
+            self.assertIn(f'(docs/{page}.md)', readme)
+        self.assertNotIn('## 13. Decisions', user_docs)
+        self.assertIn('allow_shared_token_file', user_docs)
+        self.assertIn('release-assets.githubusercontent.com', user_docs)
         self.assertIn('completed-source markers', spec)
         self.assertIn('at_end_of_day', spec)
         self.assertIn('one state per source', spec)
