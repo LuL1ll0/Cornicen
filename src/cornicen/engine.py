@@ -45,14 +45,19 @@ class Engine:
             store.set_meta('alias_map_version', aliases.version)
             saved = store.get_meta('applied_watches')
             canonical = self._canonical_watches(watches)
+            aliases_hash = aliases.fingerprint()
+            saved_aliases_hash = store.get_meta('applied_aliases_hash')
+            aliases_changed = saved_aliases_hash != aliases_hash
             if saved is None and not self.db.execute('SELECT 1 FROM records UNION SELECT 1 FROM pairs LIMIT 1').fetchone():
                 self._save_watches()
-            elif saved != canonical:
+            elif saved != canonical or aliases_changed:
                 # Missing metadata on an older DB requires a full re-match too.
                 self.watches = tuple(Watch(**dict(w, match=tuple(map(tuple, w['match'])),
                     product_only=tuple(w['product_only']), scheme=Scheme(w['scheme'])))
                     for w in json.loads(saved)) if saved else ()
                 self.reload_watches(watches)
+            # Commit with the re-match so an interrupted startup tries again.
+            store.set_meta('applied_aliases_hash', aliases_hash)
             rejected = self.db.execute("SELECT detail FROM health WHERE source='watchlist' AND state='unhealthy'").fetchone()
             pending = self.db.execute("SELECT 1 FROM retry_queue WHERE source='watchlist' UNION ALL SELECT 1 FROM dead_letters WHERE source='watchlist'").fetchone()
             if rejected and rejected[0] == 'Watchlist reload rejected' and not pending:
@@ -285,6 +290,13 @@ class Engine:
                        or (baseline and not self.store.get_meta('baseline_complete')))
         self.db.execute('INSERT OR IGNORE INTO kev_seen VALUES (?)', (record_id,))
 
+    def _rematch_record(self, record, record_id, watches=None):
+        # Snapshot origin decides history; a first-KEV marker governs only KEV-added
+        # events, so it must not turn a delta's new match into a baseline pair.
+        baseline = (not self.store.get_meta('baseline_complete')
+                    and bool(self.store.get_meta('record_baseline:' + record_id)))
+        self._evaluate(record, record_id, reload=True, watches=watches, baseline=baseline)
+
     def _retry_records(self):
         rows = self.db.execute("SELECT *, NULL AS version FROM retry_queue WHERE record_id!='@fetch' "
                                "UNION ALL SELECT * FROM dead_letters ORDER BY source,record_id").fetchall()
@@ -306,7 +318,7 @@ class Engine:
                 elif source == 'kev':
                     self._evaluate_kev(record, record_id)
                 else:
-                    self._evaluate(record, record_id, reload=True)
+                    self._rematch_record(record, record_id)
             with self.store.transaction():
                 self._isolated(source, record, apply)
                 pending = self.db.execute('SELECT 1 FROM retry_queue WHERE source=? UNION ALL SELECT 1 FROM dead_letters WHERE source=?', (source, source)).fetchone()
@@ -523,9 +535,9 @@ class Engine:
                         self._evaluate(None, record_id)
                         continue
                     self._isolated('watchlist', record,
-                        lambda record=record, record_id=record_id: self._evaluate(
-                            record, record_id, reload=True, watches=changed))
-                pending = self.db.execute("SELECT 1 FROM retry_queue WHERE source='watchlist'").fetchone()
+                        lambda record=record, record_id=record_id: self._rematch_record(
+                            record, record_id, watches=changed))
+                pending = self.db.execute("SELECT 1 FROM retry_queue WHERE source='watchlist' UNION ALL SELECT 1 FROM dead_letters WHERE source='watchlist' LIMIT 1").fetchone()
                 self._health('watchlist', 'unhealthy' if pending else 'healthy',
                              'Re-match failed; retry pending' if pending else 'Watchlist re-match complete',
                              'incomplete' if pending else 'recovered')

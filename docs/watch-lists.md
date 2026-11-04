@@ -35,6 +35,10 @@ transitions, no covering row, and affected history starting at zero or `*`
 unaffected defaults retain their precedence. Undecidable comparisons stay unknown.
 The versioned built-in alias map accounts for spelling variants; extend it with
 a local `aliases_path` containing `version` and `[[alias]]` groups of `identities`.
+Changes to effective alias groups, including local edits, re-check stored CVEs
+at the next start, including during bootstrap. The first start after upgrading
+also re-checks retained CVEs when no alias fingerprint is stored. Version-only
+edits do nothing. Resulting alerts use the ordinary digest and urgent rules.
 
 Validate before starting (no database is needed), then inspect the stored CVEs
 after bootstrap before trusting your identities:
@@ -64,7 +68,10 @@ Collisions are reported without rejecting an otherwise valid list by default.
 
 The running scheduler reloads on file modification. Startup also compares the
 file with the last applied watch list stored in SQLite and re-matches changes
-before sending any queued notifications. A rejected reload keeps the
+before sending any queued notifications. Removing and re-adding a watch with the
+same `id` can repeat an already-delivered alert (a known, low-impact limitation). Likewise, if a
+re-match started during bootstrap fails and only succeeds after bootstrap completes, that
+snapshot match is sent as its own alert and is missing from the baseline summary. A rejected reload keeps the
 previous list and marks `watchlist` unhealthy until a valid reload. Mounting a
 directory read-only at `/config` instead of individual files can help editors
 that replace files atomically make changes visible in an existing container.

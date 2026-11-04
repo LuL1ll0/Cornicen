@@ -105,6 +105,8 @@ A watch `version` may be a single version or a range: comma-separated comparator
 
 The file is re-read on change. A reload is validated whole and applied atomically, or rejected with the previous list kept and a health warning raised. After a valid reload, every changed watch is **re-matched against stored records**: a change that newly makes a watch affected produces new-match events; a change that clears it produces nothing.
 
+Changes to effective alias groups, including local edits, re-check stored CVEs at the next start, including during bootstrap. The first start after upgrading also re-checks retained CVEs when no alias fingerprint is stored. Version-only edits do nothing. Resulting alerts follow the ordinary event path: new matches enter the digest, while KEV-listed or high-EPSS matches are urgent.
+
 ## 5. Applicability
 
 For each (record, watch) pair Cornicen computes one state: **affected**, **not affected**, or **unknown**, with evidence.

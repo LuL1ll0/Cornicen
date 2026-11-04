@@ -2,6 +2,7 @@
 
 from importlib.resources import files
 from pathlib import Path
+import json
 import tomllib
 import re
 import unicodedata
@@ -36,6 +37,13 @@ class AliasMap:
         self.version = version
         self.warnings: list[str] = []
         self._links: dict[Identity, set[Identity]] = {}
+
+    def fingerprint(self) -> str:
+        """Hash effective equivalence groups, independent of version and file order."""
+        groups = {tuple(sorted(self.expand(identity))) for identity in self._links}
+        canonical = json.dumps(sorted(group for group in groups if len(group) > 1),
+                               separators=(',', ':'))
+        return sha256(canonical.encode()).hexdigest()
 
     def expand(self, i: Identity) -> frozenset[Identity]:
         if not isinstance(i, tuple) or len(i) != 2 or any(not isinstance(p, str) for p in i):

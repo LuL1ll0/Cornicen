@@ -91,8 +91,7 @@ class GoalFoundBugs(unittest.TestCase):
         self.assertTrue(any('new match' in n.reasons for n in self.watch_notifications()),
                         'KEV baseline suppresses KEV-added events, not new matches on post-snapshot deltas')
 
-    @unittest.skip("deferred: alias rematch conflicts with test_hardening; maintainer decision pending")
-    def test_bug03_alias_revision_on_restart_does_not_rematch(self):
+    def test_bug03_alias_revision_on_restart_rematches_retained_record(self):
         self.engine.run_cycle([self.ingest(record(vendor='acme-labs', product='acme-widget-next'))])
         self.assertIsNone(self.pair())
         with tempfile.TemporaryDirectory(dir=self.directory) as directory:
