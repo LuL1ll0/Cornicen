@@ -76,6 +76,8 @@ class Config:
     notification_path: Path = Path("/data/notifications.jsonl")
     download_budgets: dict[str, dict[str, int]] = field(default_factory=lambda: download_budgets({}))
     accept_warn_days: int = 180
+    github_token: SecretToken | None = field(default=None, repr=False)
+    github_token_problem: str | None = None
 
 
 def load_config(path: Path, env: Mapping[str, str]) -> Config:
@@ -173,12 +175,30 @@ def load_config(path: Path, env: Mapping[str, str]) -> Config:
         if any(char.isspace() for char in token) or _has_control(token):
             raise ValueError("Invalid ntfy token: whitespace and control characters are forbidden")
         token = SecretToken(token) if token else None
+    github_token = None
+    github_problem = None
+    if env.get('CORNICEN_GITHUB_TOKEN_FILE'):
+        try:
+            with Path(env['CORNICEN_GITHUB_TOKEN_FILE']).open(encoding='utf-8') as source:
+                if os.fstat(source.fileno()).st_mode & 0o077 and not allow_shared:
+                    github_problem = 'permissions'
+                else:
+                    value = source.read().strip()
+                    if not value:
+                        github_problem = 'empty'
+                    elif any(not 0x21 <= ord(char) <= 0x7e for char in value):
+                        github_problem = 'invalid characters'
+                    else:
+                        github_token = SecretToken(value)
+        except (OSError, UnicodeError):
+            github_problem = 'unreadable'
     return Config(
         db_path=string("db_path", "/data/cornicen.db"),
         watchlist_path=Path(string("watchlist_path", "/config/watchlist.toml")),
         aliases_path=aliases,
         ntfy_url=ntfy_url,
         ntfy_topic=string("ntfy_topic", "cornicen"),
+        github_token=github_token, github_token_problem=github_problem,
         ntfy_token=token, epss_threshold=float(threshold), digest_time=digest,
         timezone=timezone, overdue_minutes=settings.get("overdue_minutes", 60),
         user_agent=user_agent, user_agent_overrides=overrides,

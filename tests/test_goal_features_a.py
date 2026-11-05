@@ -183,7 +183,7 @@ class GoalFeaturesATests(unittest.TestCase):
 
     def assert_status_schema(self, result):
         self.assertEqual(set(result), {'schema_version', 'available', 'container_healthy',
-                                      'sources', 'baseline_complete', 'reconcile_at', 'accepted'})
+                                      'sources', 'baseline_complete', 'reconcile_at', 'accepted', 'github'})
         self.assertEqual(result['accepted'], [])
         self.assertIs(type(result['schema_version']), int)
         self.assertEqual(result['schema_version'], 1)
@@ -254,7 +254,8 @@ class GoalFeaturesATests(unittest.TestCase):
 
     def test_f06_missing_and_unreadable_database_valid_json(self):
         expected = dict(schema_version=1, available=False, container_healthy=False,
-                        sources={}, baseline_complete=False, reconcile_at=None, accepted=[])
+                        sources={}, baseline_complete=False, reconcile_at=None, accepted=[],
+                        github=dict(auth='unknown', problem=None, rate_limit=None))
         code, text = self.invoke('status', '--json')
         self.assertEqual((code, json.loads(text)), (1, expected))
         self.assert_status_schema(json.loads(text))

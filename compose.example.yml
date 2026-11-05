@@ -15,8 +15,10 @@ services:
       - ./config/watchlist.toml:/config/watchlist.toml:ro
     environment:
       CORNICEN_NTFY_TOKEN_FILE: /run/secrets/ntfy_token
+      # CORNICEN_GITHUB_TOKEN_FILE: /run/secrets/github_token
     secrets:
       - ntfy_token
+      # - github_token
 
 volumes:
   cornicen-data:
@@ -24,3 +26,5 @@ volumes:
 secrets:
   ntfy_token:
     file: ./secrets/ntfy_token
+  # github_token:
+  #   file: ./secrets/github_token

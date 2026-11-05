@@ -257,9 +257,52 @@ def _accept_warnings(store, watches, entries, aliases, now, config):
     return warnings
 
 
+def github_status(store):
+    auth = store.get_meta('github_auth') if store else None
+    problem = None
+    if auth in ('token', 'none'):
+        mode = auth
+    elif auth == 'token rejected':
+        mode = 'token-rejected'
+    elif auth and auth.startswith('token unusable: '):
+        mode, problem = 'token-unusable', auth.removeprefix('token unusable: ')
+    else:
+        mode = 'unknown'
+    rate = store.get_meta('github_rate_limit') if store else None
+    try:
+        rate = json.loads(rate) if rate else None
+        if not isinstance(rate, dict) or set(rate) != {'limit', 'remaining', 'reset', 'observed_at'}:
+            raise ValueError('Invalid rate limit shape')
+        if any(type(rate[key]) is not int for key in ('limit', 'remaining')):
+            raise ValueError('Invalid rate limit counts')
+        for key in ('reset', 'observed_at'):
+            stamp = datetime.fromisoformat(rate[key])
+            if stamp.tzinfo is None or stamp.utcoffset() != timedelta(0):
+                raise ValueError('Rate limit timestamps must be UTC')
+    except (ValueError, TypeError, OverflowError, RecursionError):
+        rate = None
+    return dict(auth=mode, problem=problem, rate_limit=rate)
+
+
+def github_status_line(store):
+    state = github_status(store)
+    descriptions = {
+        'token': 'authenticated', 'none': 'unauthenticated', 'unknown': 'authentication unknown',
+        'token-unusable': f"token unusable ({state['problem']}), using unauthenticated access",
+        'token-rejected': 'token rejected by GitHub (HTTP 401), using unauthenticated access; replace the token file and restart',
+    }
+    rate = state['rate_limit']
+    detail = 'rate limit not seen yet'
+    if rate:
+        reset = datetime.fromisoformat(rate['reset']).astimezone(timezone.utc).strftime('%H:%M')
+        observed = datetime.fromisoformat(rate['observed_at']).astimezone(timezone.utc).strftime('%H:%M')
+        detail = f"rate limit {rate['remaining']}/{rate['limit']}, resets {reset} UTC (seen {observed} UTC)"
+    return 'github: ' + descriptions[state['auth']] + '; ' + detail
+
+
 def status_json(store, now, config):
     result = dict(schema_version=1, available=False, container_healthy=False,
-                  sources={}, baseline_complete=False, reconcile_at=None)
+                  sources={}, baseline_complete=False, reconcile_at=None, github=github_status(store))
     eol_ids = _eol_ids(config) if config else []
     if eol_ids:
         result['eol_coverage_limited'] = eol_ids
@@ -277,7 +320,7 @@ def status_json(store, now, config):
             cursor = store.connection.execute(
                 'SELECT value,content_time FROM cursors WHERE source=?', (source,)).fetchone()
             result['sources'][source] = dict(
-                state=state, detail=safe_message(RuntimeError(detail), config.ntfy_token),
+                state=state, detail=safe_message(RuntimeError(detail), config.ntfy_token, config.github_token),
                 cursor=cursor['value'] if cursor else None,
                 content_time=cursor['content_time'] if cursor else None)
         result.update(available=True, container_healthy=container_healthy(store, now, config),
@@ -415,7 +458,10 @@ def main(argv=None):
             print('unknown' if relation is None else
                   'less' if relation < 0 else 'greater' if relation > 0 else 'equal')
             return 1 if relation is None else 0
-        config = load_config(args.config, os.environ)
+        # Diagnostic processes read daemon state, never the GitHub secret file.
+        env = os.environ if args.command == 'run' else {
+            key: value for key, value in os.environ.items() if key != 'CORNICEN_GITHUB_TOKEN_FILE'}
+        config = load_config(args.config, env)
         now = lambda: datetime.now(timezone.utc)
         if args.command == 'notify':
             n = Notification('test-' + now().isoformat(), '', 'notification test', ('test',),
@@ -463,8 +509,9 @@ def main(argv=None):
             sources.update(row[0] for row in store.connection.execute('SELECT source FROM health'))
             for source in sorted(sources):
                 state, detail = assess(source, store, now(), config)
-                detail = safe_message(RuntimeError(detail), config.ntfy_token)
+                detail = safe_message(RuntimeError(detail), config.ntfy_token, config.github_token)
                 print(f'{source}: {state}; {detail}')
+            print(github_status_line(store))
             print('container: ' + ('healthy' if container_healthy(store, now(), config) else 'unhealthy'))
             print('reconcile: ' + (store.get_meta('reconcile_at') or 'none'))
             try:
@@ -491,8 +538,8 @@ def main(argv=None):
         engine = Engine(store, watches, aliases, config, now, _notifier(config), accepts=accepts)
         http = Http(config.user_agent, config.user_agent_overrides,
                     data_dir=Path(config.db_path).parent,
-                    download_budgets=config.download_budgets)
-        return Scheduler(engine, {'cvelist': CveListSource(http, store),
+                    download_budgets=config.download_budgets, github_token=config.github_token)
+        return Scheduler(engine, {'cvelist': CveListSource(http, store, config.github_token_problem, ntfy_token=config.ntfy_token),
                                   'kev': KevSource(http), 'epss': EpssSource(http, store)}).run()
     except Exception as error:
         if args.command == 'status' and args.json:
@@ -503,7 +550,7 @@ def main(argv=None):
             for problem in error.problems:
                 print('watch validation error: ' + problem)
             return 1
-        message = safe_message(error, config.ntfy_token if config else None)
+        message = safe_message(error, config.ntfy_token if config else None, config.github_token if config else None)
         print(f'command failed: {type(error).__name__}: {message}')
         _coverage_notice(eol_ids, file=notice_file)
         return 1

@@ -168,7 +168,7 @@ Implemented to the CVE 5 schema, with boundary fixtures for each rule:
 
 ### 6.1 Bootstrap
 
-First run downloads the latest **full snapshot** of CVE List V5, then the cumulative daily deltas since that snapshot, then KEV and EPSS. The CVE snapshot identity, **snapshot cutoff** and completed phase are committed atomically with its records. Restart resumes deltas from that cutoff, including its day, without choosing a new baseline. Records first encountered after the snapshot phase completes are new even while KEV or EPSS bootstrap is pending. Bootstrap reads only page one of the release listing.
+First run downloads the latest **full snapshot** of CVE List V5, then the cumulative daily deltas since that snapshot, then KEV and EPSS. The CVE snapshot identity, **snapshot cutoff** and completed phase are committed atomically with its records. Restart resumes deltas from that cutoff, including its day, without choosing a new baseline. Records first encountered after the snapshot phase completes are new even while KEV or EPSS bootstrap is pending. Bootstrap reads only page one of the release listing. An optional GitHub token file enables authenticated API requests and persistent ETag conditional requests for release listings and direct tag lookups.
 
 ### 6.2 Cursors and catch-up
 
@@ -275,7 +275,7 @@ Stated in the README exactly like this:
 - **Notifications carry your data to the channel you configure.** An alert names the product and version it matched. If your ntfy server is someone else's, they see that. Self-host ntfy for end-to-end privacy.
 - **No telemetry, analytics or update check.** The README lists every host contacted by default.
 - **v1.1 caveat:** repository-specific checks (latest-release, GitHub advisories) and per-CVE lookups reveal what you watch to those hosts. Each will be opt-in and say so.
-- Runs as non-root, read-only root filesystem, writable volume only for SQLite, watch list mounted read-only. No inbound port. Secrets (ntfy token) from environment or file, never the shareable TOML.
+- Runs as non-root, read-only root filesystem, writable volume only for SQLite, watch list mounted read-only. No inbound port. Secrets never go in the shareable TOML: the ntfy token comes from the environment or a file, and the optional GitHub token from a file only.
 - User-Agent configurable, default `Cornicen/<version> (+<repo URL>)`.
 - `ntfy_url` must be HTTP(S) with a host and no userinfo, query string or fragment. Path prefixes are allowed; invalid values are rejected at configuration loading with an error naming the key.
 

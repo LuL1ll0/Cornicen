@@ -16,7 +16,7 @@ from cornicen.config import Config
 from cornicen.identity import AliasMap
 from cornicen.model import FetchStatus, IngestResult, Notification, Notifier, Origin
 from cornicen.render import health_body, render
-from cornicen.scheduler import safe_message
+from cornicen.scheduler import redact_tokens, safe_message
 from cornicen.outbox import deliver
 from cornicen.store import Store
 from cornicen.watchlist import Watch
@@ -243,7 +243,7 @@ class Engine:
         return record_id, key
 
     def _retry(self, source, record_id, detail):
-        detail = validate.error_detail(detail)
+        detail = validate.error_detail(redact_tokens(detail, self.config.ntfy_token, self.config.github_token))
         self.store.set_meta('last_error:' + source, detail)
         old = self.db.execute('SELECT attempts FROM retry_queue WHERE source=? AND record_id=?',
                               (source, record_id)).fetchone()
@@ -364,7 +364,7 @@ class Engine:
 
     def _health(self, source, state, detail, reason=None):
         error = type(detail).__name__ if isinstance(detail, Exception) else None
-        detail = safe_message(detail if error else RuntimeError(detail), self.config.ntfy_token)
+        detail = safe_message(detail if error else RuntimeError(detail), self.config.ntfy_token, self.config.github_token)
         if error:
             detail = (error + ': ' + detail)[:300]
         old = self.db.execute('SELECT * FROM health WHERE source=?', (source,)).fetchone()
@@ -422,7 +422,7 @@ class Engine:
                 if ingest.cursor and validate.TAG.fullmatch(ingest.cursor):
                     self.store.set_meta('cvelist_snapshot_release', ingest.cursor)
         if ingest.errors:
-            self.store.set_meta('last_error:' + source, validate.error_detail('; '.join(ingest.errors)))
+            self.store.set_meta('last_error:' + source, validate.error_detail(redact_tokens('; '.join(ingest.errors), self.config.ntfy_token, self.config.github_token)))
         complete = ingest.status == FetchStatus.COMPLETE and not ingest.errors
         transport_complete = complete
         first_kev = self.store.get_meta('kev_initialized') is None
@@ -441,7 +441,7 @@ class Engine:
                     if problems:
                         self.db.execute('INSERT OR REPLACE INTO invalid_revisions VALUES (?,?)',
                                         (key, zlib.compress(json.dumps(record).encode())))
-                        self.store.set_meta('last_error:' + source, validate.error_detail('; '.join(problems)))
+                        self.store.set_meta('last_error:' + source, validate.error_detail(redact_tokens('; '.join(problems), self.config.ntfy_token, self.config.github_token)))
                     else:
                         self.db.execute('DELETE FROM invalid_revisions WHERE record_id=?', (key,))
                         self.store.put_record(key, record, self._now().isoformat())
@@ -509,7 +509,9 @@ class Engine:
                 complete = False
         else:
             self._retry(source, '@fetch',
-                        'Empty complete map' if empty_failure else validate.error_detail('; '.join(ingest.errors)) or 'Ingest ' + ingest.status.value)
+                        'Empty complete map' if empty_failure else (
+                            '; '.join(ingest.errors) if validate.error_detail('; '.join(ingest.errors))
+                            else 'Ingest ' + ingest.status.value))
         if complete:
             self.db.execute('DELETE FROM meta WHERE k=?', ('last_error:' + source,))
         self._health_verdicts[source] = (('healthy', 'Complete ingest', 'recovered') if complete else

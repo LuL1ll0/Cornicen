@@ -86,6 +86,7 @@ class Store:
     def migrate(self):
         with self.transaction():
             statements = (
+                'CREATE TABLE IF NOT EXISTS http_cache(url TEXT PRIMARY KEY, etag TEXT NOT NULL, link TEXT, body BLOB NOT NULL, used_at TEXT NOT NULL)',
                 'CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY, json BLOB NOT NULL, ingested_at TEXT NOT NULL)',
                 'CREATE TABLE IF NOT EXISTS kev(cve TEXT PRIMARY KEY, json TEXT NOT NULL)',
                 'CREATE TABLE IF NOT EXISTS kev_seen(cve TEXT PRIMARY KEY)',

@@ -15,7 +15,7 @@ from urllib.error import HTTPError
 from urllib.parse import urljoin, urlsplit
 from urllib.request import HTTPRedirectHandler, HTTPSHandler, ProxyHandler, Request, build_opener
 
-from cornicen.config import download_budgets as _download_budgets
+from cornicen.config import SecretToken, download_budgets as _download_budgets
 
 
 MAX_BODY_BYTES = 64 * 1024 * 1024
@@ -26,6 +26,12 @@ SOURCE_HOSTS = {
     'kev': frozenset({'www.cisa.gov'}),
     'epss': frozenset({'epss.empiricalsecurity.com'}),
 }
+
+
+def _authorization(source, host, token):
+    if source == 'cvelist' and host == 'api.github.com' and token is not None:
+        return 'Bearer ' + token.reveal()
+    return None
 
 
 def _destination(url, source):
@@ -165,12 +171,14 @@ class Response:
     headers: Mapping[str, str]
     body: bytes | None
     path: Path | None
+    url: str | None = None
 
 
 class Http:
     def __init__(self, user_agent: str, overrides: Mapping[str, str], opener=None,
                  *, data_dir: Path | None = None, resolver=None, clock=time.monotonic,
-                 download_budgets=None):
+                 download_budgets=None, github_token: SecretToken | None = None):
+        self.github_token = github_token
         self.user_agent = user_agent
         self.overrides = overrides
         self.opener = opener
@@ -183,7 +191,8 @@ class Http:
     def get(self, url: str, etag: str | None = None,
             last_modified: str | None = None, to_file: bool = False, *,
             source: str | None = None, budget: str | None = None,
-            max_bytes: int | None = None, deadline_seconds: int | None = None) -> Response:
+            max_bytes: int | None = None, deadline_seconds: int | None = None,
+            on_response=None) -> Response:
         _destination(url, source)
         budget = budget or ('cvelist_delta' if source == 'cvelist' else source)
         permitted = {'cvelist_snapshot', 'cvelist_delta'} if source == 'cvelist' else {source}
@@ -202,14 +211,14 @@ class Http:
                 # Ignore environment proxies: they would resolve/connect on our behalf.
                 opener = self.opener if self.opener is not None else build_opener(
                     ProxyHandler({}), _Redirects(), _HTTPSHandler(self.resolver, deadline))
-                result = self._get(url, etag, last_modified, to_file, source, max_bytes, deadline, opener)
+                result = self._get(url, etag, last_modified, to_file, source, max_bytes, deadline, opener, on_response)
             return result
         except BaseException:
             if result is not None and result.path is not None:
                 result.path.unlink(missing_ok=True)
             raise
 
-    def _get(self, url, etag, last_modified, to_file, source, max_bytes, deadline, opener):
+    def _get(self, url, etag, last_modified, to_file, source, max_bytes, deadline, opener, on_response):
         for _ in range(11):
             host = _destination(url, source)
             if self.opener is not None:
@@ -218,6 +227,9 @@ class Http:
                 # Fake transports cannot establish a socket; validate before dispatch.
                 _public_addresses(host, 443, self.resolver)
             headers = {'User-Agent': self.overrides.get(host, self.user_agent)}
+            authorization = _authorization(source, host, self.github_token)
+            if authorization:
+                headers['Authorization'] = authorization
             if etag:
                 headers['If-None-Match'] = etag
             if last_modified:
@@ -232,11 +244,18 @@ class Http:
                 deadline.check()
                 status = response.status if response.status is not None else response.code
                 received = {key.lower(): value for key, value in response.headers.items()}
+                if on_response is not None:
+                    on_response(host, status, received)
                 if status in (301, 302, 303, 307, 308):
                     if not received.get('location'):
                         raise ValueError('Redirect has no Location')
                     url = urljoin(url, received['location'])
+                    if source == 'cvelist':
+                        # Validators belong to the requested URL; KEV keeps v0.1.6 behaviour.
+                        etag = None
                     continue
+                if status == 401 and authorization:
+                    return Response(status, received, b'', None, url)
                 limit = max_bytes if to_file and status == 200 else min(MAX_BODY_BYTES, max_bytes)
                 path = None
                 try:
@@ -246,10 +265,10 @@ class Http:
                         path = Path(target.name)
                         with target:
                             self._copy(response, target, limit, deadline)
-                        return Response(status, received, None, path)
+                        return Response(status, received, None, path, url)
                     target = BytesIO()
                     self._copy(response, target, limit, deadline)
-                    return Response(status, received, target.getvalue(), None)
+                    return Response(status, received, target.getvalue(), None, url)
                 except BaseException:
                     if path is not None:
                         path.unlink(missing_ok=True)

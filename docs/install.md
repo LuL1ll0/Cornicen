@@ -64,6 +64,34 @@ For a local dry run set `notifier = "file"`; notifications append as JSONL to
 `notification_path` (default `/data/notifications.jsonl`). This file contains alert
 data and belongs in private storage. No ntfy requests are made in file mode.
 
+## GitHub token (optional)
+
+GitHub allows 60 unauthenticated API requests per hour per public IP, shared
+with other devices and applications. An optional token raises the primary limit
+to 5,000 per hour. On github.com, create a **fine-grained** personal access token,
+choose **Public repositories (read-only)**, add **no** permissions, and set an expiry.
+Save it with your editor to `secrets/github_token`, outside version control.
+Make it readable by container UID 10001 with mode 600, as for the ntfy secret.
+
+Uncomment the GitHub secret entries in `compose.example.yml` (or your copy): the
+service mounts `github_token` as a Compose secret and sets
+`CORNICEN_GITHUB_TOKEN_FILE: /run/secrets/github_token`. There is no direct token
+environment variable, and tokens cannot go in TOML. Restart after adding or
+replacing the file. An unreadable, empty, shared or invalid file falls back to
+unauthenticated access; `status` shows the problem without its path or contents.
+
+When GitHub rejects an expired or invalid token with HTTP 401, Cornicen logs one
+warning, retries once without credentials, and uses unauthenticated access for
+the rest of the process. Replace the token file and restart. `cornicen status`
+shows authentication state and the last observed rate limit, reset time and
+observation time; `status --json` includes the same state in `github`.
+
+With an active token, release listings and direct past-day tag lookups use a
+persistent ETag cache. Authorized 304 responses do not consume the primary limit.
+Hourly listings mostly still return 200 because new releases shift the pages;
+ETags help mainly with restarts, retries within an hour and repeated past-day
+lookups. The larger authenticated allowance is the main benefit.
+
 ## File permissions
 
 SQLite, its WAL/shared-memory sidecars, and the notification JSONL use mode 0600.

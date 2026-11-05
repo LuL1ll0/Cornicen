@@ -12,19 +12,26 @@ from cornicen.health import assess
 from cornicen.watchlist import load_document, WatchlistError
 
 
-def safe_message(error, token=None):
-    """Keep operational text, never serialize payloads or inventory diagnostics."""
-    if isinstance(error, WatchlistError):
-        return 'Watchlist validation failed'
-    if any(not isinstance(arg, (str, int, float, type(None))) for arg in error.args):
-        return 'Exception details withheld (non-text payload)'
-    message = ''.join(c for c in str(error) if not unicodedata.category(c).startswith('C'))
-    if token is not None:
+def redact_tokens(message, *tokens):
+    message = ''.join(c for c in str(message) if not unicodedata.category(c).startswith('C'))
+    for token in tokens:
+        if token is None:
+            continue
         secret = token.reveal()
         for value in (secret, json.dumps(secret)[1:-1]):
             value = ''.join(c for c in value if not unicodedata.category(c).startswith('C'))
             if value:
                 message = message.replace(value, '[redacted]')
+    return message
+
+
+def safe_message(error, token=None, *tokens):
+    """Keep operational text, never serialize payloads or inventory diagnostics."""
+    if isinstance(error, WatchlistError):
+        return 'Watchlist validation failed'
+    if any(not isinstance(arg, (str, int, float, type(None))) for arg in error.args):
+        return 'Exception details withheld (non-text payload)'
+    message = redact_tokens(str(error), token, *tokens)
     # Exceptions may embed a whole record, a quoted field, or HTTP headers.
     message = re.split(r'[{}]|\[(?=[\[\{"\'])', message, maxsplit=1)[0]
     message = re.sub(r'(["\']).*?\1', '[redacted]', message)
@@ -123,7 +130,7 @@ class Scheduler:
             statuses = {name: health[name][0] for name in components}
             self.output(json.dumps({'time': now.isoformat(), 'sources': statuses,
                                     'health_details': {name: safe_message(RuntimeError(
-                                        verdict[1]), self.engine.config.ntfy_token)
+                                        verdict[1]), self.engine.config.ntfy_token, self.engine.config.github_token)
                                         for name, verdict in health.items()},
                                     'ingested': counts, 'events': len(report.events),
                                     'sent': report.sent, 'pending': db.execute(
@@ -137,7 +144,7 @@ class Scheduler:
                     close()
 
     def _failed_cycle(self, error):
-        message = safe_message(error, self.engine.config.ntfy_token)
+        message = safe_message(error, self.engine.config.ntfy_token, self.engine.config.github_token)
         entry = {'time': self.clock().isoformat(), 'component': self.component,
                  'error': type(error).__name__, 'message': message}
         try:
@@ -151,7 +158,7 @@ class Scheduler:
             # A database/delivery outage must not defeat the cycle boundary.
             # Report the secondary failure on the same JSON line.
             entry['health_error'] = type(health_error).__name__
-            entry['health_message'] = safe_message(health_error, self.engine.config.ntfy_token)
+            entry['health_message'] = safe_message(health_error, self.engine.config.ntfy_token, self.engine.config.github_token)
         self.output(json.dumps(entry, sort_keys=True))
 
     def run(self):

@@ -8,7 +8,7 @@
 - **Notifications carry your data to the channel you configure.** An alert names the product and version it matched. If your ntfy server is someone else's, they see that. Self-host ntfy for end-to-end privacy.
 - **No telemetry, analytics or update check.** This page lists every host contacted by default.
 - **v1.1 caveat:** repository-specific checks (latest-release, GitHub advisories) and per-CVE lookups reveal what you watch to those hosts. Each will be opt-in and say so.
-- Runs as non-root, read-only root filesystem, writable volume only for SQLite, watch list mounted read-only. No inbound port. Secrets (ntfy token) from environment or file, never the shareable TOML.
+- Runs as non-root, read-only root filesystem, writable volume only for SQLite, watch list mounted read-only. No inbound port. The ntfy token comes from an environment variable or file; the optional GitHub token comes from a file only. Neither token belongs in the shareable TOML.
 - User-Agent configurable, default `Cornicen/<version> (+<repo URL>)`.
 
 Default source traffic goes to `github.com`, `api.github.com`,
@@ -42,3 +42,8 @@ Exceeding a budget fails the fetch and removes its partial download. EPSS also
 limits expanded input to 256 MiB and 2,000,000 rows, with CVE identifiers at most
 32 characters matching `CVE-\d{4}-\d{4,19}` (ASCII digits). Rejected feeds preserve
 the accepted scores.
+
+With the optional GitHub token, GitHub sees CVE List fetches as coming from that
+account rather than an anonymous IP. The token goes only to `api.github.com`.
+Nothing about the watch list is sent either way: the requests are the same
+public release listings and archives. Archive download hosts never receive the token.

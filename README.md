@@ -129,7 +129,7 @@ The full ingestion, matching and delivery design is in [docs/spec.md](docs/spec.
 Cornicen only knows what the CVE List, KEV and EPSS publish, and CNA data is inconsistent. It can miss vulnerabilities or over-report them, so treat it as an early warning, not an audit. It never probes your systems or scans images; it knows only what you declare.
 
 - **Not covered:** anything without a CVE record (a blog post, a GitHub issue), Apple (no official machine-readable feed), and Raspberry Pi-specific packages or firmware.
-- **GitHub rate limit:** the CVE List is fetched from GitHub without a token, and GitHub allows 60 such requests an hour per IP address. Anything else on your network calling GitHub without a token draws on the same allowance. If it runs out, the CVE List source reports unhealthy until the hour resets.
+- **GitHub rate limit:** without a token, GitHub allows 60 API requests an hour per IP address. An [optional GitHub token](docs/install.md#github-token-optional) raises the primary allowance to 5,000 an hour. Anything else on your network calling GitHub without a token draws on the same allowance. If it runs out, the CVE List source reports unhealthy until the hour resets.
 - **Plex:** no machine-readable advisory feed was found, so coverage comes from CVE records alone. A latest-version check is planned.
 - **Planned:** vendor advisory feeds, Debian data, NVD enrichment, release checks, more delivery channels.
 

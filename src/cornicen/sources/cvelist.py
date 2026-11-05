@@ -16,10 +16,14 @@ import logging
 import re
 import tempfile
 import weakref
+from urllib.parse import urlsplit
+import zlib
 from zipfile import ZipFile, BadZipFile
 
 from cornicen import validate
+from cornicen.fetch import Response
 from cornicen.model import FetchStatus, IngestResult, Origin
+from cornicen.scheduler import redact_tokens
 from cornicen.sources import CVE_ID, data_directory
 
 RELEASES_URL = 'https://api.github.com/repos/CVEProject/cvelistV5/releases'
@@ -149,13 +153,63 @@ class _Records(Sequence):
 _stamp = validate.release_stamp
 
 class CveListSource:
-    def __init__(self, http, store):
+    def __init__(self, http, store, github_token_problem=None, *, ntfy_token=None):
         self.http, self.store = http, store
+        self._redaction_tokens = (http.github_token, ntfy_token)
         self.directory = data_directory(http, store)
+        auth = 'token' if self.http.github_token is not None else 'none'
+        if github_token_problem:
+            auth = 'token unusable: ' + github_token_problem
+        if not self.store.connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='meta'").fetchone():
+            self.store.migrate()
+        self.store.set_meta('github_auth', auth)
+
+    def _rate_limit(self, host, status, headers, now):
+        if host != 'api.github.com':
+            return
+        try:
+            values = {key: int(headers['x-ratelimit-' + key])
+                      for key in ('limit', 'remaining', 'reset')}
+            values['reset'] = datetime.fromtimestamp(values['reset'], timezone.utc).isoformat()
+        except (KeyError, ValueError, TypeError, OverflowError, OSError):
+            return
+        values['observed_at'] = now.astimezone(timezone.utc).isoformat()
+        self.store.set_meta('github_rate_limit', json.dumps(values))
 
     def _get(self, url, now, allowed=(), **kwargs):
-        response = self.http.get(url, source='cvelist', **kwargs)
+        active = self.http.github_token is not None
+        cacheable = active and urlsplit(url).hostname == 'api.github.com' and not kwargs.get('to_file')
+        row = None
+        if cacheable:
+            row = self.store.connection.execute('SELECT * FROM http_cache WHERE url=?', (url,)).fetchone()
+            if row:
+                kwargs['etag'] = row['etag']
+        response = self.http.get(url, source='cvelist',
+                                 on_response=lambda host, status, headers: self._rate_limit(host, status, headers, now),
+                                 **kwargs)
+        api = urlsplit(response.url or url).hostname == 'api.github.com'
+        if response.status == 401 and active and api:
+            self.http.github_token = None
+            self.store.set_meta('github_auth', 'token rejected')
+            logging.getLogger(__name__).warning('GitHub token rejected (HTTP 401); using unauthenticated access')
+            return self._get(url, now, allowed=allowed, **{key: value for key, value in kwargs.items() if key != 'etag'})
         headers = {key.lower(): value for key, value in response.headers.items()}
+        if cacheable and response.url == url:
+            if response.status == 304:
+                if row is None:
+                    raise ValueError('HTTP 304 without cached body')
+                self.store.connection.execute('UPDATE http_cache SET used_at=? WHERE url=?', (now.isoformat(), url))
+                response = Response(200, {'link': row['link'] or ''}, zlib.decompress(row['body']), None, response.url)
+            elif response.status == 200:
+                etag = headers.get('etag', '')
+                if 1 <= len(etag) <= 256 and all(32 <= ord(char) <= 126 for char in etag):
+                    self.store.connection.execute(
+                        'INSERT OR REPLACE INTO http_cache VALUES (?,?,?,?,?)',
+                        (url, etag, headers.get('link'), zlib.compress(response.body), now.isoformat()))
+                else:
+                    self.store.connection.execute('DELETE FROM http_cache WHERE url=?', (url,))
+            elif response.status == 404:
+                self.store.connection.execute('DELETE FROM http_cache WHERE url=?', (url,))
         if response.status == 429 or (response.status == 403 and headers.get('x-ratelimit-remaining') == '0'):
             deadlines = []
             try:
@@ -177,6 +231,7 @@ class CveListSource:
             if previous:
                 retry = max(retry, datetime.fromisoformat(previous))
             self.store.set_meta('github_retry_at', retry.isoformat())
+            self.store.set_meta('github_retry_mode', ('token' if active else 'none') if api else 'any')
         if response.status != 200 and response.status not in allowed:
             if response.path is not None:
                 response.path.unlink(missing_ok=True)
@@ -206,7 +261,7 @@ class CveListSource:
                     raise ValueError('GitHub error message is not a string')
                 if 'Only the first 1000 results are available' in message:
                     break
-                raise ValueError('HTTP 422: ' + validate.error_detail(message))
+                raise ValueError('HTTP 422: ' + validate.error_detail(redact_tokens(message, *self._redaction_tokens)))
             page = json.loads(response.body)
             if not isinstance(page, list):
                 raise ValueError('Release listing is not a list')
@@ -217,7 +272,8 @@ class CveListSource:
                     continue
                 tag = release.get('tag_name')
                 if not isinstance(tag, str) or not validate.TAG.fullmatch(tag):
-                    logging.getLogger(__name__).warning('Skipping unrecognised release tag: %s', validate.error_detail(tag))
+                    logging.getLogger(__name__).warning('Skipping unrecognised release tag: %s',
+                                                       validate.error_detail(redact_tokens(tag, *self._redaction_tokens)))
                     continue
                 problems = validate.release(tag, release.get('assets'), release.get('published_at'), now)
                 if problems:
@@ -366,7 +422,15 @@ class CveListSource:
 
     def poll(self, now):
         results = []
+        active = self.http.github_token is not None
+        if active:
+            self.store.connection.execute('DELETE FROM http_cache WHERE julianday(used_at) < julianday(?)',
+                                          ((now - timedelta(days=7)).isoformat(),))
         deferred = self.store.get_meta('github_retry_at')
+        mode = self.store.get_meta('github_retry_mode') or 'none'
+        if deferred and mode not in ('any', 'token' if active else 'none'):
+            self.store.connection.execute("DELETE FROM meta WHERE k IN ('github_retry_at','github_retry_mode')")
+            deferred = None
         if deferred and now < datetime.fromisoformat(deferred):
             return results
         try:
