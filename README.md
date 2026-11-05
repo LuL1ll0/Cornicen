@@ -67,9 +67,14 @@ name = "Example reverse proxy"
 match = ["nginx:nginx"]      # vendor:product, as the CNA writes it
 version = "1.25.3"           # or a range: ">=1.25.0, <1.26.0"
 scheme = "semver"            # semver, dotted, debian, python or opaque
+eol = true                   # optional: the vendor no longer supports this version
 ```
 
-CNAs spell vendors and products inconsistently, so check what actually matches. After the first bootstrap, `watch check --days 90` shows matches and near misses for each watch, so you can find the spelling a CNA uses. Cornicen re-reads the file when it changes, and re-checks edited watches against the CVEs it has stored. Matching rules, aliases, version schemes and how unknowns are decided: [docs/watch-lists.md](docs/watch-lists.md).
+CNAs spell vendors and products inconsistently, so check what actually matches. After the first bootstrap, `watch check --days 90` shows matches and near misses for each watch, so you can find the spelling a CNA uses. Cornicen re-reads the file when it changes, and re-checks edited watches against the CVEs it has stored. Alias changes are re-checked at the next start.
+
+Mark a version the vendor no longer supports with `eol = true`. Its alerts then lead with "unsupported by the vendor — fixes unlikely; isolate or replace", and `status`, `report` and `watch check` flag it as coverage limited: vendors stop publishing advisories for unsupported versions, so a quiet EOL watch is not a safe one.
+
+Matching rules, aliases, version schemes and how unknowns are decided: [docs/watch-lists.md](docs/watch-lists.md).
 
 ## Commands
 
@@ -106,6 +111,7 @@ The full ingestion, matching and delivery design is in [docs/spec.md](docs/spec.
 Cornicen only knows what the CVE List, KEV and EPSS publish, and CNA data is inconsistent. It can miss vulnerabilities or over-report them, so treat it as an early warning, not an audit. It never probes your systems or scans images; it knows only what you declare.
 
 - **Not covered:** anything without a CVE record (a blog post, a GitHub issue), Apple (no official machine-readable feed), and Raspberry Pi-specific packages or firmware.
+- **GitHub rate limit:** the CVE List is fetched from GitHub without a token, and GitHub allows 60 such requests an hour per IP address. Anything else on your network calling GitHub without a token draws on the same allowance. If it runs out, the CVE List source reports unhealthy until the hour resets.
 - **Plex:** no machine-readable advisory feed was found, so coverage comes from CVE records alone. A latest-version check is planned.
 - **Planned:** vendor advisory feeds, Debian data, NVD enrichment, release checks, more delivery channels.
 
