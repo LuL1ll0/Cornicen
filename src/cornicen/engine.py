@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 
 import cornicen
 from cornicen import applicability, validate
+from cornicen import accept
 from cornicen.applicability import Result, State
 from cornicen.config import Config
 from cornicen.identity import AliasMap
@@ -31,7 +32,8 @@ class CycleReport:
 
 class Engine:
     def __init__(self, store: Store, watches: tuple[Watch, ...], aliases: AliasMap,
-                 config: Config, clock: Callable[[], datetime], notifier: Notifier):
+                 config: Config, clock: Callable[[], datetime], notifier: Notifier, accepts=()):
+        self.accepts = tuple(accepts)
         self.store, self.watches, self.aliases = store, watches, aliases
         self.config, self.clock, self.notifier = config, clock, notifier
         self.db = store.connection
@@ -141,6 +143,16 @@ class Engine:
             (key, watch_id, record_id, kind, episode, self._now().isoformat())).rowcount
         if not added:
             return
+        if watch_id and kind != 'correction':
+            pending = self.db.execute('SELECT body_json FROM outbox WHERE pair_key=? AND sent_at IS NULL',
+                                      (f'{watch_id}|{record_id}',)).fetchone()
+            previous = json.loads(pending[0]) if pending else {}
+            # queue replaces the body when reasons coalesce. Keep the hold's audit
+            # context until revalidation decides whether it is active or lapsed.
+            body = dict(body)
+            for field in ('accepted', 'acceptance_lapsed'):
+                if field in previous:
+                    body.setdefault(field, previous[field])
         urgency = ('health' if kind in ('healthy', 'unhealthy') else
                    'urgent' if watch_id and self._urgent(body, [kind]) else 'normal')
         now = self._now().isoformat()
@@ -642,18 +654,64 @@ class Engine:
         if reasons == ['correction']:
             # Preserve the correction's cleared state and episode until delivery.
             return row
+        previous_body = body
         episode = body.get('episode', pair['episode'])
         body = self._body(watch, body['record_id'], result)
         body['episode'] = episode
         urgency = 'urgent' if self._urgent(body, reasons) else 'normal'
         due = row['due_at']
+        next_attempt = row['next_attempt_at']
         if urgency != row['urgency']:
             due = self._now().isoformat() if urgency == 'urgent' else self._digest()
+        entry = next((a for a in self.accepts
+                      if a.watch.casefold() == watch.id.casefold() and a.cve == body['record_id']), None)
+        current = accept.state(entry, {w.id: w for w in self.watches}, self._now(),
+                               self.config.timezone) if entry else None
+        if current == 'active':
+            held = (set(reasons) <= {'new match', 'acceptance lapsed'}
+                    and not body.get('kev') and not pair['exploited'])
+            body['accepted'] = dict(accept.detail(entry), held=held)
+            if held:
+                urgency, due = 'normal', self._digest()
+                next_attempt = None
+        elif previous_body.get('accepted', {}).get('held'):
+            body['acceptance_lapsed'] = dict(previous_body['accepted'], why=accept.lapse_reason(current))
+            body['acceptance_lapsed'].pop('held', None)
+            if persist and current is None:
+                if 'acceptance lapsed' not in reasons:
+                    reasons.append('acceptance lapsed')
+                key = f"{watch.id}|{body['record_id']}|acceptance lapsed|{episode}"
+                self.db.execute('INSERT OR IGNORE INTO events VALUES (?,?,?,?,?,?)',
+                    (key, watch.id, body['record_id'], 'acceptance lapsed', episode, self._now().isoformat()))
+        elif 'acceptance_lapsed' in previous_body:
+            body['acceptance_lapsed'] = previous_body['acceptance_lapsed']
         if not persist:
-            return dict(row, body_json=json.dumps(body), urgency=urgency, due_at=due)
-        self.db.execute('UPDATE outbox SET body_json=?,urgency=?,due_at=? WHERE id=?',
-                        (json.dumps(body), urgency, due, row['id']))
+            return dict(row, body_json=json.dumps(body), urgency=urgency, due_at=due,
+                        next_attempt_at=next_attempt)
+        self.db.execute('UPDATE outbox SET body_json=?,urgency=?,due_at=?,next_attempt_at=?,reasons_json=? WHERE id=?',
+                        (json.dumps(body), urgency, due, next_attempt, json.dumps(reasons), row['id']))
         return self.db.execute('SELECT * FROM outbox WHERE id=?', (row['id'],)).fetchone()
+
+    def _acceptance_lapses(self):
+        watches = {watch.id: watch for watch in self.watches}
+        for entry in self.accepts:
+            current = accept.state(entry, watches, self._now(), self.config.timezone)
+            if current not in {'lapsed-date', 'lapsed-version'}:
+                continue
+            watch = next(w for w in self.watches if w.id.casefold() == entry.watch.casefold())
+            pair = self.db.execute('SELECT * FROM pairs WHERE watch_id=? AND record_id=?',
+                                   (watch.id, entry.cve)).fetchone()
+            if not pair or not self._active(pair['state'], pair['exploited']):
+                continue
+            result = Result(State(pair['state']), bool(pair['exploited']), pair['evidence'], pair['confidence'])
+            body = self._body(watch, entry.cve, result)
+            body['episode'] = pair['episode']
+            pending = self.db.execute('SELECT body_json FROM outbox WHERE pair_key=? AND sent_at IS NULL',
+                                      (f'{watch.id}|{entry.cve}',)).fetchone()
+            held = json.loads(pending[0]).get('accepted', {}) if pending else {}
+            original = {key: held[key] for key in ('reason', 'until', 'version')} if held.get('held') else accept.detail(entry)
+            body['acceptance_lapsed'] = dict(original, why=accept.lapse_reason(current))
+            self._event(watch.id, entry.cve, 'acceptance lapsed', pair['episode'], body)
 
     def _flush(self):
         now = self._now().isoformat()
@@ -709,5 +767,7 @@ class Engine:
                 exploited = self.db.execute("SELECT count(*) FROM pairs WHERE baseline=1 AND exploited=1 AND state!='not_affected'").fetchone()[0]
                 self._event('', 'baseline', 'baseline', 1,
                             {'record_id': 'baseline', 'detail': f'baseline: {count} historical matches, {exploited} exploited — run `cornicen report`'}, True)
+        with self.store.transaction():
+            self._acceptance_lapses()
         self._flush()
         return self.report

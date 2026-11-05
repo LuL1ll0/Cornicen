@@ -139,7 +139,7 @@ eol = false
         self.assertEqual(actual[0], 0)
         self.assertEqual(json.loads(actual[1]), dict(
             schema_version=1, group='open', watch_id='old-example',
-            record_id='fictional-record', state='affected', alias_map_version='fixture-map'))
+            record_id='fictional-record', state='affected', alias_map_version='fixture-map', accepted=None))
         self.assertEqual(actual[2], 'old-example: ' + NOTICE + '\n')
         self.assertEqual(plain[2], '')
 

@@ -12,6 +12,8 @@ epss_threshold = 0.10
 digest_time = "08:00"
 timezone = "UTC"
 overdue_minutes = 60
+# Warn about accept dates farther away than this many days.
+accept_warn_days = 180
 retention_days = 365
 
 # Optional, per-host User-Agent:

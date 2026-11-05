@@ -102,3 +102,49 @@ Descriptions, references and other unused material are discarded. Startup
 migrates existing records in resumable batches of 128; freed SQLite pages are
 reused without automatically shrinking the existing file. Matching, diagnostics
 and notifications use the retained fields.
+
+## Accept entry diagnostics
+
+`accept_warn_days` in `cornicen.toml` is a positive integer, default 180. It
+controls the `watch check` warning for far-future `until` dates.
+
+After `reconcile:`, text `status` prints each entry as:
+
+```text
+accepted: proxy/CVE-2026-0001 until 2027-03-01 — active; held 1; Module not built
+accepted: 1 active, 0 lapsed, 0 unknown watch
+```
+
+A version-change entry shows `until version change`; an entry with both conditions
+shows `until <date> or version change`. States are `active`,
+`lapsed-date`, `lapsed-version` and `unknown-watch`. JSON status adds an `accepted`
+array of `{watch_id, cve, reason, until, version, state, held}`; dates are
+`YYYY-MM-DD` strings or null. Existing fields and `schema_version: 1` remain.
+A loaded watch list with no accept entries emits `accepted: []`.
+An unreadable watch file prints `accepted: not checked (watch list unreadable)`
+in text and omits the JSON key. Exit codes do not change.
+
+`report` keeps its groups and rows. When the watch list loads, each pair row
+adds `accepted`: null or `{reason, until, version, state}`. Its text summary
+excludes active, non-exploited accepted pairs from affected/open counts and
+counts them as `Accepted (not alerting): N`. Exploited pairs remain counted and
+show their acceptance. With no accept entries, pair rows still have `accepted: null`;
+dead-letter rows never have this field. If the watch list cannot load, pair rows
+omit it. The text summary keeps its legacy shape when there are no accept entries.
+JSONL stdout contains only rows, with schema version 1.
+An unreadable watch file prints `accepted: not applied (watch list unreadable)`
+on stderr in both formats, preserving the legacy text report on stdout.
+
+Reasons in status and watch-check text replace control characters with spaces,
+collapse whitespace and are capped at 160 characters.
+
+`watch check` lists each entry's state and reason, followed by `accept warning:`
+lines for unknown watches, lapsed entries, long dates and matches nothing.
+Stored-record applicability uses the candidate watches when `--file` is given;
+matching is marked not checked without a database. `--strict` also exits 1 for
+accept warnings. Malformed accept entries reject the entire file with a labelled
+`watch validation error: accept entry N (<cve>/<watch>): <problem>`.
+`outbox list` includes the held row's `accepted` body metadata for auditing.
+
+Deploy 0.1.6 before installing a watch file containing `[[accept]]`; v0.1.5
+rejects that table. See [accept entry format and limits](watch-lists.md#accept-entries).

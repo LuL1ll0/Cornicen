@@ -89,6 +89,14 @@ def render(n: Notification) -> tuple[str, str, int, list[str]]:
         title = '🚨 ' + title
     lines = ['EOL: ' + _EOL] if body.get('eol') else []
     lines.append('Why: ' + ' · '.join(n.reasons))
+    accepted = body.get('accepted')
+    lapsed = body.get('acceptance_lapsed')
+    if accepted and not accepted.get('held'):
+        until = accepted.get('until') or 'version change'
+        why = 'KEV listed' if body.get('kev') or 'KEV added' in n.reasons else 'exploited'
+        lines.append(f"Accepted: {_clean_reason(accepted['reason'])} (until {until}) — alerting anyway: {why}")
+    if lapsed:
+        lines.append(f"Acceptance lapsed ({lapsed['why']}): {_clean_reason(lapsed['reason'])}")
     kev = body.get('kev')
     if kev:
         text = f'KEV: listed {kev.get("dateAdded", "date unknown")}, CISA due {kev.get("dueDate", "not stated")}'
@@ -120,3 +128,8 @@ def render(n: Notification) -> tuple[str, str, int, list[str]]:
     score = body.get('cna_cvss_score')
     lines.append('CNA CVSS score: ' + (str(score) if type(score) in (int, float) else 'unknown'))
     return title, '\n'.join(lines), 5 if n.urgency == 'urgent' else 3, ['rotating_light'] if n.urgency == 'urgent' else ['information_source']
+
+
+def _clean_reason(reason):
+    return ' '.join(''.join(' ' if unicodedata.category(char).startswith('C') else char
+                            for char in reason).split())[:160]

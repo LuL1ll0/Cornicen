@@ -27,3 +27,17 @@ name = "Example media server"
 match = ["jellyfin:jellyfin"]
 version = "10.8.0"
 scheme = "semver"
+
+# Deploy Cornicen 0.1.6 before adding accept entries (0.1.5 rejects them).
+[[accept]]
+cve = "CVE-2026-0001"
+watch = "proxy"
+reason = "Module not built"
+until = 2027-03-01
+
+[[accept]]
+cve = "CVE-2026-0002"
+watch = "proxy"
+reason = "Local fix applied to this version"
+until_version_change = true
+version = "1.25.3"

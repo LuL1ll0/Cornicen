@@ -75,6 +75,7 @@ class Config:
     notifier: str = "ntfy"
     notification_path: Path = Path("/data/notifications.jsonl")
     download_budgets: dict[str, dict[str, int]] = field(default_factory=lambda: download_budgets({}))
+    accept_warn_days: int = 180
 
 
 def load_config(path: Path, env: Mapping[str, str]) -> Config:
@@ -123,7 +124,7 @@ def load_config(path: Path, env: Mapping[str, str]) -> Config:
         ZoneInfo(timezone)
     except (ValueError, ZoneInfoNotFoundError):
         raise ValueError("timezone must name a known time zone") from None
-    for key, default in (("overdue_minutes", 60), ("retention_days", 365)):
+    for key, default in (("overdue_minutes", 60), ("retention_days", 365), ("accept_warn_days", 180)):
         value = settings.get(key, default)
         if type(value) is not int or value <= 0:
             raise ValueError(f"{key} must be a positive integer")
@@ -183,5 +184,5 @@ def load_config(path: Path, env: Mapping[str, str]) -> Config:
         user_agent=user_agent, user_agent_overrides=overrides,
         retention_days=settings.get("retention_days", 365),
         notifier=notifier, notification_path=notification_path, allow_shared_token_file=allow_shared,
-        download_budgets=budgets,
+        download_budgets=budgets, accept_warn_days=settings.get("accept_warn_days", 180),
     )

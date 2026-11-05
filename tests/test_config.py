@@ -27,7 +27,7 @@ class ConfigTests(unittest.TestCase):
         self.assertIsNone(config.aliases_path)
         self.assertEqual(config.user_agent_overrides, {})
         self.assertEqual(config.user_agent,
-                         "Cornicen/0.1.5 (+https://github.com/<owner>/cornicen)")
+                         "Cornicen/0.1.6 (+https://github.com/<owner>/cornicen)")
 
     def test_overrides(self):
         config = self.load('''db_path = "state.db"

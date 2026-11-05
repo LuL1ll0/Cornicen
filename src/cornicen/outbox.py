@@ -59,7 +59,7 @@ def deliver(store, notifier, clock, ready, *, revalidate=None):
                 if delivered:
                     db.execute('UPDATE outbox SET sent_at=?,attempts=attempts+1 WHERE id=?',
                                     (clock().isoformat(), row['id']))
-                    if item.watch_id and set(item.reasons) & {'new match', 'KEV added'}:
+                    if item.watch_id and set(item.reasons) & {'new match', 'KEV added', 'acceptance lapsed'}:
                         db.execute('UPDATE pairs SET notified=1 WHERE watch_id=? AND record_id=?',
                                         (item.watch_id, item.record_id))
                 else:

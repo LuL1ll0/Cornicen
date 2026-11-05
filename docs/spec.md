@@ -17,6 +17,10 @@ Judged in this order. Each is testable (§11).
 5. **It says what it knows and what it doesn't.** Every alert states its evidence, and every unknown is shown as unknown — never as a negative ("not in KEV" means not listed, not "not exploited").
 6. **It's usable by strangers.** No account or key for any v1 source; a fictional example watch list; one documented install.
 
+An accepted pair (§4) is an explicit operator decision, recorded and shown in
+local diagnostics. Guarantees 1 and 3 honor this decision; exploitation always
+breaks through.
+
 ## 2. Non-goals
 
 - Not a scanner: never probes or reads a running system; knows only the watch list.
@@ -78,6 +82,32 @@ product_only = ["examplenas os"]    # optional loose names; lower confidence
 version  = "7.2.2-72806"
 scheme   = "opaque"                 # equality only
 ```
+
+### Accept entries
+
+`[[accept]]` records a CVE/watch pair, a required trimmed reason (1–200
+characters), and `until` (inclusive local date), or `until_version_change = true`
+with its required recorded `version`. Both conditions may be used; the first
+lapse wins. CVE IDs normalize uppercase; duplicate case-folded pairs and malformed
+entries reject the file. Accept entries are separate from watches and their
+applied hash, so editing them never triggers matching. See the complete
+[format, validation and warnings](watch-lists.md#accept-entries).
+
+At delivery refresh, active entries hold only new-match/acceptance-lapsed rows
+without KEV or exploitation. Held rows remain pending with `accepted` metadata,
+normal urgency and a due time rolled to the next digest; EPSS alone never breaks
+through. Corrections, health and baseline notifications are unaffected. Date or
+version lapse, or entry removal, releases a held row with `acceptance_lapsed`
+metadata. A separate transactional pass queues a normal lapse event for each
+lapsed entry with an active pair, including baseline or previously notified
+pairs. It writes only events/outbox and dedupes once per episode. Extending and
+lapsing an entry again in the same episode does not notify twice. Holds never
+alter ingest state, cursors, retries, episodes or health policies.
+
+Status, report and watch check show decisions using the shared state predicate.
+Unknown watches are ignored; lapsed, long and unmatched entries warn locally.
+Reload validates watches and accepts together and retains both on rejection.
+Deploy 0.1.6 before copying accept entries: 0.1.5 rejects the new table.
 
 ### Identity
 
@@ -200,6 +230,7 @@ existing file may retain its previous physical size.
 |---|---|
 | **new match** | a pair becomes affected, or unknown-and-exploited, for the first time |
 | **KEV added** | a matched pair's CVE appears in KEV |
+| **acceptance lapsed** | an accept entry lapses by date or version for an active pair; once per episode, due in the next digest |
 | **correction** | a pair previously notified becomes not affected or rejected |
 
 EPSS changes, CVSS changes, description edits and reference additions update the stored record silently in v1.

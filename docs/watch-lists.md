@@ -95,3 +95,66 @@ without known exploitation are omitted.
 healthy and 1 otherwise, including when the database is unavailable.
 Run locally on Python 3.11+ with `PYTHONPATH=src python3 -m cornicen --config
 /path/to/cornicen.toml status`. Runtime dependencies are standard library only.
+
+## Accept entries
+
+An `[[accept]]` records an explicit decision to hold alerts for one watch/CVE
+pair. It does not alter matching or ingest state. For example:
+
+```toml
+[[accept]]
+cve = "CVE-2026-0001"
+watch = "proxy"
+reason = "Module not built"
+until = 2027-03-01
+
+[[accept]]
+cve = "CVE-2026-0002"
+watch = "proxy"
+reason = "Local fix applied to this version"
+until_version_change = true
+version = "1.25.3"
+```
+
+CVE IDs are case-insensitive and stored uppercase. Watch IDs use
+`[A-Za-z0-9._-]{1,64}`. Each entry requires a nonempty reason (at most 200
+characters after trimming) and at least one lapse condition. `until` accepts a
+TOML date or a quoted `YYYY-MM-DD`; it includes that entire date in the configured
+`timezone`. `until_version_change = true` requires `version`, which must exactly
+match the watch's version string to stay active. `version` is invalid without
+that condition. With both conditions, whichever lapses first releases the pair.
+Unknown keys, malformed entries and duplicate CVE/watch pairs reject the whole
+file; duplicate watch IDs in pairs are compared without case.
+
+Only ordinary new-match or acceptance-lapsed rows are held. They remain pending
+in the outbox, with `accepted.held = true`, normal urgency and a due time rolled
+forward to the next digest on refresh. High EPSS does not break through: it is a
+probability, not evidence of exploitation. KEV or known exploitation always
+breaks through and the alert includes `Accepted: <reason> (until <date or version
+change>) — alerting anyway: KEV listed` (or `exploited`). Corrections, health
+messages and the baseline summary are never held. A held pair that clears sends
+no correction because it was never notified.
+
+Date expiry, a version change or removing an entry releases a held row for the
+next digest under ordinary urgency rules. Its alert includes `Acceptance lapsed
+(<why>): <reason>`. A lapsed entry also creates a notice for an active pair that
+was previously notified or classified as baseline. There is **one lapse notice
+per episode**. A pair that broke through on KEV still gets its one lapse notice
+when the entry later lapses. Extending an entry and lapsing it again in that same
+episode does not produce another notice. Reasons in notifications have control characters
+replaced with spaces, collapsed whitespace and a 160-character cap.
+Removing a watch drops its pending rows, held ones included, as it always has.
+Re-adding the watch re-matches it, and an entry that is still active holds the
+new row again.
+
+The scheduler reloads accept edits without a restart or re-match. A rejected
+reload retains both the previous watches and accept entries. New entries affect
+pending rows on their next refresh, at the latest when due. `watch check` lists
+entry states and warns about unknown watches, lapsed entries, dates more than
+`accept_warn_days` away (default 180), and entries matching no stored affected
+or unknown-and-exploited record. Without a database, matching is marked **not
+checked**. Unknown watches are ignored by the engine. Warnings do not reject the
+file; `--strict` exits 1 for them. Version-change-only entries never warn as long.
+
+Deploy **0.1.6 before copying a watch list with accept entries**: v0.1.5 rejects
+`[[accept]]` as an unknown table.

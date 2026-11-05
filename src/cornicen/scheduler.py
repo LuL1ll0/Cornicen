@@ -9,7 +9,7 @@ import time
 import unicodedata
 
 from cornicen.health import assess
-from cornicen.watchlist import load_watchlist, WatchlistError
+from cornicen.watchlist import load_document, WatchlistError
 
 
 def safe_message(error, token=None):
@@ -61,7 +61,7 @@ class Scheduler:
         if stamp == self.watch_stamp:
             return
         try:
-            watches = load_watchlist(self.engine.config.watchlist_path)
+            watches, accepts = load_document(self.engine.config.watchlist_path)
             if self._stamp() != stamp:
                 raise WatchlistError(['Watchlist changed while reading'])
         except WatchlistError:
@@ -69,7 +69,18 @@ class Scheduler:
             with self.engine.store.transaction():
                 self.engine._health('watchlist', 'unhealthy', 'Watchlist reload rejected')
         else:
-            self.engine.reload_watches(watches)
+            engine = self.engine
+            if watches == engine.watches and engine._identity_version == (engine.aliases, engine.aliases.version):
+                engine.accepts = accepts
+                with engine.store.transaction():
+                    engine.db.execute('UPDATE outbox SET dirty=1 WHERE sent_at IS NULL')
+                    rejected = engine.db.execute("SELECT detail FROM health WHERE source='watchlist' AND state='unhealthy'").fetchone()
+                    pending = engine.db.execute("SELECT 1 FROM retry_queue WHERE source='watchlist' UNION ALL SELECT 1 FROM dead_letters WHERE source='watchlist'").fetchone()
+                    if rejected and rejected[0] == 'Watchlist reload rejected' and not pending:
+                        engine._health('watchlist', 'healthy', 'Watchlist reload validation succeeded')
+            else:
+                engine.reload_watches(watches)
+                engine.accepts = accepts
             self.watch_stamp = stamp
 
     def tick(self):
