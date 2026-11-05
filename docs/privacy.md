@@ -6,7 +6,7 @@
 
 - **Matching is local.** Cornicen downloads whole public datasets (CVE List, KEV, EPSS bulk). It sends no product name, version or CVE ID to any data source in v1.
 - **Notifications carry your data to the channel you configure.** An alert names the product and version it matched. If your ntfy server is someone else's, they see that. Self-host ntfy for end-to-end privacy.
-- **No telemetry, analytics or update check.** The README lists every host contacted by default.
+- **No telemetry, analytics or update check.** This page lists every host contacted by default.
 - **v1.1 caveat:** repository-specific checks (latest-release, GitHub advisories) and per-CVE lookups reveal what you watch to those hosts. Each will be opt-in and say so.
 - Runs as non-root, read-only root filesystem, writable volume only for SQLite, watch list mounted read-only. No inbound port. Secrets (ntfy token) from environment or file, never the shareable TOML.
 - User-Agent configurable, default `Cornicen/<version> (+<repo URL>)`.

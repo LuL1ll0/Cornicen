@@ -1,11 +1,29 @@
 # Cornicen
 
-Cornicen is a self-hosted CVE alerter for homelabs and small networks. You tell it what you run. It watches the public vulnerability feeds, matches them on your own machine, and sends a push notification when something you run is affected. When nothing is, it stays quiet. When it can't see the feeds, it says so.
+Self-hosted CVE alerter for homelabs: matches CVE List, KEV and EPSS locally and alerts via ntfy.
+
+Cornicen is for homelabs and small networks. You tell it what you run. It watches the public vulnerability feeds, matches them on your own machine, and sends a push notification when something you run is affected. When nothing is, it stays quiet. When it can't see the feeds, it says so.
 
 - **One container**, Python standard library only, SQLite on a volume. No account or API key for any data source.
-- **Matching never leaves your host.** It downloads whole public datasets and sends no product name, version or CVE ID anywhere.
+- **Matching never leaves your host.** It downloads whole public datasets and sends no product name, version or CVE ID to any data source.
 - **Alerts go to [ntfy](https://ntfy.sh)**, ideally one you host yourself.
 - **Silent first run.** The first bootstrap records what already matches and sends one summary; after that you hear only about changes.
+
+**Status:** version 0.1.6, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
+
+## Contents
+
+- [What an alert looks like](#what-an-alert-looks-like)
+- [Where the data comes from](#where-the-data-comes-from)
+- [Quick start](#quick-start)
+- [Watch lists](#watch-lists)
+- [Commands](#commands)
+- [Design goals](#design-goals)
+- [Limits](#limits)
+- [Privacy](#privacy)
+- [Getting help](#getting-help)
+- [Development](#development)
+- [License and prior art](#license-and-prior-art)
 
 ## What an alert looks like
 
@@ -30,7 +48,7 @@ Anything listed in CISA's Known Exploited Vulnerabilities catalog (KEV), or affe
 |---|---|---|
 | [CVE List V5](https://github.com/CVEProject/cvelistV5) | Every CVE record, with the affected products and versions each CNA published | hourly |
 | [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) | CVEs known to be exploited in the wild | every 6 hours |
-| [EPSS](https://www.first.org/epss/) | Daily probability that a CVE will be exploited soon | daily |
+| [EPSS](https://www.first.org/epss/) | Daily probability that a CVE will be exploited in the next 30 days | daily |
 
 ## Quick start
 
@@ -43,7 +61,7 @@ cp examples/cornicen.example.toml config/cornicen.toml
 cp examples/watchlist.example.toml config/watchlist.toml
 ```
 
-1. In `config/cornicen.toml`, set your ntfy server and topic, digest time and time zone.
+1. In `config/cornicen.toml`, set your ntfy server and topic, your GitHub owner (`owner`, used in the User-Agent), digest time and time zone.
 2. Put your ntfy token in `secrets/ntfy_token`, owned by UID 10001 with mode 0600. (No auth on your server? Remove the `environment` and `secrets` entries from `compose.yml`.)
 3. Replace the example watch list with what you run (next section).
 
@@ -93,7 +111,7 @@ All of these run inside the container (`docker compose exec cornicen python -m c
 | `version compare A B --scheme S` | How two versions compare under a scheme |
 | `replay --list FILE` | Check a deployment against CVEs you know should match |
 
-Details and exit codes: [docs/cli.md](docs/cli.md).
+Details and exit codes: [docs/cli.md](docs/cli.md). `replay` is covered in [docs/testing.md](docs/testing.md).
 
 ## Design goals
 
@@ -119,16 +137,20 @@ Cornicen only knows what the CVE List, KEV and EPSS publish, and CNA data is inc
 
 Matching is local: Cornicen downloads whole public datasets and sends no product name, version or CVE ID to them. There is no telemetry, analytics or update check. Alerts do name the product and version they matched, so whoever runs your ntfy server sees them; self-host ntfy if that matters. The exact hosts contacted and the network safeguards are in [docs/privacy.md](docs/privacy.md).
 
+## Getting help
+
+Ask questions and report bugs in [GitHub Issues](https://github.com/LuL1ll0/cornicen/issues). Don't paste your real watch list into a public issue; a fictional one that reproduces the problem is enough. Report security vulnerabilities privately, as described in [SECURITY.md](SECURITY.md).
+
 ## Development
 
 ```sh
 make gate
 ```
 
-The gate runs the full unit, replay and fuzz suite with no network access. Testing a real deployment against CVEs you know should match: [docs/testing.md](docs/testing.md).
+The gate runs the full unit, replay and fuzz suite with no network access. Testing a real deployment against CVEs you know should match: [docs/testing.md](docs/testing.md). How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License and prior art
 
-MIT; see [LICENSE](LICENSE).
+MIT (SPDX: `MIT`); see [LICENSE](LICENSE). Maintained by [@LuL1ll0](https://github.com/LuL1ll0).
 
 The silent first-run baseline, vendor-scoped version-bounded watches, a crash-safe outbox, and alerting on *what changed* rather than every record update are ideas seen in other open-source CVE watchers. Cornicen's code is written from this spec.
