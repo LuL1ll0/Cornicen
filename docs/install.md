@@ -91,6 +91,7 @@ persistent ETag cache. Authorized 304 responses do not consume the primary limit
 Hourly listings mostly still return 200 because new releases shift the pages;
 ETags help mainly with restarts, retries within an hour and repeated past-day
 lookups. The larger authenticated allowance is the main benefit.
+A token does not widen what the listing reads: it stops at the same 1,000 releases as anonymous access.
 
 ## File permissions
 

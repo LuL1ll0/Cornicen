@@ -522,3 +522,78 @@ class GitHubTokenTests(unittest.TestCase):
         text = (Path(__file__).parents[1] / 'docs' / 'spec.md').read_text()
         self.assertNotIn('Secrets (ntfy token)', text)
         self.assertIn('GitHub token from a file only', text)
+
+    def listing_routes(self):
+        pages = [RELEASES_URL] + [RELEASES_URL + f'?page={n}' for n in range(2, 6)]
+        entries = [[release(3, 3), release(3, 4)], [release(3, 5), release(3)]]
+        routes = {url: (json.dumps(entries[min(n, 1)]).encode(), 200,
+                        {'Link': f'<{pages[n + 1]}>; rel="next"'})
+                  for n, url in enumerate(pages[:-1])}
+        routes[pages[-1]] = (b'{"message":"Only the first 1000 results are available"}', 422, {})
+        return routes, pages
+
+    def test_authenticated_listing_stops_at_result_cap(self):  # T31
+        self.cursor()
+        routes, pages = self.listing_routes()
+        source, opener = self.source(routes)
+        with patch('cornicen.sources.cvelist.LISTING_RESULT_CAP', 3, create=True):
+            result, = source.poll(NOW)
+        self.assertEqual(result.status, FetchStatus.COMPLETE)
+        self.assertEqual(result.cursor, release(3)['tag_name'])
+        self.assertEqual(len(result.records), 1)
+        self.assertEqual([r.full_url for r in opener.requests],
+                         pages[:2] + [release(3)['assets'][1]['browser_download_url']])
+        for terminal in (False, True):
+            with self.subTest(terminal=terminal):
+                if terminal:
+                    body, status, _ = routes[pages[1]]
+                    routes[pages[1]] = (body, status, {})
+                source, _ = self.source(routes)
+                with patch('cornicen.sources.cvelist.LISTING_RESULT_CAP', 3, create=True):
+                    releases, exhausted = source._listing(release(3, 1)['tag_name'], NOW)
+                self.assertEqual(releases, [release(3, hour) for hour in (3, 4, 5, 23)])
+                self.assertFalse(exhausted)
+
+    def test_anonymous_listing_still_ends_on_422(self):  # T32
+        self.cursor()
+        routes, pages = self.listing_routes()
+        for rejected in (False, True):
+            with self.subTest(rejected=rejected):
+                source, opener = self.source(routes, token=rejected)
+                if rejected:
+                    original = opener.open
+                    def reject_second_page(request, timeout=None):
+                        if request.full_url == pages[1] and len(opener.requests) == 1:
+                            opener.requests.append(request)
+                            return Reply(b'', 401)
+                        return original(request, timeout)
+                    opener.open = reject_second_page
+                with patch('cornicen.sources.cvelist.LISTING_RESULT_CAP', 3, create=True):
+                    if rejected:
+                        with self.assertLogs('cornicen.sources.cvelist', level='WARNING'):
+                            result, = source.poll(NOW)
+                    else:
+                        result, = source.poll(NOW)
+                self.assertEqual(result.status, FetchStatus.COMPLETE)
+                self.assertEqual(result.cursor, release(3)['tag_name'])
+                expected = pages[:2] + pages[1:] if rejected else pages
+                self.assertEqual([r.full_url for r in opener.requests],
+                                 expected + [release(3)['assets'][1]['browser_download_url']])
+                for request in opener.requests[2:] if rejected else opener.requests:
+                    self.assertEqual(headers(request), {'user-agent': 'test'})
+                self.assertIsNone(source.http.github_token)
+                self.assertEqual(self.rows(), [])
+
+    def test_listing_cap_counts_skipped_entries(self):  # T33
+        routes, pages = self.listing_routes()
+        entries = [dict(release(3), draft=True), dict(release(3), prerelease=True),
+                   {'tag_name': 'unrecognised'}]
+        _, status, links = routes[RELEASES_URL]
+        routes[RELEASES_URL] = (json.dumps(entries).encode(), status, links)
+        source, opener = self.source(routes)
+        with patch('cornicen.sources.cvelist.LISTING_RESULT_CAP', 4, create=True):
+            with self.assertLogs('cornicen.sources.cvelist', level='WARNING'):
+                releases, exhausted = source._listing(release(3, 1)['tag_name'], NOW)
+        self.assertEqual([r.full_url for r in opener.requests], pages[:2])
+        self.assertEqual(releases, [release(3, 5), release(3)])
+        self.assertFalse(exhausted)

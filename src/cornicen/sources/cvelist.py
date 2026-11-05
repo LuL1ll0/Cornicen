@@ -32,6 +32,7 @@ MAX_RECORD_BYTES = 8 * 1024 * 1024
 MAX_SNAPSHOT_BYTES = 4 * 1024 * 1024 * 1024
 MAX_COMPRESSION_RATIO = 200
 MAX_RELEASE_PAGES = 50
+LISTING_RESULT_CAP = 1000
 COPY_CHUNK_BYTES = 1024 * 1024
 RECORD_PATH = re.compile(r'(?:cves/\d{4}/[^/]+|deltaCves)/(CVE-\d{4}-\d{4,})\.json\Z')
 
@@ -240,6 +241,7 @@ class CveListSource:
 
     def _listing(self, cursor, now):
         releases = []
+        entries_seen = 0
         exhausted = False
         url = RELEASES_URL
         visited = set()
@@ -279,6 +281,9 @@ class CveListSource:
                 if problems:
                     raise ValueError('; '.join(problems))
                 releases.append(release)
+            entries_seen += len(page)
+            if self.http.github_token is not None and entries_seen >= LISTING_RESULT_CAP:
+                break
             match = re.search(r'<([^>]+)>;\s*rel="next"', response.headers.get('link', ''))
             url = match[1] if match else None
             exhausted = url is None
