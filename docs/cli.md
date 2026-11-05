@@ -34,8 +34,10 @@ cornicen watch check --file /config/draft.toml --strict --days 90
   letters because those rows have no watch ID. Text (the default) keeps the
   existing headings and reports filtered counts. JSONL emits only row objects,
   adding `schema_version: 1` and `group` to the existing fields, ordered within
-  each group by watch/CVE (or source/CVE for dead letters). Empty JSONL is empty
-  output. Exports contain private inventory and should stay local.
+  each group by watch/CVE (or source/CVE for dead letters). Empty JSONL is empty output.
+  The EOL coverage notice goes to stderr in JSONL mode.
+  Coverage follows `--watch` filters regardless of group filters or recorded matches.
+  Exports contain private inventory and should stay local.
 - `version compare LEFT RIGHT --scheme {semver,dotted,debian,python,opaque}`:
   print exactly `less`, `equal`, `greater` or `unknown`. Decidable results exit 0;
   unknown exits 1; argument errors exit 2. This command loads no configuration
@@ -62,20 +64,37 @@ order, and EOL remains the leading warning. Urgency and digest ordering do not c
   `--failed` selects attempts greater than zero. Dirty rows say `awaiting
   revalidation`; displayed scheduling may change after revalidation. Health
   and baseline rows remain visible. An empty queue exits 0; unavailable DBs exit 1.
-- `status --json` emits one object with exactly `schema_version` (1),
+- `status --json` emits one object with `schema_version` (1),
   `available`, `container_healthy`, `sources`, `baseline_complete` and
   `reconcile_at`. Each source has `state`, sanitized `detail`, `cursor` and
   `content_time`. Flags are booleans; absent cursor/time/reconciliation values
   are null. An unavailable database emits false availability/health, empty
   sources, false baseline completion and null reconciliation, then exits 1.
   Available status exits 0 even when unhealthy; use `container_healthy` for
-  monitoring. Plain `status` and `healthcheck` keep their existing behavior.
+  monitoring. EOL coverage metadata is described below. Health assessments and
+  exit codes do not change.
 - `watch check [--file PATH] [--strict]` validates the candidate file only for
   this invocation. It works without a database. Explicit `--file` or `--strict`
   preflight prints detailed local validation errors; plain `watch check` keeps
   its sanitized validation errors. `--strict` exits 1 for identity collisions or alias-map
   warnings; default warnings exit 0. Invalid files exit 1 in either mode.
   Neither mode rewrites the active file or persists validation problems.
+
+`status`, text `report`, and `watch check` print this line for each `eol = true`
+watch, prefixed with its watch ID:
+
+```text
+WATCH_ID: coverage limited: the vendor issues no advisories for unsupported versions; absence of alerts is not evidence of safety
+```
+
+`status --json` adds `"eol_coverage_limited": ["WATCH_ID", ...]` to its object;
+the field is omitted when there are no EOL watches.
+`report --format jsonl` writes the human notice lines to stderr. Report coverage
+respects `--watch`, applies regardless of `--group`, and includes watches with
+no recorded matches. Notices use the current watch file; status and report omit
+coverage when that file cannot be loaded, preserving their existing availability.
+`watch check --file` reports the candidate file's EOL watches.
+This notice creates no events or notifications and changes no health state or exit code.
 
 Stored CVEs use the [projection documented in the spec](spec.md#66-stored-cve-projection):
 metadata, affected products/versions, title, CNA short name and CNA/ADP CVSS.

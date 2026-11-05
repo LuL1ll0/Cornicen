@@ -221,6 +221,7 @@ Classification is by **where a record came from**, not when it was processed: ev
 - **Normal:** everything else, in a combined digest (default daily, configurable). All due normal watch rows form one notification titled "Cornicen digest: N items", with one block per item, ordered by CNA CVSS severity then EPSS probability, highest first. Each constituent row is marked sent only after the combined send succeeds; failures leave every row pending. Urgent and health notifications, and the baseline summary, stay individual.
 - **Promotion:** after each EPSS or KEV ingest, unsent normal items are re-evaluated; any that now meet the urgent rule are sent at the end of that cycle. Already-delivered items are not re-sent for a score change.
 - **EOL:** any notification on an `eol = true` watch leads with "unsupported by the vendor — fixes unlikely; isolate or replace."
+  `status`, `report`, and `watch check` also list each EOL watch ID with "coverage limited: the vendor issues no advisories for unsupported versions; absence of alerts is not evidence of safety" (structured as `eol_coverage_limited` IDs in status JSON; report JSONL sends the human notice to stderr), without creating events or notifications or changing health or exit codes. `watch check --file` reports the candidate file's EOL watches.
 
 ### 7.5 Notification text
 
@@ -290,8 +291,10 @@ All commands accept the global `--config PATH`. Existing commands are `run`,
   letters because those rows have no watch ID. Text (the default) keeps the
   existing headings and reports filtered counts. JSONL emits only row objects,
   adding `schema_version: 1` and `group` to the existing fields, ordered within
-  each group by watch/CVE (or source/CVE for dead letters). Empty JSONL is empty
-  output. Exports contain private inventory and should stay local.
+  each group by watch/CVE (or source/CVE for dead letters). Empty JSONL is empty output.
+  The EOL coverage notice goes to stderr in JSONL mode.
+  Coverage follows `--watch` filters regardless of group filters or recorded matches.
+  Exports contain private inventory and should stay local.
 - `version compare LEFT RIGHT --scheme {semver,dotted,debian,python,opaque}`:
   print exactly `less`, `equal`, `greater` or `unknown`. Decidable results exit 0;
   unknown exits 1; argument errors exit 2. This command loads no configuration
@@ -319,15 +322,17 @@ order, and EOL remains the leading warning. Urgency and digest ordering do not c
   remain visible without a watch ID. Output is JSON lines followed by
   `Pending rows: N`; an empty queue exits 0, unavailable databases exit 1.
   Persisted scheduling may change during revalidation.
-- `status --json`: emit one object with exactly `schema_version` (integer 1),
+- `status --json`: emit one object with `schema_version` (integer 1),
   `available` (boolean), `container_healthy` (boolean), `sources` (object),
-  `baseline_complete` (boolean) and `reconcile_at` (string or null).
+  `baseline_complete` (boolean) and `reconcile_at` (string or null), plus
+  `eol_coverage_limited` (array of watch IDs) when EOL watches exist.
   Each source has exactly `state`, sanitized `detail`, `cursor` and
   `content_time`; the latter two are strings or null. Reuse source assessment
   and container health policies. An unavailable/unreadable database emits
   false availability/health/baseline, empty sources and null reconciliation,
-  then exits 1. Available status exits 0 even when unhealthy. Plain `status`
-  and `healthcheck` retain their behavior.
+  then exits 1. Available status exits 0 even when unhealthy. Coverage notices
+  use the current watch file and are omitted by status/report if it cannot be
+  loaded; health assessment and exit codes retain their behavior.
 - `watch check [--days N] [--file PATH] [--strict]`: optionally validate a
   candidate instead of the configured file for this invocation. Strict mode
   exits 1 for identity collisions or existing alias-map warnings; default

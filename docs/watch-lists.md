@@ -9,6 +9,11 @@ identities, `version`, and comparison `scheme`. Changing a name keeps its identi
 changing a version re-matches stored records. Use `semver`, numeric `dotted`,
 `debian`, CPython `python`, or equality-only `opaque`. Comparator ranges such as
 `">=1.0.0, <2.0.0"` are supported. Declare `eol = true` for unsupported versions.
+`status`, `report`, and `watch check` then show the watch ID and
+"coverage limited: the vendor issues no advisories for unsupported versions; absence of alerts is not evidence of safety".
+Status JSON exposes these IDs in `eol_coverage_limited`; report JSONL sends the
+human notice to stderr. `watch check --file` reports the candidate file's EOL watches. See the
+[command reference](cli.md). This notice does not change health, exit codes, or notifications.
 
 `product_only` is an explicit loose match across vendors and caps applicability at
 unknown. Prefer scoped identities. Normalisation trims and collapses whitespace

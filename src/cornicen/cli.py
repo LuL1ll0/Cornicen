@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import re
+import sys
 import tomllib
 import zlib
 
@@ -26,6 +27,31 @@ from cornicen.sources.kev import KevSource
 from cornicen.store import Store
 from cornicen.watchlist import collisions, load_watchlist, WatchlistError
 from cornicen.versions import Scheme, compare
+
+
+EOL_COVERAGE_NOTICE = ('coverage limited: the vendor issues no advisories for unsupported versions; '
+                       'absence of alerts is not evidence of safety')
+
+
+def _eol_ids(config):
+    try:
+        return [watch.id for watch in load_watchlist(config.watchlist_path) if watch.eol]
+    except (OSError, ValueError, WatchlistError):
+        # Inventory diagnostics must remain available if the watch file cannot be loaded.
+        return []
+
+
+_notice_printed = False
+
+
+def _coverage_notice(watch_ids, *, file=None):
+    # Once per invocation: the error path re-prints only if a failure came before the notice.
+    global _notice_printed
+    if _notice_printed:
+        return
+    _notice_printed = True
+    for watch_id in watch_ids:
+        print(f'{watch_id}: {EOL_COVERAGE_NOTICE}', file=file)
 
 
 def _notifier(config):
@@ -95,6 +121,7 @@ def watch_check(store, watches, aliases, days, now):
     for watch in watches:
         print(f'{watch.id}: matched {", ".join(matched[watch.id]) or "none"}; '
               f'near misses {", ".join(near[watch.id]) or "none"}')
+    _coverage_notice(watch.id for watch in watches if watch.eol)
     return 0
 
 
@@ -171,6 +198,9 @@ def outbox_list(store, failed):
 def status_json(store, now, config):
     result = dict(schema_version=1, available=False, container_healthy=False,
                   sources={}, baseline_complete=False, reconcile_at=None)
+    eol_ids = _eol_ids(config) if config else []
+    if eol_ids:
+        result['eol_coverage_limited'] = eol_ids
     if store is not None:
         sources = {'cvelist', 'kev', 'epss'}
         sources.update(row[0] for row in store.connection.execute('SELECT source FROM health'))
@@ -192,7 +222,7 @@ def status_json(store, now, config):
 REPORT_GROUPS = ('baseline-affected', 'baseline-exploited', 'open', 'not-affected', 'dead-letters')
 
 
-def report(store, args):
+def report(store, args, eol_ids=()):
     pair_columns = 'SELECT watch_id,record_id,state,alias_map_version FROM pairs WHERE '
     groups = (
         ('Baseline: affected', pair_columns + "baseline=1 AND state='affected'"),
@@ -218,6 +248,9 @@ def report(store, args):
         print('Summary: ' + '; '.join(
             f'{label}: {store.connection.execute("SELECT count(*) FROM (" + query + ")", params).fetchone()[0]}'
             for _, label, query, params in selected))
+        _coverage_notice(eol_ids)
+    else:
+        _coverage_notice(eol_ids, file=sys.stderr)
     for group, label, query, params in selected:
         if args.format == 'text':
             print(label + ':')
@@ -269,6 +302,10 @@ def main(argv=None):
     args = _parser().parse_args(argv)
     store = None
     config = None
+    global _notice_printed
+    _notice_printed = False
+    eol_ids = []
+    notice_file = None
     try:
         if args.command == 'version':
             scheme = Scheme(args.scheme)
@@ -291,15 +328,23 @@ def main(argv=None):
             if args.days <= 0:
                 raise ValueError('days must be positive')
             watches = load_watchlist(args.file if args.file is not None else config.watchlist_path)
+            eol_ids = [watch.id for watch in watches if watch.eol]
             aliases = AliasMap.load(extra=config.aliases_path)
             if Path(config.db_path).is_file():
                 store = Store(config.db_path, read_only=True)
             watch_check(store, watches, aliases, args.days, now())
             return 1 if args.strict and (aliases.warnings or collisions(watches, aliases)) else 0
+        if args.command == 'report' or (args.command == 'status' and not args.json):
+            eol_ids = _eol_ids(config)
+            if args.command == 'report':
+                eol_ids = [watch_id for watch_id in eol_ids
+                           if not args.watch or watch_id in args.watch]
+                notice_file = sys.stderr if args.format == 'jsonl' else None
         if args.command != 'run' and not Path(config.db_path).is_file():
             if args.command == 'status' and args.json:
                 return status_json(None, now(), config)
             print('unhealthy: database unavailable')
+            _coverage_notice(eol_ids, file=notice_file)
             return 1
         store = Store(config.db_path, read_only=args.command != 'run')
         if args.command == 'run':
@@ -319,11 +364,12 @@ def main(argv=None):
                 print(f'{source}: {state}; {detail}')
             print('container: ' + ('healthy' if container_healthy(store, now(), config) else 'unhealthy'))
             print('reconcile: ' + (store.get_meta('reconcile_at') or 'none'))
+            _coverage_notice(eol_ids)
             return 0
         if args.command == 'outbox':
             return outbox_list(store, args.failed)
         if args.command == 'report':
-            return report(store, args)
+            return report(store, args, eol_ids)
         if args.command == 'db':
             backup(store.connection, args.output)
             print('SQLite backup created: ' + str(args.output))
@@ -351,6 +397,7 @@ def main(argv=None):
             return 1
         message = safe_message(error, config.ntfy_token if config else None)
         print(f'command failed: {type(error).__name__}: {message}')
+        _coverage_notice(eol_ids, file=notice_file)
         return 1
     finally:
         if store is not None:
