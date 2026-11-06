@@ -77,6 +77,7 @@ until = 2099-01-01
     def assert_schema(self, value):
         expected = {
             'time': None,
+            'health_details_withheld': None,
             'sources': dict.fromkeys(('cvelist', 'kev', 'epss', 'watchlist')),
             'health_details': dict.fromkeys(('cvelist', 'kev', 'epss', 'watchlist')),
             'ingested': dict.fromkeys(('cvelist', 'kev', 'epss')),
@@ -99,7 +100,7 @@ until = 2099-01-01
         for key in ('sources', 'health_details'):
             for item in value[key].values():
                 self.assertIsInstance(item, str)
-        for key in ('events', 'sent', 'pending'):
+        for key in ('events', 'sent', 'pending', 'health_details_withheld'):
             self.assertIs(type(value[key]), int)
         for item in value['ingested'].values():
             self.assertIs(type(item), int)
@@ -205,7 +206,7 @@ until = 2099-01-01
                     self.assertNotIn(secret.casefold(), serialized)
                 self.assertNotRegex(serialized, r'cve-\d+')
 
-    def test_original_seven_values_equal_frozen_v018_scheduler(self):
+    def test_original_fields_equal_frozen_v018_except_public_health_text(self):
         original_keys = ('time', 'sources', 'health_details', 'ingested', 'events', 'sent', 'pending')
         for state in self.scope_states():
             with self.subTest(state=state):
@@ -221,7 +222,21 @@ until = 2099-01-01
                 with patch.object(reference, '_reload'), patch.object(
                         self.engine, 'run_cycle', return_value=report):
                     reference.tick()
-                self.assertEqual({key: value[key] for key in original_keys}, json.loads(lines[-1]))
+                expected = json.loads(lines[-1])
+                # v0.1.10 changes health text and drops the fictional extension key.
+                expected['health_details'] = {
+                    'cvelist': ('Dead-letter records: [redacted]'
+                                if state in ('dead-letter', 'failed-rematch') else
+                                'Complete fetch; content age within source policy'),
+                    'epss': 'Complete fetch; content age within source policy',
+                    'kev': 'Complete fetch; catalog 0 days old',
+                    'watchlist': ('Incomplete ingest; retry pending; last error: RuntimeError: '
+                                  'Cannot [redacted] for [redacted] 77391'
+                                  if state == 'failed-rematch' else 'No fetch failure'),
+                }
+                self.assertEqual({key: value[key] for key in original_keys}, expected)
+                self.assertEqual(value['health_details_withheld'],
+                                 1 if state in ('dead-letter', 'failed-rematch') else 0)
 
     def test_f4_accept_watch_case_subtracted_in_cli_and_heartbeat(self):
         self.scheduler.tick()

@@ -11,6 +11,7 @@ import unicodedata
 from cornicen.counts import REPORT_KEYS, report_counts
 from cornicen.github import github_status
 from cornicen.health import assess
+from cornicen.public_text import prepare_inventory, public_text, public_token
 from cornicen.watchlist import load_document, WatchlistError
 
 
@@ -155,10 +156,20 @@ class Scheduler:
                 github = values
             except Exception:
                 pass
+            inventory = prepare_inventory(self.engine.watches)
+            health_details = {}
+            withheld = 0
+            for name, verdict in health.items():
+                key = public_token(name, inventory)
+                if key is None:
+                    withheld += 1
+                    continue
+                health_details[key] = public_text(safe_message(RuntimeError(
+                    verdict[1]), self.engine.config.ntfy_token, self.engine.config.github_token),
+                    inventory)
             self.output(json.dumps({'time': now.isoformat(), 'sources': statuses,
-                                    'health_details': {name: safe_message(RuntimeError(
-                                        verdict[1]), self.engine.config.ntfy_token, self.engine.config.github_token)
-                                        for name, verdict in health.items()},
+                                    'health_details': health_details,
+                                    'health_details_withheld': withheld,
                                     'ingested': counts, 'events': len(report.events),
                                     'report': report_summary, 'github': github,
                                     'sent': report.sent, 'pending': db.execute(
@@ -172,9 +183,10 @@ class Scheduler:
                     close()
 
     def _failed_cycle(self, error):
-        message = safe_message(error, self.engine.config.ntfy_token, self.engine.config.github_token)
+        message = public_text(safe_message(error, self.engine.config.ntfy_token, self.engine.config.github_token),
+                              self.engine.watches)
         entry = {'time': self.clock().isoformat(), 'component': self.component,
-                 'error': type(error).__name__, 'message': message}
+                 'error': public_token(type(error).__name__, self.engine.watches) or 'Exception', 'message': message}
         try:
             # A failed RELEASE/commit can leave the cycle's transaction open.
             # Health and its outbox entry must commit independently of that work.
@@ -185,8 +197,9 @@ class Scheduler:
         except Exception as health_error:
             # A database/delivery outage must not defeat the cycle boundary.
             # Report the secondary failure on the same JSON line.
-            entry['health_error'] = type(health_error).__name__
-            entry['health_message'] = safe_message(health_error, self.engine.config.ntfy_token, self.engine.config.github_token)
+            entry['health_error'] = public_token(type(health_error).__name__, self.engine.watches) or 'Exception'
+            entry['health_message'] = public_text(safe_message(health_error, self.engine.config.ntfy_token, self.engine.config.github_token),
+                                                  self.engine.watches)
         self.output(json.dumps(entry, sort_keys=True))
 
     def run(self):

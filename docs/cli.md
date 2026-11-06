@@ -152,7 +152,23 @@ rejects that table. See [accept entry format and limits](watch-lists.md#accept-e
 ## Minute heartbeat
 
 Each successful minute cycle logs one JSON line. Existing keys `time`, `sources`,
-`health_details`, `ingested`, `events`, `sent` and `pending` retain their shapes.
+`ingested`, `events`, `sent` and `pending` retain their shapes.
+
+`health_details` values are filtered to Cornicen's vocabulary, integers and ISO
+times; withheld text appears as `[redacted]`. Keys that fail the same boundary
+are dropped. The always-present integer `health_details_withheld` counts dropped
+keys (normally 0). Loaded watch inventory is also withheld, including vocabulary
+fragments of at least four characters. Record IDs after `Dead-letter records:`,
+`Missing stored record:` and `Declared record missing or invalid:` are withheld
+through the end of the text. Punctuation-only tokens and leading or trailing
+punctuation runs peeled from a core are kept only when exactly one character
+long, independently of inventory. The exact marker always passes through.
+
+Failed-cycle lines filter `error`, `message`, `health_error` and `health_message`;
+withheld exception type names become `Exception`. The `run` startup failure line
+uses the same filter, with loaded watches when available. Before watch loading
+succeeds it uses no inventory. Argument errors for `run` print only a fixed usage
+line to stderr and exit 2. Operator commands retain their detailed output.
 Two additional objects expose aggregate monitoring values:
 
 - `report`: `affected`, `exploited_unknown`, `open`, `dead_letters` and `accepted`

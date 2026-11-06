@@ -23,6 +23,7 @@ from cornicen.maintenance import backup
 from cornicen.model import Notification
 from cornicen.notify.file import FileNotifier
 from cornicen.notify.ntfy import NtfyNotifier, post
+from cornicen.public_text import public_text, public_token
 from cornicen.render import _clean_reason
 from cornicen.scheduler import Scheduler, safe_message
 from cornicen.sources.cvelist import CveListSource
@@ -379,8 +380,20 @@ def report(store, args, eol_ids=(), config=None, now=None):
     return 0
 
 
+class _ArgumentParser(argparse.ArgumentParser):
+    def parse_known_args(self, args=None, namespace=None):
+        if self.prog == 'cornicen run':
+            self.root.run_command = True
+        return super().parse_known_args(args, namespace)
+
+    def error(self, message):
+        if getattr(self.root, 'run_command', False):
+            self.exit(2, 'usage: cornicen [--config CONFIG] run\n')
+        super().error(message)
+
+
 def _parser():
-    parser = argparse.ArgumentParser(prog='cornicen')
+    parser = _ArgumentParser(prog='cornicen')
     parser.add_argument('--config', type=Path,
                         default=Path(os.environ.get('CORNICEN_CONFIG', '/config/cornicen.toml')))
     commands = parser.add_subparsers(dest='command', required=True)
@@ -411,6 +424,15 @@ def _parser():
     acceptance = commands.add_parser('replay')
     acceptance.add_argument('--list', type=Path, required=True)
     commands.add_parser('notify').add_subparsers(dest='notify_command', required=True).add_parser('test')
+    parser.root = parser
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            for child in action.choices.values():
+                child.root = parser
+                for child_action in child._actions:
+                    if isinstance(child_action, argparse._SubParsersAction):
+                        for grandchild in child_action.choices.values():
+                            grandchild.root = parser
     return parser
 
 
@@ -418,6 +440,7 @@ def main(argv=None):
     args = _parser().parse_args(argv)
     store = None
     config = None
+    watches = ()
     global _notice_printed
     _notice_printed = False
     eol_ids = []
@@ -525,7 +548,11 @@ def main(argv=None):
                 print('watch validation error: ' + problem)
             return 1
         message = safe_message(error, config.ntfy_token if config else None, config.github_token if config else None)
-        print(f'command failed: {type(error).__name__}: {message}')
+        error_name = type(error).__name__
+        if args.command == 'run':
+            error_name = public_token(error_name, watches) or 'Exception'
+            message = public_text(message, watches)
+        print(f'command failed: {error_name}: {message}')
         _coverage_notice(eol_ids, file=notice_file)
         return 1
     finally:

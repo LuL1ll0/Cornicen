@@ -77,12 +77,13 @@ class FixKTests(unittest.TestCase):
                 self.assertNotIn(private, text)
         detail = self.store.connection.execute(
             "SELECT detail FROM health WHERE source='cvelist'").fetchone()[0]
-        for local in (detail, self.status(), json.loads(self.logs[0])['message']):
+        for local in (detail, self.status()):
             self.assertIn('/private/fixture/records.json', local)
             self.assertIn('fixture remote execution', local)
             self.assertIn('https://fixture.invalid/feed?token', local)
             self.assertIn('[redacted]', local)
             self.assertNotIn('fake-query-secret', local)
+        self.assertEqual(json.loads(self.logs[0])['message'], '[redacted] CVE [redacted]')
         self.assertLessEqual(len(detail), 300)
         self.assertFalse(any(unicodedata.category(c).startswith('C') for c in detail))
 
@@ -103,11 +104,11 @@ class FixKTests(unittest.TestCase):
         detail = self.store.connection.execute("SELECT detail FROM health WHERE source='kev'").fetchone()[0]
         self.assertNotIn('fake-secret', detail)
         logged = json.loads(self.logs[0])['health_details']['kev']
-        self.assertIn('fixture feed text', logged)
+        self.assertEqual(logged, 'Incomplete ingest; retry pending; last error: [redacted] text [redacted]')
         self.assertIn('[redacted]', logged)
         self.assertNotIn('fake-secret', logged)
         self.assertEqual(json.loads(self.logs[0])['health_details']['records'],
-                         'Missing stored record: fixture-record')
+                         'Missing stored record: [redacted]')
 
     def test_all_components_and_recovery_use_fixed_messages(self):
         messages = {'cvelist': 'CVE List ingest failed', 'kev': 'KEV fetch failed',

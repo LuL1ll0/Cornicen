@@ -23,3 +23,5 @@ Bug reports, fixes and documentation improvements are welcome.
 6. Open a pull request that says what changed and why.
 
 By contributing, you agree that your contribution is licensed under the project's MIT license.
+
+A new string literal in `src/` needs `PYTHONPATH=src python3 tools/gen_vocabulary.py`; review the generated diff.

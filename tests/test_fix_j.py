@@ -229,7 +229,7 @@ scheme = "dotted"
         self.assertEqual(len(errors), 1)
         self.assertEqual(errors[0]['component'], 'cvelist')
         self.assertEqual(errors[0]['error'], 'RuntimeError')
-        self.assertIn('sourcefailed', errors[0]['message'])
+        self.assertEqual(errors[0]['message'], '[redacted]')
         self.assertLessEqual(len(errors[0]['message']), 300)
         self.assertFalse(any(unicodedata.category(c).startswith('C') for c in errors[0]['message']))
         self.assertNotIn('fixture-token', ''.join(self.lines))

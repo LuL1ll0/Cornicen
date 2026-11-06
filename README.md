@@ -9,7 +9,10 @@ Cornicen is for homelabs and small networks. You tell it what you run. It watche
 - **Alerts go to [ntfy](https://ntfy.sh)**, ideally one you host yourself.
 - **Silent first run.** The first bootstrap records what already matches and sends one summary; after that you hear only about changes.
 
-**Status:** version 0.1.9, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
+The container log carries only Cornicen's own words, integers and ISO times,
+except for the upstream release tag name in the skip warning.
+
+**Status:** version 0.1.10, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
 
 ## Contents
 
