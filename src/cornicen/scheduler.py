@@ -8,8 +8,13 @@ import threading
 import time
 import unicodedata
 
+from cornicen.counts import REPORT_KEYS, report_counts
+from cornicen.github import github_status
 from cornicen.health import assess
 from cornicen.watchlist import load_document, WatchlistError
+
+
+GITHUB_KEYS = ('auth', 'limit', 'remaining', 'reset', 'observed_at')
 
 
 def redact_tokens(message, *tokens):
@@ -128,11 +133,34 @@ class Scheduler:
             health = {name: assess(name, self.engine.store, now, self.engine.config)
                       for name in health_sources}
             statuses = {name: health[name][0] for name in components}
+            report_summary = dict.fromkeys(REPORT_KEYS)
+            try:
+                totals = report_counts(db, self.engine.watches, self.engine.accepts,
+                                       now, self.engine.config.timezone)
+                report_summary = {key: totals[key] for key in REPORT_KEYS}
+            except Exception:
+                pass
+            github = dict.fromkeys(GITHUB_KEYS)
+            github['auth'] = 'unknown'
+            try:
+                state = github_status(self.engine.store)
+                values = dict.fromkeys(GITHUB_KEYS)
+                values['auth'] = state['auth']
+                rate = state['rate_limit']
+                if rate is not None:
+                    for key in ('limit', 'remaining'):
+                        values[key] = rate[key]
+                    for key in ('reset', 'observed_at'):
+                        values[key] = int(datetime.fromisoformat(rate[key]).timestamp())
+                github = values
+            except Exception:
+                pass
             self.output(json.dumps({'time': now.isoformat(), 'sources': statuses,
                                     'health_details': {name: safe_message(RuntimeError(
                                         verdict[1]), self.engine.config.ntfy_token, self.engine.config.github_token)
                                         for name, verdict in health.items()},
                                     'ingested': counts, 'events': len(report.events),
+                                    'report': report_summary, 'github': github,
                                     'sent': report.sent, 'pending': db.execute(
                                         'SELECT count(*) FROM outbox WHERE sent_at IS NULL').fetchone()[0]},
                                    sort_keys=True))

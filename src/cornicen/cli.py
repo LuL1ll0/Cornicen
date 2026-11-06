@@ -13,6 +13,8 @@ import zlib
 from cornicen.applicability import resolve, State
 from cornicen import accept
 from cornicen.config import load_config
+from cornicen.counts import report_counts
+from cornicen.github import github_status
 from cornicen.engine import Engine
 from cornicen.fetch import Http
 from cornicen.health import assess, container_healthy
@@ -257,33 +259,6 @@ def _accept_warnings(store, watches, entries, aliases, now, config):
     return warnings
 
 
-def github_status(store):
-    auth = store.get_meta('github_auth') if store else None
-    problem = None
-    if auth in ('token', 'none'):
-        mode = auth
-    elif auth == 'token rejected':
-        mode = 'token-rejected'
-    elif auth and auth.startswith('token unusable: '):
-        mode, problem = 'token-unusable', auth.removeprefix('token unusable: ')
-    else:
-        mode = 'unknown'
-    rate = store.get_meta('github_rate_limit') if store else None
-    try:
-        rate = json.loads(rate) if rate else None
-        if not isinstance(rate, dict) or set(rate) != {'limit', 'remaining', 'reset', 'observed_at'}:
-            raise ValueError('Invalid rate limit shape')
-        if any(type(rate[key]) is not int for key in ('limit', 'remaining')):
-            raise ValueError('Invalid rate limit counts')
-        for key in ('reset', 'observed_at'):
-            stamp = datetime.fromisoformat(rate[key])
-            if stamp.tzinfo is None or stamp.utcoffset() != timedelta(0):
-                raise ValueError('Rate limit timestamps must be UTC')
-    except (ValueError, TypeError, OverflowError, RecursionError):
-        rate = None
-    return dict(auth=mode, problem=problem, rate_limit=rate)
-
-
 def github_status_line(store):
     state = github_status(store)
     descriptions = {
@@ -335,9 +310,15 @@ REPORT_GROUPS = ('baseline-affected', 'baseline-exploited', 'open', 'not-affecte
 
 def report(store, args, eol_ids=(), config=None, now=None):
     accepted = None
+    watches, entries = (), ()
+    now = now or datetime.now(timezone.utc)
     if config is not None:
         try:
-            accepted = _accepted(config, store, now or datetime.now(timezone.utc))
+            watches, entries = load_document(config.watchlist_path)
+            by_id = {watch.id.casefold(): watch for watch in watches}
+            accepted = [dict(accept.detail(entry), watch_id=entry.watch, cve=entry.cve,
+                             state=accept.state(entry, by_id, now, config.timezone))
+                        for entry in entries]
         except WatchlistError:
             pass
     by_pair = {(e['watch_id'].casefold(), e['cve']): e for e in accepted or ()}
@@ -345,14 +326,6 @@ def report(store, args, eol_ids=(), config=None, now=None):
     def annotation(row):
         entry = by_pair.get((row['watch_id'].casefold(), row['record_id']))
         return {key: entry[key] for key in ('reason', 'until', 'version', 'state')} if entry else None
-
-    def silent(row):
-        entry = annotation(row)
-        if not entry or entry['state'] != 'active':
-            return False
-        pair = store.connection.execute('SELECT exploited FROM pairs WHERE watch_id=? AND record_id=?',
-                                        (row['watch_id'], row['record_id'])).fetchone()
-        return bool(pair and not pair[0])
 
     pair_columns = 'SELECT watch_id,record_id,state,alias_map_version FROM pairs WHERE '
     groups = (
@@ -376,14 +349,15 @@ def report(store, args, eol_ids=(), config=None, now=None):
             params = tuple(args.watch)
         selected.append((group, label, query, params))
     if args.format == 'text':
-        counts, accepted_count = [], 0
-        for group, label, query, params in selected:
-            rows = list(store.connection.execute(query, params))
-            excluded = sum(silent(row) for row in rows) if group in REPORT_GROUPS[:3] else 0
-            accepted_count += excluded
-            counts.append(f'{label}: {len(rows) - excluded}')
+        totals = report_counts(store.connection, watches, entries, now,
+                               config.timezone if config else 'UTC',
+                               groups=args.group, watch_ids=args.watch)
+        count_keys = ('affected', 'exploited_unknown', 'open', 'not_affected', 'dead_letters')
+        keys_by_group = dict(zip(REPORT_GROUPS, count_keys))
+        counts = [f'{label}: {totals[keys_by_group[group]]}'
+                  for group, label, query, params in selected]
         if accepted:
-            counts.append(f'Accepted (not alerting): {accepted_count}')
+            counts.append(f"Accepted (not alerting): {totals['accepted']}")
         print('Summary: ' + '; '.join(counts))
         _coverage_notice(eol_ids)
     else:

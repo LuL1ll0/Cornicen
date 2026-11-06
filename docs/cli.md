@@ -148,3 +148,23 @@ accept warnings. Malformed accept entries reject the entire file with a labelled
 
 Deploy 0.1.6 before installing a watch file containing `[[accept]]`; v0.1.5
 rejects that table. See [accept entry format and limits](watch-lists.md#accept-entries).
+
+## Minute heartbeat
+
+Each successful minute cycle logs one JSON line. Existing keys `time`, `sources`,
+`health_details`, `ingested`, `events`, `sent` and `pending` retain their shapes.
+Two additional objects expose aggregate monitoring values:
+
+- `report`: `affected`, `exploited_unknown`, `open`, `dead_letters` and `accepted`
+  are integer counts matching the unfiltered text report Summary. Active accepts
+  exclude non-exploited pairs from affected/open totals and count them as accepted;
+  no accept entries means `accepted: 0`. Counts are recomputed every cycle from
+  pairs and dead letters using the engine's loaded inventory. A counting failure
+  makes all five values null.
+- `github`: `auth` is `token`, `none`, `token-rejected`, `token-unusable` or
+  `unknown`. `limit` and `remaining` are integers; `reset` and `observed_at` are
+  integer UTC epoch seconds. These four values are null without valid stored
+  rate-limit metadata. Values come from the last stored GitHub response, with no
+  additional request. A status failure emits `auth: "unknown"` and four nulls.
+
+The new objects contain no watch IDs, products, CVE IDs or diagnostic free text.

@@ -47,3 +47,7 @@ With the optional GitHub token, GitHub sees CVE List fetches as coming from that
 account rather than an anonymous IP. The token goes only to `api.github.com`.
 Nothing about the watch list is sent either way: the requests are the same
 public release listings and archives. Archive download hosts never receive the token.
+
+The minute log line's `report` and `github` blocks contain only aggregate counts,
+an auth status word and integers (or null when unavailable). They contain no watch
+IDs, names, vendor/product strings, CVE IDs or diagnostic free text.
