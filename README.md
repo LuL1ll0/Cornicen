@@ -150,7 +150,7 @@ Ask questions and report bugs in [GitHub Issues](https://github.com/LuL1ll0/corn
 make gate
 ```
 
-The gate runs the full unit, replay and fuzz suite with no network access. Testing a real deployment against CVEs you know should match: [docs/testing.md](docs/testing.md). How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md).
+The gate runs the full unit, replay and fuzz suite with no network access. Testing a real deployment against CVEs you know should match: [docs/testing.md](docs/testing.md). How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md). Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License and prior art
 
