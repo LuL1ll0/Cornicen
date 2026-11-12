@@ -78,6 +78,9 @@ class Config:
     accept_warn_days: int = 180
     github_token: SecretToken | None = field(default=None, repr=False)
     github_token_problem: str | None = None
+    acceptance_list_path: Path | None = None
+    acceptance_watchlist_path: Path | None = None
+    acceptance_interval_days: int = 7
 
 
 def load_config(path: Path, env: Mapping[str, str]) -> Config:
@@ -126,7 +129,7 @@ def load_config(path: Path, env: Mapping[str, str]) -> Config:
         ZoneInfo(timezone)
     except (ValueError, ZoneInfoNotFoundError):
         raise ValueError("timezone must name a known time zone") from None
-    for key, default in (("overdue_minutes", 60), ("retention_days", 365), ("accept_warn_days", 180)):
+    for key, default in (("overdue_minutes", 60), ("retention_days", 365), ("accept_warn_days", 180), ("acceptance_interval_days", 7)):
         value = settings.get(key, default)
         if type(value) is not int or value <= 0:
             raise ValueError(f"{key} must be a positive integer")
@@ -137,6 +140,10 @@ def load_config(path: Path, env: Mapping[str, str]) -> Config:
         raise ValueError("user_agent_overrides must map hosts to strings")
     if any(_has_control(k) or _has_control(v) for k, v in overrides.items()):
         raise ValueError("user_agent_overrides must not contain control characters")
+    if ('acceptance_list_path' in settings) != ('acceptance_watchlist_path' in settings):
+        raise ValueError('Both acceptance paths must be configured together')
+    acceptance_paths = {key: Path(string(key, '')) if key in settings else None
+                        for key in ('acceptance_list_path', 'acceptance_watchlist_path')}
     aliases = Path(string("aliases_path", "")) if "aliases_path" in settings else None
     owner = string("owner", "<owner>")
     user_agent = string("user_agent", f"Cornicen/{__version__} (+https://github.com/{owner}/cornicen)")
@@ -193,6 +200,7 @@ def load_config(path: Path, env: Mapping[str, str]) -> Config:
         except (OSError, UnicodeError):
             github_problem = 'unreadable'
     return Config(
+        **acceptance_paths, acceptance_interval_days=settings.get("acceptance_interval_days", 7),
         db_path=string("db_path", "/data/cornicen.db"),
         watchlist_path=Path(string("watchlist_path", "/config/watchlist.toml")),
         aliases_path=aliases,

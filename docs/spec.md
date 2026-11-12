@@ -396,6 +396,31 @@ configuration keys are required.
   - replaying any scenario twice → nothing new the second time.
 - **Operators** keep a private acceptance list (their real products and a handful of past CVEs known to hit them) outside the repo and run `cornicen replay --list <file>` before trusting a deployment. The list runs against its own watch list, pinned to the versions those CVEs hit, through a separate config (`--config`). It does not use the live watch list, so it keeps passing after upgrades, and a failure means Cornicen or its data broke.
 
+- **Daemon acceptance self-test:** opt in with both `acceptance_list_path` and
+  `acceptance_watchlist_path`. The latter holds pinned watches. Omit both to
+  disable it. `acceptance_interval_days` is a positive integer, default 7.
+  After `run_cycle` and baseline completion, check on the first process tick,
+  after more than the interval since persisted `acceptance_last_run`, or when
+  either file's modification time, size or inode changes. Exceptions become
+  fixed health failures and do not fail the cycle. Flush in the same tick.
+  Unhealthy acceptance retries hourly; healthy acceptance keeps the configured interval.
+  Persist last-run time and health atomically after evaluation; a failed transaction
+  retries next tick. Guards never print or log exception text.
+- **Acceptance bar:** every stored record must resolve to AFFECTED with the
+  engine's aliases. UNKNOWN with KEV is a regression. Missing records are
+  could-not-check; never construct stubs. Ignore suppressions. Resolve pinned
+  watches in memory only, without pairs or match notifications. Reject invalid
+  or unreadable files, unknown watch IDs and empty lists. Use the `acceptance`
+  health component with counts and fixed words only, and existing recovery events.
+- **Retention holds:** after each valid list parse, save sorted distinct CVE IDs
+  in memory and best-effort as JSON in `meta.acceptance_holds`. Parse every tick
+  before pruning and repair missing, corrupt or stale metadata. Pruning excludes
+  both in-memory IDs and IDs in valid stored arrays of strings; garbage holds
+  nothing. Broken files preserve existing holds; failed writes retain memory holds.
+- **Local command:** `cornicen selftest` reads the configured paths and store
+  without writes. Print entry results and a summary. Exit 0 for all pass, 1 for
+  regression, 3 for any could-not-check, or 2 for command error. Exit 3 outranks 1.
+
 ## 12. Prior art
 
 The silent first-run baseline, vendor-scoped version-bounded watches, a crash-safe outbox, and alerting on *what changed* rather than every record update are ideas seen in other open-source CVE watchers. Cornicen's code is written from this spec.

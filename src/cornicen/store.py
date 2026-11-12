@@ -246,7 +246,7 @@ class Store:
         self.connection.execute("""UPDATE outbox SET dirty=1 WHERE sent_at IS NULL
             AND CAST(json_extract(body_json,'$.record_id') AS TEXT)=?""", (record_id,))
 
-    def prune_records(self, now, retention_days):
+    def prune_records(self, now, retention_days, keep=()):
         cutoff = (now - timedelta(days=retention_days)).isoformat()
         self.connection.execute("""DELETE FROM records WHERE ingested_at < ?
             AND NOT EXISTS (SELECT 1 FROM pairs WHERE record_id=records.id)
@@ -254,4 +254,13 @@ class Store:
                             AND CAST(json_extract(body_json,'$.record_id') AS TEXT)=records.id)
             AND NOT EXISTS (SELECT 1 FROM kev WHERE cve=records.id)
             AND NOT EXISTS (SELECT 1 FROM retry_queue WHERE record_id=records.id)
-            AND NOT EXISTS (SELECT 1 FROM dead_letters WHERE record_id=records.id)""", (cutoff,))
+            AND NOT EXISTS (SELECT 1 FROM dead_letters WHERE record_id=records.id)
+            AND records.id NOT IN (SELECT value FROM json_each(?))
+            AND records.id NOT IN (SELECT value FROM json_each(
+                CASE WHEN json_valid((SELECT v FROM meta WHERE k='acceptance_holds'))
+                    THEN CASE WHEN json_type((SELECT v FROM meta WHERE k='acceptance_holds'))='array'
+                        THEN CASE WHEN NOT EXISTS (SELECT 1 FROM json_each(
+                            (SELECT v FROM meta WHERE k='acceptance_holds')) WHERE type!='text')
+                            THEN (SELECT v FROM meta WHERE k='acceptance_holds') ELSE '[]' END
+                        ELSE '[]' END
+                    ELSE '[]' END) WHERE type='text')""", (cutoff, json.dumps(list(keep))))

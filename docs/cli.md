@@ -184,3 +184,21 @@ Two additional objects expose aggregate monitoring values:
   additional request. A status failure emits `auth: "unknown"` and four nulls.
 
 The new objects contain no watch IDs, products, CVE IDs or diagnostic free text.
+
+## Acceptance self-test
+
+`cornicen selftest` reads `acceptance_list_path` and
+`acceptance_watchlist_path` from the config and opens the store read-only.
+Configure both paths or neither. `acceptance_interval_days` is a positive integer,
+default 7, for the daemon's scheduled checks. Checks are off by default.
+The watch file holds pinned versions. The list uses `[[expect]]` entries with
+`watch_id` and `cve`. Only AFFECTED passes; UNKNOWN with KEV is a regression.
+Missing records print `could not check`. Suppressions are ignored.
+
+Each line is `<watch_id> <cve>: pass`, `regression (<state>)`, or
+`could not check`, followed by a count summary. An identity miss uses `no_match`
+as its state. Exit codes are 0 for all pass, 1 for regression, 3 for any
+could-not-check, and 2 for command errors, including unconfigured acceptance.
+Exit 3 takes priority over 1. The command writes no health or metadata.
+See [scheduled acceptance checks](testing.md#scheduled-acceptance-self-test)
+for daemon scheduling, health alerts and retention holds.

@@ -8,11 +8,15 @@ import threading
 import time
 import unicodedata
 
+from cornicen import acceptance
 from cornicen.counts import REPORT_KEYS, report_counts
 from cornicen.github import github_status
 from cornicen.health import assess
 from cornicen.public_text import prepare_inventory, public_text, public_token
 from cornicen.watchlist import load_document, WatchlistError
+
+
+ACCEPTANCE_RETRY = timedelta(hours=1)
 
 
 GITHUB_KEYS = ('auth', 'limit', 'remaining', 'reset', 'observed_at')
@@ -61,6 +65,8 @@ class Scheduler:
         self.next_poll = {}
         self.watch_stamp = self._stamp()
         self.component = 'scheduler'
+        self.acceptance_started = False
+        self.acceptance_stamp = None
 
     def _stamp(self):
         try:
@@ -96,6 +102,73 @@ class Scheduler:
                 engine.accepts = accepts
             self.watch_stamp = stamp
 
+    def _acceptance_stamps(self):
+        stamps = []
+        for path in (self.engine.config.acceptance_list_path,
+                     self.engine.config.acceptance_watchlist_path):
+            try:
+                stat = path.stat()
+                stamps.append((stat.st_mtime_ns, stat.st_size, stat.st_ino))
+            except OSError:
+                stamps.append(None)
+        return tuple(stamps)
+
+    def _refresh_acceptance_holds(self):
+        # This must precede run_cycle's retention pruning. Invalid files retain
+        # the previous holds; the main evaluation reports their rejection.
+        try:
+            engine = self.engine
+            if not engine.config.acceptance_list_path:
+                return
+            entries = acceptance.load_entries(engine.config.acceptance_list_path)
+            engine.acceptance_holds = frozenset(cve for _, cve in entries)
+            desired = json.dumps(sorted(engine.acceptance_holds))
+            if engine.store.get_meta('acceptance_holds') != desired:
+                with engine.store.transaction():
+                    engine.store.set_meta('acceptance_holds', desired)
+        except Exception:
+            pass
+
+    def _acceptance(self, now):
+        engine = self.engine
+        try:
+            if not engine.config.acceptance_list_path or not engine.store.get_meta('baseline_complete'):
+                return
+            stamp = self._acceptance_stamps()
+            last = engine.store.get_meta('acceptance_last_run')
+            try:
+                previous = datetime.fromisoformat(last) if last else None
+            except (ValueError, TypeError):
+                previous = None
+            invalid = previous is None or previous.utcoffset() is None or previous > now
+            health = engine.db.execute("SELECT state FROM health WHERE source='acceptance'").fetchone()
+            unhealthy = health is not None and health['state'] == 'unhealthy'
+            elapsed = None if invalid else now - previous
+            due = (not self.acceptance_started or stamp != self.acceptance_stamp or invalid
+                   or (elapsed >= ACCEPTANCE_RETRY if unhealthy else
+                       elapsed > timedelta(days=engine.config.acceptance_interval_days)))
+            if not due:
+                return
+            try:
+                entries = acceptance.load_entries(engine.config.acceptance_list_path)
+                watches = acceptance.load_watches(engine.config.acceptance_watchlist_path, entries)
+                outcomes = acceptance.evaluate(engine.store, entries, watches, engine.aliases)
+                state, detail, reason = acceptance.verdict(outcomes)
+            except acceptance.AcceptanceError:
+                state, detail, reason = 'unhealthy', 'Acceptance list rejected', 'rejected'
+            except Exception:
+                state, detail, reason = 'unhealthy', 'Acceptance self-test failed', 'failed'
+            with engine.store.transaction():
+                engine.store.set_meta('acceptance_last_run', now.isoformat())
+                engine._health('acceptance', state, detail, reason)
+            self.acceptance_started = True
+            self.acceptance_stamp = stamp
+            engine._flush()
+        except Exception:
+            # Include baseline reads, health recording and delivery in the guard.
+            # Even secondary failures must never expose private exception text.
+            pass
+
     def tick(self):
         self.component = 'scheduler'
         now = self.clock()
@@ -116,7 +189,9 @@ class Scheduler:
                                        + len(result.epss or {}) for result in results)
                     next_poll[name] = elapsed + interval.total_seconds()
             self.component = 'engine'
+            self._refresh_acceptance_holds()
             report = self.engine.run_cycle(ingests)
+            self._acceptance(now)
             # A failed engine cycle must retry its sources on the next minute.
             self.next_poll = next_poll
             for component in ('engine', 'scheduler'):

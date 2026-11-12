@@ -16,6 +16,12 @@ overdue_minutes = 60
 accept_warn_days = 180
 retention_days = 365
 
+# Optional acceptance self-test. Set both paths or leave both absent.
+# Keep this watch file pinned to versions hit by the expected CVEs.
+# acceptance_list_path = "/config/acceptance.toml"
+# acceptance_watchlist_path = "/config/pinned-watchlist.toml"
+# acceptance_interval_days = 7
+
 # Optional, per-host User-Agent:
 # [user_agent_overrides]
 # "www.cisa.gov" = "Cornicen/0.1.0"

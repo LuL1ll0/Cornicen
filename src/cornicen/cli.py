@@ -12,6 +12,7 @@ import zlib
 
 from cornicen.applicability import resolve, State
 from cornicen import accept
+from cornicen import acceptance
 from cornicen.config import load_config
 from cornicen.counts import report_counts
 from cornicen.github import github_status
@@ -421,6 +422,7 @@ def _parser():
     check.add_argument('--days', type=int, default=90)
     check.add_argument('--file', type=Path)
     check.add_argument('--strict', action='store_true')
+    commands.add_parser('selftest')
     acceptance = commands.add_parser('replay')
     acceptance.add_argument('--list', type=Path, required=True)
     commands.add_parser('notify').add_subparsers(dest='notify_command', required=True).add_parser('test')
@@ -486,6 +488,18 @@ def main(argv=None):
                 eol_ids = [watch_id for watch_id in eol_ids
                            if not args.watch or watch_id in args.watch]
                 notice_file = sys.stderr if args.format == 'jsonl' else None
+        if args.command == 'selftest':
+            if config.acceptance_list_path is None:
+                raise ValueError('Acceptance self-test is not configured')
+            store = Store(config.db_path, read_only=True)
+            entries = acceptance.load_entries(config.acceptance_list_path)
+            pinned = acceptance.load_watches(config.acceptance_watchlist_path, entries)
+            outcomes = acceptance.evaluate(store, entries, pinned, AliasMap.load(extra=config.aliases_path))
+            for outcome in outcomes:
+                print(outcome.line())
+            print(acceptance.verdict(outcomes)[1])
+            return (3 if any(item.verdict == 'could not check' for item in outcomes) else
+                    1 if any(item.verdict == 'regression' for item in outcomes) else 0)
         if args.command != 'run' and not Path(config.db_path).is_file():
             if args.command == 'status' and args.json:
                 return status_json(None, now(), config)
@@ -554,7 +568,7 @@ def main(argv=None):
             message = public_text(message, watches)
         print(f'command failed: {error_name}: {message}')
         _coverage_notice(eol_ids, file=notice_file)
-        return 1
+        return 2 if args.command == 'selftest' else 1
     finally:
         if store is not None:
             store.connection.close()

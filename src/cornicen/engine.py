@@ -34,6 +34,7 @@ class Engine:
     def __init__(self, store: Store, watches: tuple[Watch, ...], aliases: AliasMap,
                  config: Config, clock: Callable[[], datetime], notifier: Notifier, accepts=()):
         self.accepts = tuple(accepts)
+        self.acceptance_holds = frozenset()
         self.store, self.watches, self.aliases = store, watches, aliases
         self.config, self.clock, self.notifier = config, clock, notifier
         self.db = store.connection
@@ -761,7 +762,8 @@ class Engine:
         self._retry_records()
         with self.store.transaction():
             self._finish_health()
-            self.store.prune_records(self._now(), self.config.retention_days)
+            self.store.prune_records(self._now(), self.config.retention_days,
+                                     keep=self.acceptance_holds)
             if not self.store.get_meta('baseline_complete') and all(
                     self.store.get_meta('complete:' + source) for source in order):
                 self.store.set_meta('baseline_complete', '1')

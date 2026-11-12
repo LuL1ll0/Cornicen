@@ -12,7 +12,7 @@ Cornicen is for homelabs and small networks. You tell it what you run. It watche
 The container log carries only Cornicen's own words, integers and ISO times,
 except for the upstream release tag name in the skip warning.
 
-**Status:** version 0.1.11, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
+**Status:** version 0.1.12, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
 
 ## Contents
 
@@ -112,7 +112,18 @@ All of these run inside the container (`docker compose exec cornicen python -m c
 | `notify test` | Send a test notification |
 | `db backup --output PATH` | Consistent private copy of the database |
 | `version compare A B --scheme S` | How two versions compare under a scheme |
+| `selftest` | Check configured pinned acceptance watches; exit 3 if records are missing |
 | `replay --list FILE` | Check a deployment against CVEs you know should match |
+
+For scheduled acceptance checks, set both `acceptance_list_path` and
+`acceptance_watchlist_path` in the config. Keep the second file pinned to versions
+that known past CVEs hit. `acceptance_interval_days` is a positive integer,
+default 7. Checks are off when both paths are absent. The daemon checks after
+baseline completion, on startup, after the interval, and when either file changes.
+Only affected results pass. Failures and recoveries use health notifications.
+An unhealthy `acceptance` component marks the container unhealthy, like any other
+component. While unhealthy, the self-test retries hourly.
+Run `cornicen selftest` for a read-only check. See [testing](docs/testing.md).
 
 Details and exit codes: [docs/cli.md](docs/cli.md). `replay` is covered in [docs/testing.md](docs/testing.md).
 

@@ -11,6 +11,7 @@ from cornicen.model import Notification
 _EOL = 'unsupported by the vendor — fixes unlikely; isolate or replace'
 
 _HEALTH_MESSAGES = {
+    'acceptance': 'acceptance self-test failed',
     'cvelist': 'CVE List ingest failed',
     'kev': 'KEV fetch failed',
     'epss': 'EPSS fetch failed',
