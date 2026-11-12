@@ -51,16 +51,19 @@ class Engine:
             aliases_hash = aliases.fingerprint()
             saved_aliases_hash = store.get_meta('applied_aliases_hash')
             aliases_changed = saved_aliases_hash != aliases_hash
+            revision_changed = (store.get_meta('applied_matching_revision')
+                                != str(applicability.MATCHING_REVISION))
             if saved is None and not self.db.execute('SELECT 1 FROM records UNION SELECT 1 FROM pairs LIMIT 1').fetchone():
                 self._save_watches()
-            elif saved != canonical or aliases_changed:
+            elif saved != canonical or aliases_changed or revision_changed:
                 # Missing metadata on an older DB requires a full re-match too.
                 self.watches = tuple(Watch(**dict(w, match=tuple(map(tuple, w['match'])),
                     product_only=tuple(w['product_only']), scheme=Scheme(w['scheme'])))
                     for w in json.loads(saved)) if saved else ()
-                self.reload_watches(watches)
+                self.reload_watches(watches, force_all=revision_changed)
             # Commit with the re-match so an interrupted startup tries again.
             store.set_meta('applied_aliases_hash', aliases_hash)
+            store.set_meta('applied_matching_revision', applicability.MATCHING_REVISION)
             rejected = self.db.execute("SELECT detail FROM health WHERE source='watchlist' AND state='unhealthy'").fetchone()
             pending = self.db.execute("SELECT 1 FROM retry_queue WHERE source='watchlist' UNION ALL SELECT 1 FROM dead_letters WHERE source='watchlist'").fetchone()
             if rejected and rejected[0] == 'Watchlist reload rejected' and not pending:
@@ -171,7 +174,8 @@ class Engine:
         return state == 'affected' or (state == 'unknown' and exploited)
 
     def _evaluate(self, record, record_id, baseline=False, kev_added=False,
-                  kev_baseline=False, reload=False, watches=None, resolving_kev_only=False):
+                  kev_baseline=False, reload=False, watches=None, resolving_kev_only=False,
+                  revision_corrections=False):
         if record is None:
             self._health('records', 'unhealthy', 'Missing stored record: ' + record_id)
             return
@@ -222,7 +226,7 @@ class Engine:
             render(Notification('', watch.id, record_id, (), 'normal', body))
             if clearing:
                 self._drop_activation(watch.id, record_id)
-                if notified and not reload:
+                if notified and (not reload or revision_corrections):
                     self._event(watch.id, record_id, 'correction', episode - 1, body)
             elif resolving_kev_only and old and notified and old['state'] != result.state.value:
                 self._event(watch.id, record_id, 'correction', episode, body, resolution=True)
@@ -233,6 +237,14 @@ class Engine:
                 self._event(watch.id, record_id, 'new match', episode, body)
             if active and kev_added and not kev_baseline:
                 self._event(watch.id, record_id, 'KEV added', episode, body)
+        if watches is None or {watch.id for watch in watches} == {watch.id for watch in self.watches}:
+            # Complete revision work in the same savepoint as a successful full
+            # evaluation, whether it came from ingestion, reload, or retry.
+            # Leave watchlist retry rows for ordinary retry processing so it
+            # records health recovery after the revision marker is cleared.
+            retry_key = 'matching_revision_retry:' + record_id
+            if self.store.get_meta(retry_key):
+                self.db.execute('DELETE FROM meta WHERE k=?', (retry_key,))
 
     @staticmethod
     def _retry_identity(record):
@@ -303,12 +315,19 @@ class Engine:
                        or (baseline and not self.store.get_meta('baseline_complete')))
         self.db.execute('INSERT OR IGNORE INTO kev_seen VALUES (?)', (record_id,))
 
-    def _rematch_record(self, record, record_id, watches=None):
+    def _rematch_record(self, record, record_id, watches=None, *, revision_corrections=False):
         # Snapshot origin decides history; a first-KEV marker governs only KEV-added
         # events, so it must not turn a delta's new match into a baseline pair.
         baseline = (not self.store.get_meta('baseline_complete')
                     and bool(self.store.get_meta('record_baseline:' + record_id)))
-        self._evaluate(record, record_id, reload=True, watches=watches, baseline=baseline)
+        retry_key = 'matching_revision_retry:' + record_id
+        if self.store.get_meta(retry_key):
+            # A pending revision pass must cover all watches even if another
+            # reload edits only a subset before the retry runs.
+            watches = None
+            revision_corrections = True
+        self._evaluate(record, record_id, reload=True, watches=watches, baseline=baseline,
+                       revision_corrections=revision_corrections)
 
     def _retry_records(self):
         rows = self.db.execute("SELECT *, NULL AS version FROM retry_queue WHERE record_id!='@fetch' "
@@ -530,11 +549,11 @@ class Engine:
             EXISTS (SELECT 1 FROM incoming_{table} AS new LEFT JOIN {table} AS old USING(cve)
                     WHERE new.cve={record_id} AND (old.cve IS NULL OR {changed})) {removed})''')
 
-    def reload_watches(self, watches: tuple[Watch, ...]) -> None:
+    def reload_watches(self, watches: tuple[Watch, ...], *, force_all=False) -> None:
         old_watches = self.watches
         previous = {watch.id: watch for watch in self.watches}
         alias_changed = self._identity_version != (self.aliases, self.aliases.version)
-        changed = tuple(watch for watch in watches if alias_changed or previous.get(watch.id) != watch)
+        changed = tuple(watch for watch in watches if force_all or alias_changed or previous.get(watch.id) != watch)
         self.watches = watches
         self._cache_watch_identities()
         last_report = self.report
@@ -549,9 +568,13 @@ class Engine:
                     if record is None:
                         self._evaluate(None, record_id)
                         continue
+                    if force_all:
+                        # Outside the record savepoint: failures keep correction policy
+                        # for watchlist retries, including across process restarts.
+                        self.store.set_meta('matching_revision_retry:' + record_id, '1')
                     self._isolated('watchlist', record,
                         lambda record=record, record_id=record_id: self._rematch_record(
-                            record, record_id, watches=changed))
+                            record, record_id, watches=changed, revision_corrections=force_all))
                 pending = self.db.execute("SELECT 1 FROM retry_queue WHERE source='watchlist' UNION ALL SELECT 1 FROM dead_letters WHERE source='watchlist' LIMIT 1").fetchone()
                 self._health('watchlist', 'unhealthy' if pending else 'healthy',
                              'Re-match failed; retry pending' if pending else 'Watchlist re-match complete',

@@ -12,7 +12,7 @@ Cornicen is for homelabs and small networks. You tell it what you run. It watche
 The container log carries only Cornicen's own words, integers and ISO times,
 except for the upstream release tag name in the skip warning.
 
-**Status:** version 0.1.12, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
+**Status:** version 0.1.13, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
 
 ## Contents
 

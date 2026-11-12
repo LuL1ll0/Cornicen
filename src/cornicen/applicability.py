@@ -10,6 +10,10 @@ from cornicen.versions import Scheme, compare, parse_constraint, python_successo
 from cornicen.watchlist import Watch
 
 
+# Bump by hand whenever applicability, version comparison or identity matching changes.
+MATCHING_REVISION = 1
+
+
 class State(str, Enum):
     AFFECTED = 'affected'
     NOT_AFFECTED = 'not_affected'

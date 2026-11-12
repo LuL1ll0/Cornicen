@@ -137,6 +137,8 @@ The file is re-read on change. A reload is validated whole and applied atomicall
 
 Changes to effective alias groups, including local edits, re-check stored CVEs at the next start, including during bootstrap. The first start after upgrading also re-checks retained CVEs when no alias fingerprint is stored. Version-only edits do nothing. Resulting alerts follow the ordinary event path: new matches enter the digest, while KEV-listed or high-EPSS matches are urgent.
 
+A matching-rule revision change re-checks every stored pair at the next start. Unlike watch-edit or alias-change reloads, this pass sends one correction for an already-notified pair that becomes not affected (including when watches also change); never-notified pairs clear quietly, and new matches follow the existing reload rules.
+
 ## 5. Applicability
 
 For each (record, watch) pair Cornicen computes one state: **affected**, **not affected**, or **unknown**, with evidence.
