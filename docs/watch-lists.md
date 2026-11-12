@@ -21,8 +21,9 @@ and ignores case while keeping punctuation. Placeholder products never match;
 a placeholder vendor can match a real product only through `product_only`.
 For CPython use `python`, which orders three numeric components and optional
 `aN`, `bN` or `rcN` pre-releases. Other PEP 440 forms remain unknown.
-Synology DSM build/update strings can use `debian`;
-wildcards, `unspecified` bounds and prose remain unknown.
+Synology DSM build/update strings can use `debian`.
+For point watches only, a numeric wildcard start with a non-wildcard upper bound textually in the same line (`5.4.*` below `5.4.12`) becomes that line's first release (`5.4.0`), while a version in the line below that release stays unknown;
+other wildcards, `unspecified` bounds and prose remain unknown.
 When a version is outside every affected range a CNA entry lists and all
 comparisons are decidable, `defaultStatus: affected` yields **unknown**, with
 evidence “outside every range the CNA listed; the CNA's default says affected”.

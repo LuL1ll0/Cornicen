@@ -118,11 +118,11 @@ class RealMatchTests(unittest.TestCase):
         entry['versions'] = [{'version': '0.0.0a0', 'status': 'unaffected'}]
         self.assertEqual(self.resolve(rec, '<=0.0.0a0', 'python').state, State.NOT_AFFECTED)
 
-    def test_php_label_is_hint_but_wildcard_bound_is_unknown(self):
+    def test_php_label_is_hint_and_fixed_wildcard_range_is_unaffected(self):
         rec = fixture('CVE-2026-92842')
         result = self.resolve(rec, '8.2.36', 'dotted')
-        self.assertEqual(result.state, State.UNKNOWN)
-        self.assertIn('version comparison unknown', result.evidence)
+        self.assertEqual(result.state, State.NOT_AFFECTED)
+        self.assertIn('CNA unaffected', result.evidence)
 
     def test_other_named_types_still_conflict(self):
         rec = fixture('CVE-2026-103995')

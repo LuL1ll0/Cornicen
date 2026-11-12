@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from functools import cmp_to_key
+import re
 
 from cornicen.identity import AliasMap, is_placeholder, normalise
 from cornicen.versions import Scheme, compare, parse_constraint, python_successor
@@ -136,6 +137,33 @@ def _unbounded_start(version):
             and version.get('version') in ('0', '0.0', '0.0.0', '*'))
 
 
+def _range_start(version):
+    lower = version['version']
+    upper = version.get('lessThan', version.get('lessThanOrEqual'))
+    if (upper is not None and '*' not in upper
+            and re.fullmatch(r'\d+(\.\d+)*\.\*', lower)
+            and upper.startswith(lower[:-2] + '.')):
+        # Explicit zero avoids dotted's undecidable padded equality. Semver
+        # and Python need three components; unsupported forms still fail in
+        # the comparator, including numeric prefixes that are too long.
+        parts = lower[:-2].split('.') + ['0']
+        lower = '.'.join(parts + ['0'] * max(0, 3 - len(parts)))
+    return lower
+
+
+def _line_floor(lower, scheme):
+    prefix = lower[:-2]
+    if scheme in (Scheme.SEMVER, Scheme.PYTHON):
+        parts = prefix.split('.')
+        base = '.'.join(parts + ['0'] * max(0, 3 - len(parts)))
+        return base + ('-0' if scheme == Scheme.SEMVER else 'a0')
+    if scheme == Scheme.DEBIAN:
+        return prefix + '~'
+    if scheme == Scheme.DOTTED:
+        return prefix
+    raise _Undecidable('wildcard line comparison unknown')
+
+
 def _history_exclusion(entry):
     if entry.get('defaultStatus', 'unknown') != 'unknown':
         return False
@@ -187,7 +215,14 @@ def _at(entry, relation, scheme, inferred=None):
         else:
             if scheme == Scheme.OPAQUE:
                 raise _Undecidable('opaque range comparison unknown')
-            low = 1 if _unbounded_start(version) else relation(lower)
+            start = _range_start(version)
+            low = 1 if _unbounded_start(version) else relation(start)
+            if low < 0 and start != lower:
+                # Only a comparator-proven earlier line can be excluded by
+                # the manufactured start. Unknown floor comparisons raise
+                # before defaults or history can infer exclusion.
+                if relation(_line_floor(lower, scheme)) >= 0:
+                    raise _Undecidable('wildcard line below its first release')
             high = -1 if upper == '*' else relation(upper)
             inside = low >= 0 and (high < 0 or (
                 high == 0 and 'lessThanOrEqual' in version))
@@ -251,6 +286,7 @@ def _boundaries(entry):
                 if key == 'version' and _unbounded_start(version):
                     continue
                 if key in version and version[key] != '*':
+                    # Raw wildcard boundaries keep comparator watches unknown.
                     yield version[key]
         for change in version.get('changes', []):
             yield change.get('at')
@@ -345,7 +381,8 @@ def _evaluate(entry, watch):
         if version.startswith(('=', '>', '<')) or ',' in version:
             state = _range(entry, parse_constraint(version), watch.scheme, inferred)
         else:
-            state = _at(entry, lambda b: _compare(version, b, watch.scheme), watch.scheme, inferred)
+            state = _at(entry, lambda b: _compare(version, b, watch.scheme), watch.scheme,
+                        inferred)
         descriptions = []
         for row in entry.get('versions', []):
             text = row.get('version', '?')
