@@ -183,6 +183,20 @@ class Store:
             )
             for statement in statements:
                 self.connection.execute(statement)
+            crossing_upgrade = self.connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='epss_crossings'").fetchone() is None
+            scores_upgrade = self.connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='epss_crossing_scores'").fetchone() is None
+            self.connection.execute("""CREATE TABLE IF NOT EXISTS epss_crossings(
+                watch_id TEXT, record_id TEXT, episode INTEGER NOT NULL,
+                fired INTEGER, crossing INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(watch_id,record_id))""")
+            columns = {row['name'] for row in self.connection.execute('PRAGMA table_info(epss_crossings)')}
+            for column in ('threshold', 'rearm_ratio'):
+                if column not in columns:
+                    self.connection.execute(f'ALTER TABLE epss_crossings ADD COLUMN {column} REAL')
+            self.connection.execute('''CREATE TABLE IF NOT EXISTS epss_crossing_scores(
+                cve TEXT PRIMARY KEY, score REAL, pct REAL, date TEXT)''')
             seen = self.get_meta('kev_seen')
             if seen is not None:
                 self.connection.executemany('INSERT OR IGNORE INTO kev_seen VALUES (?)',
@@ -242,6 +256,13 @@ class Store:
             self.connection.execute('CREATE INDEX IF NOT EXISTS events_episode ON events(watch_id,record_id,episode)')
             self.connection.execute("""CREATE INDEX IF NOT EXISTS outbox_pending_record
                 ON outbox(CAST(json_extract(body_json,'$.record_id') AS TEXT)) WHERE sent_at IS NULL""")
+            if crossing_upgrade or scores_upgrade:
+                # Older databases have only the merged evidence map. Do not seed
+                # crossing evidence from a map with an outstanding fetch error.
+                self.connection.execute('DELETE FROM epss_crossing_scores')
+                if (self.get_meta('last_error:epss') is None and not self.connection.execute(
+                        "SELECT 1 FROM retry_queue WHERE source='epss' AND record_id='@fetch'").fetchone()):
+                    self.connection.execute('INSERT INTO epss_crossing_scores SELECT * FROM epss')
             self.set_meta('schema_version', '1')
         self._migrate_record_projection()
 

@@ -38,14 +38,13 @@ breaks through.
 | **CISA KEV** (`known_exploited_vulnerabilities.json`) | Exploited-in-the-wild flag, CISA due date, ransomware use. |
 | **FIRST EPSS bulk CSV** (daily) | Exploit-probability score and percentile shown on alerts and used for urgency at send time. Bulk download only, so no CVE ID ever leaves the host. |
 
-Plus: the watch list (§4), matching with explicit applicability (§5), events and dedupe (§7), declared end-of-life, **ntfy** as the one notification channel, durable ingestion with gap recovery (§6), source health (§9).
+Plus: the watch list (§4), matching with explicit applicability (§5), events and dedupe (§7), declared end-of-life, **ntfy** as the default notification channel (runtime alternatives in §10), durable ingestion with gap recovery (§6), source health (§9).
 
 ### v1.1 — after the core is solid
 
 - **Vendor advisory adapters**, each added only with archive/index catch-up or explicit gap reporting (§6.4): Synology RSS, Debian and Ubuntu via OSV, Microsoft and Cisco via CSAF, GitHub repository advisories.
-- **EPSS threshold-crossing events**, with hysteresis.
 - **NVD enrichment** (CVSS where the CNA gave none; CPE as supporting evidence only).
-- **Latest-release checks** ("you are behind"), generic webhook, SMTP.
+- **Latest-release checks** ("you are behind") have shipped as opt-in per watch (§8). Generic webhook delivery is implemented in §10; email forwarding belongs to the ntfy server.
 
 ### Not covered (stated in the README)
 
@@ -56,7 +55,7 @@ Plus: the watch list (§4), matching with explicit applicability (§5), events a
 
 ## 4. Watch list
 
-A TOML file, mounted read-only. **It is the user's private inventory and never leaves the host.** The repo ships only a fictional example.
+A TOML file, mounted read-only. **It is the user's private inventory.** Matching is local; optional repository-specific checks disclose the configured repository path (§8). The repo ships only a fictional example.
 
 ```toml
 [[watch]]
@@ -135,6 +134,12 @@ A watch `version` may be a single version or a range: comma-separated comparator
 
 The file is re-read on change. A reload is validated whole and applied atomically, or rejected with the previous list kept and a health warning raised. After a valid reload, every changed watch is **re-matched against stored records**: a change that newly makes a watch affected produces new-match events; a change that clears it produces nothing.
 
+Removed watches lose their stored pairs silently, without correction notices.
+If `applied_watches` is missing on a non-empty database, startup recovers the
+previous watch IDs from stored pair owners and re-matches current watches.
+The removal, re-match and applied metadata commit together; interruption retries
+the startup pass.
+
 Changes to effective alias groups, including local edits, re-check stored CVEs at the next start, including during bootstrap. The first start after upgrading also re-checks retained CVEs when no alias fingerprint is stored. Version-only edits do nothing. Resulting alerts follow the ordinary event path: new matches enter the digest, while KEV-listed or high-EPSS matches are urgent.
 
 A matching-rule revision change re-checks every stored pair at the next start. Unlike watch-edit or alias-change reloads, this pass sends one correction for an already-notified pair that becomes not affected (including when watches also change); never-notified pairs clear quietly, and new matches follow the existing reload rules.
@@ -184,6 +189,17 @@ First run downloads the latest **full snapshot** of CVE List V5, then the cumula
 
 A fetch is **complete**, **partial** or **failed**. Partial covers: a truncated or undecodable body, a non-empty `error[]` in a CVE delta, a referenced record that could not be fetched, a schema mismatch. Partial and failed records go to a durable retry queue; the cursor does not pass them. An empty 200 is accepted only where the source can legitimately be empty (an empty delta); otherwise it is a failure.
 
+A delta zip with zero entries is valid only when its tag is
+`cve_YYYY-MM-DD_0000Z` and its asset covers exactly midnight UTC on the same
+day. The listing must contain exactly one release with that tag (including
+filtered drafts and prereleases), with exactly one asset, the delta archive;
+release parsing must succeed. Ambiguity, extra assets or parsing errors prevent
+the exception. An empty `0100Z` or later archive remains incomplete even when
+no earlier release is listed or pagination is exhausted. Its cursor does not
+advance. A non-empty archive without recognised records or an explicit
+zero-change manifest is also incomplete. Daily deltas are cumulative, so records
+following an accepted empty midnight release arrive in the next delta without loss.
+
 ### 6.4 Bounded feeds (v1.1 adapters)
 
 A feed that exposes only its newest N items cannot prove nothing was missed. Every v1.1 adapter must either catch up through an archive or index (CSAF `changes.csv`, OSV export, full pagination) or report an **unrecoverable gap** as a health warning when the oldest item it sees is newer than its cursor.
@@ -191,6 +207,7 @@ A feed that exposes only its newest N items cannot prove nothing was missed. Eve
 ### 6.5 EPSS
 
 - Bulk CSV: verify decompression completes, the header matches, the score date is new or unchanged, and the row count has not collapsed (>20% drop is a failure).
+- Poll hourly while the committed score date is before today's UTC date (also when missing or invalid). Once today's date is stored, wait until the next UTC day, including after a restart. Poll deadlines use the monotonic clock. Fetches use the ordinary validated bulk download each time; redirect targets are not used to skip validation or transfer. The two-day staleness rule is unchanged.
 - A CVE with no score is **unknown**, shown as "EPSS: not yet scored."
 
 ### 6.6 Stored CVE projection
@@ -267,12 +284,13 @@ attempt logs its full runtime in integer seconds. Matching revision remains 1: S
 | **KEV added** | a matched pair's CVE appears in KEV |
 | **acceptance lapsed** | an accept entry lapses by date or version for an active pair; once per episode, due in the next digest |
 | **correction** | a pair previously notified becomes not affected or rejected |
+| **epss_crossed** | a delivered affected pair crosses the EPSS urgent threshold while armed; acceptance and existing KEV or SSVC active urgency exclude it |
 
-EPSS changes, CVSS changes, description edits and reference additions update the stored record silently in v1.
+EPSS changes produce only the crossing event defined below. CVSS changes, description edits and reference additions update the stored record silently.
 
 ### 7.2 Identity and dedupe
 
-- **Event key** = (watch `id`, canonical record ID, event type, episode). Canonical record ID is the CVE ID. A pair's **episode** starts at 1 and increments each time it goes from affected back to not affected (a correction), so a pair that later becomes affected again alerts again; nothing else re-arms it. Keys are stored permanently, independent of record retention, so a replay never re-sends.
+- **Event key** = (watch `id`, canonical record ID, event type, episode). Canonical record ID is the CVE ID. A pair's **episode** starts at 1 and increments each time it goes from affected back to not affected (a correction), so a pair that later becomes affected again alerts again; EPSS crossings also carry a persistent crossing counter within the episode, incremented for each eligible up-crossing after re-arming. Keys are stored permanently, independent of record retention, so a replay never re-sends.
 - A **processing cycle** is one scheduler tick: run every due ingest in fixed order (CVE List, then KEV, then EPSS), compute events, then release the outbox. Nothing is sent mid-cycle, urgent items included. Events for the same pair in one cycle are **coalesced** into one notification listing every reason ("new match · KEV added"), and a new reason for a pair whose notification is still unsent is merged into it.
 - The event row and its outbox row are written in the same transaction; the outbox row's ID is sent as the idempotency key (ntfy message ID / header) so receivers that support it can drop duplicates.
 - Before a digest is sent, each queued item is **revalidated**; items that became not affected are dropped or converted to a correction.
@@ -285,7 +303,9 @@ Classification is by **where a record came from**, not when it was processed: ev
 
 - **Urgent** (sent at once, high priority): KEV-listed; or affected with CISA SSVC Exploitation `active`; or affected with EPSS ≥ the configured threshold at the time of sending (default 10%). SSVC alone never activates an unknown pair or changes its exploited flag.
 - **Normal:** everything else, in a combined digest (default daily, configurable). All due normal watch rows form one notification titled "Cornicen digest: N items", with presentation grouped by watch as described below. Durable row ordering remains CNA CVSS severity then EPSS probability, highest first. Each constituent row is marked sent only after the combined send succeeds; failures leave every row pending. Urgent and health notifications, and the baseline summary, stay individual.
-- **Promotion:** after each EPSS or KEV ingest, unsent normal items are re-evaluated; any that now meet the urgent rule are sent at the end of that cycle. Already-delivered items are not re-sent for a score change.
+- **Promotion:** after each EPSS or KEV ingest, unsent normal items are re-evaluated; any that now meet the urgent rule are sent at the end of that cycle. A delivered affected pair gets one urgent `epss_crossed` event when its score reaches or exceeds `epss_threshold` while armed. Unknown, inactive, accepted, KEV-listed and SSVC Exploitation `active` pairs do not fire. The event uses the ordinary outbox and coalescing rules, with the usual alert body and fixed notice "EPSS threshold crossed: <record ID>". Digests are unchanged.
+- **EPSS hysteresis:** crossing state persists per pair. A fired pair re-arms only below `epss_threshold × epss_rearm_ratio`; equality and scores between the two lines change nothing. `epss_rearm_ratio` defaults to 0.8 and must be strictly between 0 and 1. Existing scores at or above the threshold initialize fired silently on upgrade; the first observed score also initializes silently when no previous score exists. A cleared pair starts armed for its next episode. An urgent delivery with high EPSS marks the pair fired. Repeated identical score files cannot fire twice. `epss_crossing = false` disables crossing notifications, including pending crossing reasons; state still tracks scores to avoid a flood when re-enabled.
+- **Crossing evidence and configuration:** only COMPLETE EPSS ingests with no errors advance crossing evidence; partial or erroring ingests neither fire nor re-arm, including initialization after restart. Each pair stores its threshold and re-arm ratio. Changing either silently reconciles against the last complete score map before processing new scores: at or above the new threshold is fired, below the new re-arm line is armed, and scores in between retain their state. A missing score defers reconciliation until a score is available. Configuration changes create no crossing event.
 - **EOL:** any notification on an `eol = true` watch leads with "unsupported by the vendor — fixes unlikely; isolate or replace."
   `status`, `report`, and `watch check` also list each EOL watch ID with "coverage limited: the vendor issues no advisories for unsupported versions; absence of alerts is not evidence of safety" (structured as `eol_coverage_limited` IDs in status JSON; report JSONL sends the human notice to stderr), without creating events or notifications or changing health or exit codes. `watch check --file` reports the candidate file's EOL watches.
 
@@ -336,7 +356,7 @@ Stated in the README exactly like this:
 - **Matching is local.** Cornicen downloads whole public datasets (CVE List, KEV, EPSS bulk). It sends no product name, version or CVE ID to any data source in v1.
 - **Notifications carry your data to the channel you configure.** An alert names the product and version it matched. If your ntfy server is someone else's, they see that. Self-host ntfy for end-to-end privacy.
 - **No telemetry, analytics or update check.** The README lists every host contacted by default.
-- **v1.1 caveat:** repository-specific checks (latest-release, GitHub advisories) and per-CVE lookups reveal what you watch to those hosts. Each will be opt-in and say so.
+- **v1.1 caveat (shipped latest-release checks):** `latest_release = "github:example-org/widget"` opts in per watch to daily repository-specific checks. There is no default list and no request without the field. The request carries only the repository path, never the watched version; it reveals what you run to GitHub. With the optional token, checks are tied to the operator's GitHub account as well as an IP address. GitHub advisories and per-CVE lookups remain unshipped. See [watch lists](watch-lists.md#latest-release-checks-opt-in-per-watch) and [privacy](privacy.md).
 - Runs as non-root, read-only root filesystem, writable volume only for SQLite, watch list mounted read-only. No inbound port. Secrets never go in the shareable TOML: the ntfy token comes from the environment or a file, and the optional GitHub token from a file only.
 - User-Agent configurable, default `Cornicen/<version> (+<repo URL>)`.
 - `ntfy_url` must be HTTP(S) with a host and no userinfo, query string or fragment. Path prefixes are allowed; invalid values are rejected at configuration loading with an error naming the key.
@@ -358,8 +378,36 @@ A successful unchanged CVE release listing clears fetch failure without advancin
 
 ## 10. Runtime
 
+One notifier per deployment: `ntfy` (default), `file`, or `webhook`; no fan-out.
+Webhook delivery POSTs JSON over HTTPS only, with a host required and no
+redirects, using the same 60-second total request deadline and durable outbox as ntfy.
+A 2xx acknowledges; all other responses and exceptions retain pending delivery
+and existing retry/backoff. The shared ntfy transport gains the same total deadline;
+its payload, headers, redirect handling and acknowledgements are unchanged.
+
+`webhook_format` is `json` (default), `discord`, `slack`, `matrix`, `gotify` or
+`homeassistant`. Formats share rendered title, body and integer priority; plain
+JSON and the flat Home Assistant object include a complete `cve_ids` array.
+Slack escapes service markup, Discord escapes Markdown and disables mentions,
+Matrix sends plain text with an empty mentions object, and Gotify requests plain text.
+The webhook payload is the rendered notification, signed exactly as serialized;
+like ntfy, it does not filter third-party CVE text for credential strings.
+Stored notification bodies and outbox rows are unchanged.
+Service text uses bounded local budgets and a fixed `\n[truncated]` marker;
+see [installation](install.md#signed-webhook-channel) for fields and limits.
+Each request signs the exact serialized body: HMAC-SHA256 over ASCII Unix seconds
+plus `.` plus body bytes. Headers are `X-Cornicen-Timestamp` and
+`X-Cornicen-Signature: sha256=<lowercase hex>`. Transports and clocks are injectable.
+Receivers verify with constant-time comparison and a five-minute timestamp window.
+
+URL and secret are required in webhook mode, supplied by `CORNICEN_WEBHOOK_URL`
+and `CORNICEN_WEBHOOK_SECRET` or their `_FILE` alternatives, with environment
+precedence and the existing secret-file permission policy. They never belong in
+TOML or public diagnostics; redaction includes derived URL forms and components.
+There is no email notifier; ntfy server forwarding owns all mail credentials.
+
 - One container, one process, internal scheduler, SQLite in a volume.
-- Polls: CVE List hourly, KEV every 6 h, EPSS daily, outbox continuously.
+- Polls: CVE List hourly, KEV every 6 h, EPSS hourly until today's UTC scores are stored then at the next UTC day, outbox continuously.
 - Budget: ≤256 MB steady state; bootstrap streams the snapshot rather than holding it in memory.
 - Retention: record history prunable by setting; event keys and baseline markers never pruned.
 - Python (§13).

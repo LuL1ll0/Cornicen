@@ -1,6 +1,6 @@
 """One process, source-ordered minute cycles and atomic inventory reloads."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import json
 import re
 import signal
@@ -25,8 +25,9 @@ ACCEPTANCE_RETRY = timedelta(hours=1)
 GITHUB_KEYS = ('auth', 'limit', 'remaining', 'reset', 'observed_at')
 
 
-def redact_tokens(message, *tokens):
-    message = ''.join(c for c in str(message) if not unicodedata.category(c).startswith('C'))
+def redact_tokens(message, *tokens, preserve_layout=False):
+    message = ''.join(c for c in str(message) if not unicodedata.category(c).startswith('C')
+                      or (preserve_layout and c in '\n\t'))
     secrets = set()
     for token in tokens:
         if token is None:
@@ -41,18 +42,24 @@ def redact_tokens(message, *tokens):
                     parts = urlsplit(url)
                 except ValueError:
                     continue
+                host = parts.hostname or ''
+                try:
+                    values.add(host.encode('idna').decode('ascii'))
+                    values.add(host.encode('ascii').decode('idna'))
+                except UnicodeError:
+                    pass
                 values.update((parts.netloc,
                                parts.netloc.rpartition('@')[0], parts.hostname or '',
                                parts.path, parts.query))
-                values.update(part for part in parts.path.split('/') if len(part) >= 6)
+                values.update(part for part in parts.path.split('/') if len(unquote(part)) >= 6)
                 values.update(value for _, value in parse_qsl(parts.query) if len(value) >= 6)
                 values.update(field.partition('=')[2] for field in parts.query.split('&')
-                              if len(field.partition('=')[2]) >= 6)
-            values.update(unquote(value) for value in tuple(values))
-            values.update(quote(value, safe='') for value in tuple(values))
-            values.update(quote(value, safe='/') for value in tuple(values))
-            values.update(quote_plus(value, safe='') for value in tuple(values))
-            values.update(quote(value, safe=':/?=@') for value in tuple(values))
+                              if len(unquote(field.partition('=')[2])) >= 6)
+        values.update(unquote(value) for value in tuple(values))
+        values.update(quote(value, safe='') for value in tuple(values))
+        values.update(quote(value, safe='/') for value in tuple(values))
+        values.update(quote_plus(value, safe='') for value in tuple(values))
+        values.update(quote(value, safe=':/?=@') for value in tuple(values))
         for value in values:
             for form in (value, json.dumps(value)[1:-1]):
                 form = ''.join(c for c in form if not unicodedata.category(c).startswith('C'))
@@ -60,7 +67,13 @@ def redact_tokens(message, *tokens):
                     secrets.add(form)
     # A component must not leave a suffix of a longer representation behind.
     if secrets:
-        message = re.sub('|'.join(re.escape(value) for value in sorted(secrets, key=lambda v: (-len(v), v))),
+        # Percent hex digits are case insensitive; ordinary credential text is not.
+        def pattern(value):
+            return ''.join(''.join('[' + c.lower() + c.upper() + ']' if c.isalpha() else c
+                                   for c in part) if re.fullmatch(r'%[0-9A-Fa-f]{2}', part)
+                           else re.escape(part)
+                           for part in re.split(r'(%[0-9A-Fa-f]{2})', value))
+        message = re.sub('|'.join(pattern(value) for value in sorted(secrets, key=lambda v: (-len(v), v))),
                          lambda _: '[redacted]', message)
     return message
 
@@ -88,11 +101,19 @@ class Scheduler:
 
     def __init__(self, engine, sources, clock=None, output=print, monotonic=None):
         self.engine, self.sources = engine, sources
+        self.release_worker = None
+        self.release_job = None
+        self.release_outcome = []
+        self.release_started = None
+        self.release_timed_out = False
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.monotonic = monotonic or time.monotonic
         self.output = output
         self.stop = threading.Event()
         self.next_poll = {}
+        delay = self._epss_current_date_delay(self.clock())
+        if delay is not None:
+            self.next_poll['epss'] = self.monotonic() + delay
         self.watch_stamp = self._stamp()
         self.component = 'scheduler'
         self.acceptance_started = False
@@ -102,6 +123,19 @@ class Scheduler:
         self.deadman_worker = None
         self.deadman_outcome = []
         self.deadman_timed_out = False
+
+    def _epss_current_date_delay(self, now):
+        """Return seconds until UTC midnight only for a committed current date."""
+        cursor = self.engine.db.execute("SELECT value FROM cursors WHERE source='epss'").fetchone()
+        try:
+            score_date = date.fromisoformat(cursor[0]) if cursor else None
+        except (TypeError, ValueError):
+            score_date = None
+        utc = now.astimezone(timezone.utc)
+        if score_date == utc.date():
+            return ((utc + timedelta(days=1)).replace(hour=0, minute=0, second=0,
+                                                     microsecond=0) - utc).total_seconds()
+        return None
 
     def _stamp(self):
         try:
@@ -210,6 +244,54 @@ class Scheduler:
             # Even secondary failures must never expose private exception text.
             pass
 
+    def _collect_releases(self):
+        if self.engine.release_checker is None:
+            return
+        if not any(w.latest_release for w in self.engine.watches):
+            if self.engine.release_checker is not None:
+                self.engine.release_checker.applied = None
+            with self.engine.store.transaction():
+                self.engine.db.execute("DELETE FROM health WHERE source='releases'")
+            # A still-running worker must be reported again if checks are re-enabled.
+            self.release_timed_out = False
+        worker = self.release_worker
+        if worker is None:
+            return
+        done = not worker.is_alive()
+        if done and self.release_outcome and self.release_outcome[0]:
+            # Keep the completed job until commit succeeds; failures roll back
+            # metadata, notices and health together and retry on a later tick.
+            self.release_job.record(self.engine.release_checker, self.engine)
+        elif not self.release_timed_out and (done or self.monotonic() - self.release_started >= 10):
+            if any(w.latest_release for w in self.engine.watches):
+                with self.engine.store.transaction():
+                    self.engine._health('releases', 'unhealthy', 'Release checks failed', 'failed')
+                # Only a recorded timeout counts; disabled checks record none.
+                self.release_timed_out = True
+        if done:
+            self.release_worker = None
+            self.release_job = None
+
+    def _releases(self):
+        if self.release_worker is not None or self.engine.release_checker is None:
+            return
+        job = self.engine.release_checker.prepare(self.engine)
+        if job is None:
+            return
+        self.release_job = job
+        self.release_started = self.monotonic()
+        self.release_timed_out = False
+        self.release_outcome = outcome = []
+        def request():
+            try:
+                job.fetch()
+            except Exception:
+                outcome.append(False)
+            else:
+                outcome.append(True)
+        self.release_worker = threading.Thread(target=request, daemon=True)
+        self.release_worker.start()
+
     def _deadman_status(self, now):
         if self.engine.config.deadman_url is None:
             return 'off'
@@ -290,7 +372,14 @@ class Scheduler:
                     next_poll[name] = elapsed + interval.total_seconds()
             self.component = 'engine'
             self._refresh_acceptance_holds()
-            report = self.engine.run_cycle(ingests)
+            report = (self.engine.run_cycle(ingests, release_checks=False)
+                      if self.engine.release_checker is not None else self.engine.run_cycle(ingests))
+            if next_poll.get('epss') != self.next_poll.get('epss'):
+                # Use the committed date: failed ingests must not defer retries.
+                delay = self._epss_current_date_delay(now)
+                next_poll['epss'] = elapsed + (3600 if delay is None else delay)
+            self._collect_releases()
+            self._releases()
             self._acceptance(now)
             # A failed engine cycle must retry its sources on the next minute.
             self.next_poll = next_poll
@@ -340,7 +429,7 @@ class Scheduler:
                     withheld += 1
                     continue
                 health_details[key] = public_text(safe_message(RuntimeError(
-                    verdict[1]), self.engine.config.ntfy_token, self.engine.config.github_token, self.engine.config.deadman_url),
+                    verdict[1]), self.engine.config.ntfy_token, self.engine.config.github_token, self.engine.config.deadman_url, self.engine.config.webhook_url, self.engine.config.webhook_secret),
                     inventory)
             deadman = self._deadman_status(self.clock())
             self.output(json.dumps({'time': now.isoformat(), 'sources': statuses,
@@ -362,10 +451,10 @@ class Scheduler:
         return report
 
     def _failed_cycle(self, error):
-        message = public_text(safe_message(error, self.engine.config.ntfy_token, self.engine.config.github_token, self.engine.config.deadman_url),
+        message = public_text(safe_message(error, self.engine.config.ntfy_token, self.engine.config.github_token, self.engine.config.deadman_url, self.engine.config.webhook_url, self.engine.config.webhook_secret),
                               self.engine.watches)
         entry = {'time': self.clock().isoformat(), 'component': self.component,
-                 'error': public_token(redact_tokens(type(error).__name__, self.engine.config.ntfy_token, self.engine.config.github_token, self.engine.config.deadman_url), self.engine.watches) or 'Exception', 'message': message}
+                 'error': public_token(redact_tokens(type(error).__name__, self.engine.config.ntfy_token, self.engine.config.github_token, self.engine.config.deadman_url, self.engine.config.webhook_url, self.engine.config.webhook_secret), self.engine.watches) or 'Exception', 'message': message}
         try:
             # Defensively discard open work before recording cycle health.
             # Health and its outbox entry must commit independently of that work.
@@ -376,8 +465,8 @@ class Scheduler:
         except Exception as health_error:
             # A database/delivery outage must not defeat the cycle boundary.
             # Report the secondary failure on the same JSON line.
-            entry['health_error'] = public_token(redact_tokens(type(health_error).__name__, self.engine.config.ntfy_token, self.engine.config.github_token, self.engine.config.deadman_url), self.engine.watches) or 'Exception'
-            entry['health_message'] = public_text(safe_message(health_error, self.engine.config.ntfy_token, self.engine.config.github_token, self.engine.config.deadman_url),
+            entry['health_error'] = public_token(redact_tokens(type(health_error).__name__, self.engine.config.ntfy_token, self.engine.config.github_token, self.engine.config.deadman_url, self.engine.config.webhook_url, self.engine.config.webhook_secret), self.engine.watches) or 'Exception'
+            entry['health_message'] = public_text(safe_message(health_error, self.engine.config.ntfy_token, self.engine.config.github_token, self.engine.config.deadman_url, self.engine.config.webhook_url, self.engine.config.webhook_secret),
                                                   self.engine.watches)
         self.output(json.dumps(entry, sort_keys=True))
 

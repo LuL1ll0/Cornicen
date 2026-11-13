@@ -3,6 +3,7 @@
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 import json
 import zlib
 from hashlib import sha256
@@ -33,7 +34,8 @@ class CycleReport:
 
 class Engine:
     def __init__(self, store: Store, watches: tuple[Watch, ...], aliases: AliasMap,
-                 config: Config, clock: Callable[[], datetime], notifier: Notifier, accepts=()):
+                 config: Config, clock: Callable[[], datetime], notifier: Notifier, accepts=(), release_checker=None):
+        self.release_checker = release_checker
         self.accepts = tuple(accepts)
         self.acceptance_holds = frozenset()
         self.store, self.watches, self.aliases = store, watches, aliases
@@ -61,7 +63,10 @@ class Engine:
                 self.watches = tuple(Watch(**dict(w, match=tuple(map(tuple, w['match'])),
                     product_only=tuple(w['product_only']), scheme=Scheme(w['scheme'])))
                     for w in json.loads(saved)) if saved else ()
-                self.reload_watches(watches, force_all=revision_changed)
+                previous_ids = ({row[0] for row in self.db.execute('SELECT DISTINCT watch_id FROM pairs')}
+                                if saved is None else None)
+                self.reload_watches(watches, force_all=revision_changed, previous_ids=previous_ids)
+            self._initialize_epss_crossings()
             # Commit with the re-match so an interrupted startup tries again.
             store.set_meta('applied_aliases_hash', aliases_hash)
             store.set_meta('applied_matching_revision', applicability.MATCHING_REVISION)
@@ -74,9 +79,87 @@ class Engine:
         if self._identity_version is None:
             self._cache_watch_identities()
 
+    def _initialize_epss_crossings(self, watch_id=None, record_id=None):
+        # NULL means no score has been observed yet. Seed upgrades from the
+        # accepted map before replacing it with the first incoming scores.
+        query = """INSERT OR IGNORE INTO epss_crossings(watch_id,record_id,episode,fired,threshold,rearm_ratio)
+            SELECT p.watch_id,p.record_id,p.episode,
+                CASE WHEN e.score IS NULL THEN NULL ELSE e.score>=? END, ?, ?
+            FROM pairs p LEFT JOIN epss_crossing_scores e ON e.cve=p.record_id"""
+        threshold, ratio = self.config.epss_threshold, self.config.epss_rearm_ratio
+        params = (threshold, threshold, ratio)
+        if watch_id is not None:
+            query += ' WHERE p.watch_id=? AND p.record_id=?'
+            params += (watch_id, record_id)
+        self.db.execute(query, params)
+        # Reconcile against the last COMPLETE, error-free map before accepting
+        # incoming evidence. A config edit consumes no crossing event.
+        reconcile = '''SELECT x.*, e.score FROM epss_crossings x
+            JOIN epss_crossing_scores e ON e.cve=x.record_id
+            WHERE (x.threshold IS NULL OR x.rearm_ratio IS NULL
+                OR x.threshold!=? OR x.rearm_ratio!=?)'''
+        params = (threshold, ratio)
+        if watch_id is not None:
+            reconcile += ' AND x.watch_id=? AND x.record_id=?'
+            params += (watch_id, record_id)
+        rows = self.db.execute(reconcile, params).fetchall()
+        for row in rows:
+            fired = row['fired']
+            if row['score'] >= threshold:
+                fired = 1
+            elif Decimal(str(row['score'])) < Decimal(str(threshold)) * Decimal(str(ratio)):
+                fired = 0
+            self.db.execute('''UPDATE epss_crossings SET fired=?,threshold=?,rearm_ratio=?
+                WHERE watch_id=? AND record_id=?''',
+                (fired, threshold, ratio, row['watch_id'], row['record_id']))
+
+    def _epss_crossings(self):
+        watches = {w.id: w for w in self.watches}
+        rearm = Decimal(str(self.config.epss_threshold)) * Decimal(str(self.config.epss_rearm_ratio))
+        rows = self.db.execute("""SELECT p.*, e.score, x.fired, x.crossing, x.threshold, x.rearm_ratio
+            FROM pairs p JOIN epss_crossing_scores e ON e.cve=p.record_id
+            JOIN epss_crossings x ON x.watch_id=p.watch_id AND x.record_id=p.record_id""").fetchall()
+        for pair in rows:
+            fired = pair['fired']
+            high = pair['score'] >= self.config.epss_threshold
+            crossing = pair['crossing']
+            if fired is None:
+                fired = int(high)
+            elif (pair['threshold'] != self.config.epss_threshold
+                    or pair['rearm_ratio'] != self.config.epss_rearm_ratio):
+                # With no accepted pre-change score, the first new observation
+                # supplies the silent baseline rather than inventing a crossing.
+                if high:
+                    fired = 1
+                elif Decimal(str(pair['score'])) < rearm:
+                    fired = 0
+            elif fired and Decimal(str(pair['score'])) < rearm:
+                fired = 0
+            elif not fired and high:
+                fired = 1
+                watch = watches.get(pair['watch_id'])
+                entry = next((a for a in self.accepts if a.watch.casefold() == pair['watch_id'].casefold()
+                              and a.cve == pair['record_id']), None)
+                accepted = entry and accept.state(entry, watches, self._now(), self.config.timezone) == 'active'
+                if (self.config.epss_crossing and watch and pair['state'] == 'affected'
+                        and pair['notified'] and not accepted):
+                    result = Result(State.AFFECTED, bool(pair['exploited']), pair['evidence'], pair['confidence'])
+                    body = self._body(watch, pair['record_id'], result)
+                    if body['kev'] is None and body['ssvc'].get('Exploitation') != 'active':
+                        crossing += 1
+                        body['episode'] = pair['episode']
+                        self._event(watch.id, pair['record_id'], 'epss_crossed', pair['episode'],
+                                    body, occurrence=crossing)
+            self.db.execute("""UPDATE epss_crossings SET fired=?,crossing=?,threshold=?,rearm_ratio=?
+                WHERE watch_id=? AND record_id=?""",
+                (fired, crossing, self.config.epss_threshold, self.config.epss_rearm_ratio,
+                 pair['watch_id'], pair['record_id']))
+
     @staticmethod
     def _canonical_watches(watches):
-        return json.dumps([asdict(w) for w in sorted(watches, key=lambda w: w.id)],
+        return json.dumps([{k: v for k, v in asdict(w).items()
+                            if k not in ('latest_release', 'release_tag_prefix') or v is not None}
+                           for w in sorted(watches, key=lambda w: w.id)],
                           sort_keys=True, separators=(',', ':'))
 
     def _cache_watch_identities(self):
@@ -136,14 +219,18 @@ class Engine:
                 'cna_cvss_score': score}
 
     def _urgent(self, body, reasons):
+        if 'epss_crossed' in reasons:
+            return True
         if not set(reasons) & {'new match', 'KEV added'}:
             return False
         return bool(body.get('kev') or (body['state'] == 'affected' and (
             body.get('ssvc', {}).get('Exploitation') == 'active' or
             (body.get('epss') and body['epss']['score'] >= self.config.epss_threshold))))
 
-    def _event(self, watch_id, record_id, kind, episode, body, immediate=False, resolution=False):
+    def _event(self, watch_id, record_id, kind, episode, body, immediate=False, resolution=False, occurrence=None):
         key = f'{watch_id}|{record_id}|{kind}|{episode}'
+        if occurrence is not None:
+            key += f'|{occurrence}'
         if resolution:
             key += '|resolution'
         added = self.db.execute('INSERT OR IGNORE INTO events VALUES (?,?,?,?,?,?)',
@@ -161,7 +248,7 @@ class Engine:
                 if field in previous:
                     body.setdefault(field, previous[field])
         urgency = ('health' if kind in ('healthy', 'unhealthy') else
-                   'urgent' if watch_id and self._urgent(body, [kind]) else 'normal')
+                   'urgent' if kind != 'release_behind' and watch_id and self._urgent(body, [kind]) else 'normal')
         now = self._now().isoformat()
         due = now if immediate or urgency == 'urgent' else self._digest()
         pair_key = f'{watch_id}|{record_id}'
@@ -223,6 +310,13 @@ class Engine:
                 confidence=excluded.confidence, notified=excluded.notified, alias_map_version=excluded.alias_map_version''',
                 (watch.id, record_id, result.state.value, episode, historical,
                  int(result.exploited), 0 if clearing else notified, result.evidence, result.confidence, self.aliases.version))
+            if clearing:
+                self.db.execute('DELETE FROM epss_crossings WHERE watch_id=? AND record_id=?',
+                                (watch.id, record_id))
+            self._initialize_epss_crossings(watch.id, record_id)
+            if clearing or (old and active and old['state'] == 'not_affected'):
+                self.db.execute('UPDATE epss_crossings SET fired=0 WHERE watch_id=? AND record_id=?',
+                                (watch.id, record_id))
             body = self._body(watch, record_id, result)
             body['episode'] = episode
             # Evaluate rendering within the record savepoint, before creating events.
@@ -259,7 +353,7 @@ class Engine:
         return record_id, key
 
     def _retry(self, source, record_id, detail):
-        detail = validate.error_detail(redact_tokens(detail, self.config.ntfy_token, self.config.github_token, self.config.deadman_url))
+        detail = validate.error_detail(redact_tokens(detail, self.config.ntfy_token, self.config.github_token, self.config.deadman_url, self.config.webhook_url, self.config.webhook_secret))
         self.store.set_meta('last_error:' + source, detail)
         old = self.db.execute('SELECT attempts FROM retry_queue WHERE source=? AND record_id=?',
                               (source, record_id)).fetchone()
@@ -390,9 +484,9 @@ class Engine:
         self.db.execute('DELETE FROM meta WHERE k=?', ('pending_ingest:' + source,))
 
     def _health(self, source, state, detail, reason=None):
-        error = (redact_tokens(type(detail).__name__, self.config.ntfy_token, self.config.github_token, self.config.deadman_url)
+        error = (redact_tokens(type(detail).__name__, self.config.ntfy_token, self.config.github_token, self.config.deadman_url, self.config.webhook_url, self.config.webhook_secret)
                  if isinstance(detail, Exception) else None)
-        detail = safe_message(detail if error else RuntimeError(detail), self.config.ntfy_token, self.config.github_token, self.config.deadman_url)
+        detail = safe_message(detail if error else RuntimeError(detail), self.config.ntfy_token, self.config.github_token, self.config.deadman_url, self.config.webhook_url, self.config.webhook_secret)
         if error:
             detail = (error + ': ' + detail)[:300]
         old = self.db.execute('SELECT * FROM health WHERE source=?', (source,)).fetchone()
@@ -450,7 +544,7 @@ class Engine:
                 if ingest.cursor and validate.TAG.fullmatch(ingest.cursor):
                     self.store.set_meta('cvelist_snapshot_release', ingest.cursor)
         if ingest.errors:
-            self.store.set_meta('last_error:' + source, validate.error_detail(redact_tokens('; '.join(ingest.errors), self.config.ntfy_token, self.config.github_token, self.config.deadman_url)))
+            self.store.set_meta('last_error:' + source, validate.error_detail(redact_tokens('; '.join(ingest.errors), self.config.ntfy_token, self.config.github_token, self.config.deadman_url, self.config.webhook_url, self.config.webhook_secret)))
         complete = ingest.status == FetchStatus.COMPLETE and not ingest.errors
         transport_complete = complete
         first_kev = self.store.get_meta('kev_initialized') is None
@@ -469,7 +563,7 @@ class Engine:
                     if problems:
                         self.db.execute('INSERT OR REPLACE INTO invalid_revisions VALUES (?,?)',
                                         (key, zlib.compress(json.dumps(record).encode())))
-                        self.store.set_meta('last_error:' + source, validate.error_detail(redact_tokens('; '.join(problems), self.config.ntfy_token, self.config.github_token, self.config.deadman_url)))
+                        self.store.set_meta('last_error:' + source, validate.error_detail(redact_tokens('; '.join(problems), self.config.ntfy_token, self.config.github_token, self.config.deadman_url, self.config.webhook_url, self.config.webhook_secret)))
                     else:
                         self.db.execute('DELETE FROM invalid_revisions WHERE record_id=?', (key,))
                         self.store.put_record(key, record, self._now().isoformat())
@@ -508,6 +602,7 @@ class Engine:
                             lambda record=record, record_id=record_id: self._evaluate_kev(record, record_id)):
                         complete = False
             elif source == 'epss' and payload is not None:
+                self._initialize_epss_crossings()
                 self.db.execute('CREATE TEMP TABLE IF NOT EXISTS incoming_epss(cve TEXT PRIMARY KEY,score REAL,pct REAL,date TEXT)')
                 self.db.execute('DELETE FROM incoming_epss')
                 stamp = ingest.epss_date.isoformat() if ingest.epss_date else None
@@ -519,6 +614,9 @@ class Engine:
                 self.db.execute('INSERT OR REPLACE INTO epss SELECT * FROM incoming_epss')
                 self.db.execute('DELETE FROM incoming_epss')
                 if transport_complete:
+                    self.db.execute('DELETE FROM epss_crossing_scores')
+                    self.db.execute('INSERT INTO epss_crossing_scores SELECT * FROM epss')
+                    self._epss_crossings()
                     self.store.set_meta('last_epss_row_count', len(payload))
         if transport_complete:
             self.db.execute("DELETE FROM retry_queue WHERE source=? AND record_id='@fetch'", (source,))
@@ -557,11 +655,19 @@ class Engine:
             EXISTS (SELECT 1 FROM incoming_{table} AS new LEFT JOIN {table} AS old USING(cve)
                     WHERE new.cve={record_id} AND (old.cve IS NULL OR {changed})) {removed})''')
 
-    def reload_watches(self, watches: tuple[Watch, ...], *, force_all=False) -> None:
+    def reload_watches(self, watches: tuple[Watch, ...], *, force_all=False, previous_ids=None) -> None:
         old_watches = self.watches
         previous = {watch.id: watch for watch in self.watches}
+        # An older database may retain only the owners, not watch definitions.
+        previous_ids = set(previous) if previous_ids is None else previous_ids
         alias_changed = self._identity_version != (self.aliases, self.aliases.version)
-        changed = tuple(watch for watch in watches if force_all or alias_changed or previous.get(watch.id) != watch)
+        def matching_fields(watch):
+            if watch is None:
+                return None
+            # Preserve existing reload behavior for CVE configuration and labels.
+            return (watch.name, watch.match, watch.product_only, watch.version, watch.scheme, watch.eol)
+        changed = tuple(watch for watch in watches if force_all or alias_changed
+                        or matching_fields(previous.get(watch.id)) != matching_fields(watch))
         self.watches = watches
         self._cache_watch_identities()
         last_report = self.report
@@ -570,7 +676,7 @@ class Engine:
         try:
             with self.store.transaction():
                 # Re-matching is transactional; only run_cycle releases queued work.
-                ids = self.db.execute('SELECT id FROM records UNION SELECT record_id FROM pairs').fetchall()
+                ids = self.db.execute('SELECT id FROM records UNION SELECT record_id FROM pairs').fetchall() if changed else ()
                 for row in ids:
                     record_id = row[0]
                     record = self._record(record_id)
@@ -589,10 +695,11 @@ class Engine:
                              'Re-match failed; retry pending' if pending else 'Watchlist re-match complete',
                              'incomplete' if pending else 'recovered')
                 active_ids = {watch.id for watch in watches}
-                for watch_id in previous.keys() - active_ids:
+                for watch_id in previous_ids - active_ids:
                     for pair in self.db.execute('SELECT record_id FROM pairs WHERE watch_id=?', (watch_id,)).fetchall():
                         self._drop_activation(watch_id, pair['record_id'])
                     self.db.execute('DELETE FROM pairs WHERE watch_id=?', (watch_id,))
+                    self.db.execute('DELETE FROM epss_crossings WHERE watch_id=?', (watch_id,))
                 for row in self.db.execute('SELECT * FROM outbox WHERE sent_at IS NULL').fetchall():
                     body = json.loads(row['body_json'])
                     if body.get('watch_id') and body['watch_id'] not in active_ids:
@@ -676,6 +783,20 @@ class Engine:
                                 (json.dumps(body), row['id']))
                 return self.db.execute('SELECT * FROM outbox WHERE id=?', (row['id'],)).fetchone()
             return row
+        if body.get('release_behind'):
+            from cornicen.releases import release_behind
+            watch = next((w for w in self.watches if w.id == body['watch_id']), None)
+            if (watch is None or not watch.latest_release
+                    or watch.latest_release.lower() != body.get('repository', '').lower()
+                    or not release_behind(watch, body['tag'])):
+                if persist:
+                    self.db.execute('DELETE FROM outbox WHERE id=?', (row['id'],))
+                return None
+            body.update(name=watch.name, version=watch.version)
+            if persist:
+                self.db.execute('UPDATE outbox SET body_json=? WHERE id=?',
+                                (json.dumps(body), row['id']))
+            return dict(row, body_json=json.dumps(body), urgency='normal')
         if self._record(body['record_id']) is None:
             if persist:
                 self._health('records', 'unhealthy', 'Missing stored record: ' + body['record_id'])
@@ -706,6 +827,16 @@ class Engine:
                       if a.watch.casefold() == watch.id.casefold() and a.cve == body['record_id']), None)
         current = accept.state(entry, {w.id: w for w in self.watches}, self._now(),
                                self.config.timezone) if entry else None
+        if 'epss_crossed' in reasons and (current == 'active' or not self.config.epss_crossing
+                or pair['state'] != 'affected' or body['kev'] is not None
+                or body['ssvc'].get('Exploitation') == 'active'):
+            reasons.remove('epss_crossed')
+            if not reasons:
+                if persist:
+                    self.db.execute('DELETE FROM outbox WHERE id=?', (row['id'],))
+                return None
+            urgency = 'urgent' if self._urgent(body, reasons) else 'normal'
+            due = self._now().isoformat() if urgency == 'urgent' else self._digest()
         if current == 'active':
             held = (set(reasons) <= {'new match', 'acceptance lapsed'}
                     and not body.get('kev') and not pair['exploited'])
@@ -786,7 +917,7 @@ class Engine:
                 ready.append(row)
         return ready
 
-    def run_cycle(self, ingests: Sequence[IngestResult]) -> CycleReport:
+    def run_cycle(self, ingests: Sequence[IngestResult], *, release_checks=True) -> CycleReport:
         self.report = self._pending_report
         self._pending_report = CycleReport()
         self._health_verdicts = {}
@@ -809,5 +940,10 @@ class Engine:
                             {'record_id': 'baseline', 'detail': f'baseline: {count} historical matches, {exploited} exploited — run `cornicen report`'}, True)
         with self.store.transaction():
             self._acceptance_lapses()
+        if not release_checks:
+            self._flush()
+            return self.report
         self._flush()
+        if self.release_checker is not None:
+            self.release_checker.check(self)
         return self.report

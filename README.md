@@ -5,14 +5,18 @@ Self-hosted CVE alerter for homelabs: matches CVE List, KEV and EPSS locally and
 Cornicen is for homelabs and small networks. You tell it what you run. It watches the public vulnerability feeds, matches them on your own machine, and sends a push notification when something you run is affected. When nothing is, it stays quiet. When it can't see the feeds, it says so.
 
 - **One container**, Python standard library only, SQLite on a volume. No account or API key for any data source.
-- **Matching never leaves your host.** It downloads whole public datasets and sends no product name, version or CVE ID to any data source.
-- **Alerts go to [ntfy](https://ntfy.sh)**, ideally one you host yourself.
+- **Matching never leaves your host.** Bulk CVE matching downloads whole public datasets and sends no product name, version or CVE ID to a data source. Optional release checks disclose a configured repository path.
+- **Alerts go to [ntfy](https://ntfy.sh)** by default, ideally one you host yourself.
+  Choose one channel per deployment: ntfy, a local file, or a signed HTTPS webhook
+  with JSON, Discord, Slack, Matrix, Gotify or Home Assistant bodies. See
+  [webhook setup and verification](docs/install.md#signed-webhook-channel).
+  Email uses the ntfy server’s own forwarding; Cornicen stores no mail credentials.
 - **Silent first run.** The first bootstrap records what already matches and sends one summary; after that you hear only about changes.
 
 The container log carries only Cornicen's own words, integers and ISO times,
-except for the upstream release tag name in the skip warning.
+including release-check diagnostics; upstream release tags stay in digest bodies.
 
-**Status:** version 0.1.14, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
+**Status:** version 0.1.15, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
 
 ## Contents
 
@@ -102,6 +106,15 @@ CNAs spell vendors and products inconsistently, so check what actually matches. 
 
 Mark a version the vendor no longer supports with `eol = true`. Its alerts then lead with "unsupported by the vendor — fixes unlikely; isolate or replace", and `status`, `report` and `watch check` flag it as coverage limited: vendors stop publishing advisories for unsupported versions, so a quiet EOL watch is not a safe one.
 
+Latest-release checks are **opt-in per watch**: add
+`latest_release = "github:example-org/widget"` and optionally
+`release_tag_prefix = "v"`. There is no default list; without the field nothing
+is checked. Daily checks share one request per repository and send a normal
+“you are behind” item in the watch's digest block, never an urgent alert.
+The request carries the repository path only, never the watched version. It
+reveals what you run to GitHub and, with a token, ties checks to your GitHub
+account as well as your IP. Status shows only the count of enabled watches.
+
 Matching rules, aliases, version schemes and how unknowns are decided: [docs/watch-lists.md](docs/watch-lists.md).
 
 ## Commands
@@ -157,12 +170,12 @@ Cornicen only knows what the CVE List, KEV and EPSS publish, and CNA data is inc
 
 - **Not covered:** anything without a CVE record (a blog post, a GitHub issue), Apple (no official machine-readable feed), and Raspberry Pi-specific packages or firmware.
 - **GitHub rate limit:** without a token, GitHub allows 60 API requests an hour per IP address. An [optional GitHub token](docs/install.md#github-token-optional) raises the primary allowance to 5,000 an hour. Anything else on your network calling GitHub without a token draws on the same allowance. If it runs out, the CVE List source reports unhealthy until the hour resets.
-- **Plex:** no machine-readable advisory feed was found, so coverage comes from CVE records alone. A latest-version check is planned.
-- **Planned:** vendor advisory feeds, Debian data, NVD enrichment, release checks, more delivery channels.
+- **Plex:** no machine-readable advisory feed was found, so coverage comes from CVE records alone. Latest-release checks support GitHub releases only, which Plex does not publish, so a Plex latest-version check is still planned.
+- **Planned:** vendor advisory feeds, Debian data, NVD enrichment, more delivery channels.
 
 ## Privacy
 
-Matching is local: Cornicen downloads whole public datasets and sends no product name, version or CVE ID to them. There is no telemetry, analytics or update check. Alerts do name the product and version they matched, so whoever runs your ntfy server sees them; self-host ntfy if that matters. The exact hosts contacted and the network safeguards are in [docs/privacy.md](docs/privacy.md).
+CVE matching is local: Cornicen downloads whole public datasets and sends no product name, version or CVE ID to them. Per-watch latest-release checks are opt-in and disclose only the configured repository path to GitHub; they never send the watched version. There is no telemetry, analytics or Cornicen self-update check. Alerts do name the product and version they matched, so whoever runs your ntfy server sees them; self-host ntfy if that matters. The exact hosts contacted and the network safeguards are in [docs/privacy.md](docs/privacy.md).
 
 ## Getting help
 

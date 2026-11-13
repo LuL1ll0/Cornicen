@@ -57,6 +57,14 @@ def deliver(store, notifier, clock, ready, *, revalidate=None):
         with store.transaction():
             for row, item in zip(rows, items):
                 if delivered:
+                    if (item.watch_id and item.body.get('state') == 'affected'
+                            and item.urgency == 'urgent' and item.body.get('epss')
+                            and item.body['epss']['score'] >= item.body.get('epss_threshold', .10)):
+                        db.execute('''UPDATE epss_crossings SET fired=1
+                            WHERE watch_id=? AND record_id=? AND threshold=?
+                            AND EXISTS (SELECT 1 FROM epss_crossing_scores e
+                                WHERE e.cve=record_id AND e.score>=threshold)''',
+                                   (item.watch_id, item.record_id, item.body.get('epss_threshold', .10)))
                     db.execute('UPDATE outbox SET sent_at=?,attempts=attempts+1 WHERE id=?',
                                     (clock().isoformat(), row['id']))
                     if item.watch_id and set(item.reasons) & {'new match', 'KEV added', 'acceptance lapsed'}:

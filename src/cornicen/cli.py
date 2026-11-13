@@ -27,6 +27,7 @@ from cornicen.maintenance import backup
 from cornicen.model import Notification
 from cornicen.notify.file import FileNotifier
 from cornicen.notify.ntfy import NtfyNotifier, post
+from cornicen.notify.webhook import WebhookNotifier
 from cornicen.public_text import public_text, public_token
 from cornicen.render import _clean_reason
 from cornicen.scheduler import Scheduler, redact_tokens, safe_message
@@ -66,6 +67,8 @@ def _coverage_notice(watch_ids, *, file=None):
 def _notifier(config):
     if config.notifier == 'file':
         return FileNotifier(config.notification_path)
+    if config.notifier == 'webhook':
+        return WebhookNotifier(post, config.webhook_url, config.webhook_secret, config.webhook_format)
     return NtfyNotifier(post, config.ntfy_url, config.ntfy_topic, config.ntfy_token)
 
 
@@ -287,9 +290,20 @@ def github_status_line(store):
     return 'github: ' + descriptions[state['auth']] + '; ' + detail
 
 
+def release_check_count(config, store=None):
+    try:
+        applied = store.get_meta('applied_watches') if store else None
+        if applied is not None:
+            return sum(bool(w.get('latest_release')) for w in json.loads(applied))
+        return sum(w.latest_release is not None for w in load_document(config.watchlist_path)[0])
+    except (WatchlistError, AttributeError, ValueError, TypeError):
+        return 0
+
+
 def status_json(store, now, config):
     result = dict(schema_version=1, available=False, container_healthy=False,
-                  sources={}, baseline_complete=False, reconcile_at=None, github=github_status(store))
+                  sources={}, baseline_complete=False, reconcile_at=None, github=github_status(store),
+                  release_checks=release_check_count(config, store))
     eol_ids = _eol_ids(config) if config else []
     if eol_ids:
         result['eol_coverage_limited'] = eol_ids
@@ -307,7 +321,7 @@ def status_json(store, now, config):
             cursor = store.connection.execute(
                 'SELECT value,content_time FROM cursors WHERE source=?', (source,)).fetchone()
             result['sources'][source] = dict(
-                state=state, detail=safe_message(RuntimeError(detail), config.ntfy_token, config.github_token, config.deadman_url),
+                state=state, detail=safe_message(RuntimeError(detail), config.ntfy_token, config.github_token, config.deadman_url, config.webhook_url, config.webhook_secret),
                 cursor=cursor['value'] if cursor else None,
                 content_time=cursor['content_time'] if cursor else None)
         result.update(available=True, container_healthy=container_healthy(store, now, config),
@@ -537,8 +551,9 @@ def main(argv=None):
             sources.update(active_sources(store, config))
             for source in sorted(sources):
                 state, detail = assess(source, store, now(), config)
-                detail = safe_message(RuntimeError(detail), config.ntfy_token, config.github_token, config.deadman_url)
+                detail = safe_message(RuntimeError(detail), config.ntfy_token, config.github_token, config.deadman_url, config.webhook_url, config.webhook_secret)
                 print(f'{source}: {state}; {detail}')
+            print('release checks: ' + str(release_check_count(config, store)))
             print(github_status_line(store))
             print('container: ' + ('healthy' if container_healthy(store, now(), config) else 'unhealthy'))
             print('reconcile: ' + (store.get_meta('reconcile_at') or 'none'))
@@ -567,7 +582,12 @@ def main(argv=None):
         http = Http(config.user_agent, config.user_agent_overrides,
                     data_dir=Path(config.db_path).parent,
                     download_budgets=config.download_budgets, github_token=config.github_token)
-        return Scheduler(engine, {'cvelist': CveListSource(http, store, config.github_token_problem, ntfy_token=config.ntfy_token, deadman_url=config.deadman_url),
+        from cornicen.releases import ReleaseChecker
+        cvelist = CveListSource(http, store, config.github_token_problem,
+                                ntfy_token=config.ntfy_token, deadman_url=config.deadman_url,
+                                webhook_url=config.webhook_url, webhook_secret=config.webhook_secret)
+        engine.release_checker = ReleaseChecker(cvelist)
+        return Scheduler(engine, {'cvelist': cvelist,
                                   'kev': KevSource(http), 'epss': EpssSource(http, store)}).run()
     except Exception as error:
         if args.command == 'status' and args.json:
@@ -579,7 +599,7 @@ def main(argv=None):
                 print(redact_tokens('watch validation error: ' + problem,
                                     config.ntfy_token if config else None,
                                     config.github_token if config else None,
-                                    config.deadman_url if config else None))
+                                    config.deadman_url if config else None, config.webhook_url if config else None, config.webhook_secret if config else None))
             return 1
         if config is not None and not watches:
             try:
@@ -588,8 +608,8 @@ def main(argv=None):
                 # An unavailable inventory must not replace the original failure.
                 pass
         fixed = error.args[0] if error.args and type(error.args[0]) is FixedDiagnostic else None
-        message = safe_message(error, config.ntfy_token if config else None, config.github_token if config else None, config.deadman_url if config else None)
-        error_name = redact_tokens(type(error).__name__, config.ntfy_token if config else None, config.github_token if config else None, config.deadman_url if config else None)
+        message = safe_message(error, config.ntfy_token if config else None, config.github_token if config else None, config.deadman_url if config else None, config.webhook_url if config else None, config.webhook_secret if config else None)
+        error_name = redact_tokens(type(error).__name__, config.ntfy_token if config else None, config.github_token if config else None, config.deadman_url if config else None, config.webhook_url if config else None, config.webhook_secret if config else None)
         if isinstance(error, acceptance.AcceptanceError):
             if type(error.public_message) is FixedDiagnostic:
                 fixed = error.public_message
@@ -598,7 +618,7 @@ def main(argv=None):
                 message = safe_message(ValueError(error.public_message),
                                        config.ntfy_token if config else None,
                                        config.github_token if config else None,
-                                       config.deadman_url if config else None)
+                                       config.deadman_url if config else None, config.webhook_url if config else None, config.webhook_secret if config else None)
         if isinstance(error, WatchlistError):
             if all(type(problem) is FixedDiagnostic for problem in error.public_problems):
                 fixed = '; '.join(error.public_problems)

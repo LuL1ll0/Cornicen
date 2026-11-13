@@ -6,6 +6,7 @@ import re
 import unicodedata
 
 from cornicen.model import Notification
+from cornicen.public_text import epss_crossing_text
 
 
 _EOL = 'unsupported by the vendor — fixes unlikely; isolate or replace'
@@ -15,6 +16,7 @@ _HEALTH_MESSAGES = {
     'cvelist': 'CVE List ingest failed',
     'kev': 'KEV fetch failed',
     'epss': 'EPSS fetch failed',
+    'releases': 'Release fetch failed',
     'engine': 'processing cycle failed',
     'scheduler': 'scheduler cycle failed',
     'watchlist': 'watch list reload rejected',
@@ -86,10 +88,16 @@ def render(n: Notification) -> tuple[str, str, int, list[str]]:
                 + (f' since {body["since"]}' if 'since' in body else ''))
         return title, detail, 5 if state == 'unhealthy' else 3, ['information_source']
     name, product, version = _inventory(n)
+    if body.get('release_behind'):
+        return (f'Cornicen: you are behind — {name}',
+                f'{product} {version}\nLatest release: ' + _clean_reason(body['tag']),
+                3, ['information_source'])
     title = f'Cornicen: {n.record_id} — {name} ({product} {version})'
     if n.urgency == 'urgent':
         title = '🚨 ' + title
     lines = ['EOL: ' + _EOL] if body.get('eol') else []
+    if 'epss_crossed' in n.reasons:
+        lines.append(epss_crossing_text(n.record_id))
     lines.append('Why: ' + ' · '.join(n.reasons))
     accepted = body.get('accepted')
     lapsed = body.get('acceptance_lapsed')
@@ -183,7 +191,7 @@ def _digest(items):
         for index, item in enumerate(members):
             body = item.body
             if (index < 3 or 'correction' in item.reasons or 'acceptance lapsed' in item.reasons
-                    or body.get('acceptance_lapsed') or body.get('eol')
+                    or body.get('release_behind') or body.get('acceptance_lapsed') or body.get('eol')
                     or _inventory(item) != inventory or not item.watch_id):
                 title, text, _, _ = render(item)
                 lines.append(title + '\n' + text)

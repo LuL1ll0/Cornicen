@@ -152,7 +152,8 @@ class EngineFixTests(unittest.TestCase):
             elapsed[0] = hour * 3600
             self.clock.now += timedelta(hours=1)
             scheduler.tick()
-        self.assertEqual([feed.poll.call_count for feed in feeds.values()], [25, 5, 2])
+        # Missing EPSS scores retry hourly, still driven by monotonic time.
+        self.assertEqual([feed.poll.call_count for feed in feeds.values()], [25, 5, 25])
 
     def test_w1_3_future_persisted_content_unhealthy_and_notified(self):
         self.start()

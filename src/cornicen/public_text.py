@@ -40,6 +40,7 @@ def _inventory(watches):
     words = set()
     for watch in watches:
         values = [watch.id, watch.name, watch.version, *watch.product_only]
+        values.extend(value for value in (watch.latest_release, watch.release_tag_prefix) if value)
         values.extend(part for identity in watch.match for part in identity)
         for value in values:
             value = unicodedata.normalize('NFKC', _strip(value)).casefold()
@@ -91,3 +92,10 @@ def public_token(token, inventory=()) -> str | None:
         return None
     except Exception:
         return None
+
+
+def epss_crossing_text(record_id):
+    """Fixed crossing notice with a validated public record identifier."""
+    if not isinstance(record_id, str) or not re.fullmatch(r'CVE-[0-9]{4}-[0-9]{4,19}', record_id):
+        record_id = MARKER
+    return 'EPSS threshold crossed: ' + record_id

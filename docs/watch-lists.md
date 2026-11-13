@@ -165,3 +165,43 @@ Command failures use watch or accept entry indexes without inventory text.
 unknown keys, paths and invalid version constraint text. TOML failures report
 the file role and line/column when available. See
 [private command failures](privacy.md#command-failure-diagnostics).
+
+## Latest-release checks (opt-in per watch)
+
+Add these optional fields to a watch to receive a normal digest item saying
+“you are behind” when its upstream has a newer release:
+
+```toml
+latest_release = "github:example-org/widget"
+release_tag_prefix = "v"   # optional; stripped before comparison
+```
+
+There is no default list. Without `latest_release`, nothing is checked.
+The provider prefix is required; only `github:` is supported. Owner and repository
+must use GitHub's character set; URLs, extra paths and other providers reject
+the watch list without echoing the value. A prefix requires `latest_release`
+and must be nonempty printable ASCII without spaces, at most 100 characters.
+
+This is a privacy choice: each enabled check tells GitHub which repository you
+run. The request carries the repository path only, never the watched version.
+With the optional GitHub token it is tied to your account as well as your IP.
+See [privacy](privacy.md). Status shows only how many watches have checks enabled.
+
+Each repository is fetched at most once per day, shared across watches and
+restarts, using the existing GitHub token, ETags and rate budget. The watch's
+own scheme compares the tag after removing the optional prefix. Unparseable
+tags, draft releases, prereleases and repositories without releases mean “could
+not compare”; they never mean “behind”. Range watches whose version cannot be
+compared also remain unknown. Fetch failures mark only `releases` unhealthy.
+
+One `release_behind` event is recorded per watch and latest tag. A newer tag
+can send another item. Updating the watched version to the latest clears any
+pending item silently. These items appear in that watch's digest block at normal
+priority, never urgent. Tags are upstream text and stay out of stdout, heartbeat,
+status and health detail.
+
+Release checks run on one background worker after the cycle flush. The scheduler
+records completed results on a later tick, in its own transaction. After ten
+seconds an unfinished check makes `releases` unhealthy; CVE ingestion and delivery
+continue. A running check is never duplicated, even if DNS never returns. A
+restart retries any check whose results were not committed.

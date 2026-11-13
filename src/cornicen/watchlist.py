@@ -22,6 +22,8 @@ class Watch:
     version: str
     scheme: Scheme
     eol: bool
+    latest_release: str | None = None
+    release_tag_prefix: str | None = None
 
 
 class WatchlistError(Exception):
@@ -85,8 +87,18 @@ def _watch(entry: dict) -> Watch:
     eol = entry.get("eol", False)
     if not isinstance(eol, bool):
         raise ValueError(FixedDiagnostic("eol must be a boolean"))
+    latest = entry.get("latest_release")
+    if "latest_release" in entry and (not isinstance(latest, str) or not re.fullmatch(
+            r"github:[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/[A-Za-z0-9_.-]{1,100}", latest)
+            or latest.split("/")[-1] in (".", "..")):
+        raise ValueError(FixedDiagnostic("latest_release is invalid"))
+    prefix = entry.get("release_tag_prefix")
+    if "release_tag_prefix" in entry and (not isinstance(prefix, str) or not prefix
+            or len(prefix) > 100 or any(ord(c) < 33 or ord(c) > 126 for c in prefix)
+            or latest is None):
+        raise ValueError(FixedDiagnostic("release_tag_prefix is invalid"))
     return Watch(watch_id, name, identities, tuple(map(normalise, products)),
-                 version, scheme, eol)
+                 version, scheme, eol, latest, prefix)
 
 
 def load_document_text(text: str):
@@ -111,7 +123,7 @@ def load_document_text(text: str):
         try:
             if not isinstance(entry, dict):
                 raise ValueError(FixedDiagnostic("entry must be a table"))
-            unknown = entry.keys() - {"id", "name", "match", "product_only", "version", "scheme", "eol"}
+            unknown = entry.keys() - {"id", "name", "match", "product_only", "version", "scheme", "eol", "latest_release", "release_tag_prefix"}
             if unknown:
                 problems.extend(f"{label}: unknown key" for key in sorted(unknown))
                 public_problems.extend(FixedDiagnostic(f"watch entry {number}: unknown key") for _ in unknown)

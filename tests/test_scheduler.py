@@ -55,7 +55,8 @@ scheme = "dotted"
         for minute in range(1, 24 * 60 + 1):
             self.clock.now += timedelta(minutes=1)
             self.scheduler.tick()
-        self.assertEqual([s.poll.call_count for s in self.sources.values()], [25, 5, 2])
+        # The fake EPSS cursor is not a score date, so it retries hourly.
+        self.assertEqual([s.poll.call_count for s in self.sources.values()], [25, 5, 25])
         self.assertEqual(len(self.lines), 1441)
         for line in self.lines:
             self.assertNotIn('Private product name', line)

@@ -73,9 +73,9 @@ def record(value) -> list[str]:
     return problems
 
 
-def delta(manifest, decoded_ids) -> list[str]:
+def delta(manifest, decoded_ids, *, empty_first_release=False) -> list[str]:
     if manifest is None:
-        return [] if decoded_ids else ['Delta has no recognised records or explicit zero-change manifest']
+        return [] if decoded_ids or empty_first_release else ['Delta has no recognised records or explicit zero-change manifest']
     if not isinstance(manifest, dict):
         return ['Delta manifest must be an object']
     problems, declared = [], set()

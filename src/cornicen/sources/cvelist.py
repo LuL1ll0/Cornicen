@@ -156,9 +156,9 @@ class _Records(Sequence):
 _stamp = validate.release_stamp
 
 class CveListSource:
-    def __init__(self, http, store, github_token_problem=None, *, ntfy_token=None, deadman_url=None):
+    def __init__(self, http, store, github_token_problem=None, *, ntfy_token=None, deadman_url=None, webhook_url=None, webhook_secret=None):
         self.http, self.store = http, store
-        self._redaction_tokens = (http.github_token, ntfy_token, deadman_url)
+        self._redaction_tokens = (http.github_token, ntfy_token, deadman_url, webhook_url, webhook_secret)
         self.directory = data_directory(http, store)
         auth = 'token' if self.http.github_token is not None else 'none'
         if github_token_problem:
@@ -259,14 +259,32 @@ class CveListSource:
         values['observed_at'] = now.astimezone(timezone.utc).isoformat()
         self.store.set_meta('github_rate_limit', json.dumps(values))
 
-    def _get(self, url, now, allowed=(), **kwargs):
+    def _cache_get(self, url):
+        return self.store.connection.execute('SELECT * FROM http_cache WHERE url=?', (url,)).fetchone()
+
+    def _cache_put(self, url, etag, link, body, used_at):
+        self.store.connection.execute('INSERT OR REPLACE INTO http_cache VALUES (?,?,?,?,?)',
+                                      (url, etag, link, body, used_at))
+
+    def _cache_touch(self, url, used_at):
+        self.store.connection.execute('UPDATE http_cache SET used_at=? WHERE url=?', (used_at, url))
+
+    def _cache_delete(self, url):
+        self.store.connection.execute('DELETE FROM http_cache WHERE url=?', (url,))
+
+    def _get(self, url, now, allowed=(), *, deadline_at=None, **kwargs):
         active = self.http.github_token is not None
         cacheable = active and urlsplit(url).hostname == 'api.github.com' and not kwargs.get('to_file')
         row = None
         if cacheable:
-            row = self.store.connection.execute('SELECT * FROM http_cache WHERE url=?', (url,)).fetchone()
+            row = self._cache_get(url)
             if row:
                 kwargs['etag'] = row['etag']
+        if deadline_at is not None:
+            remaining = int(deadline_at - self.http.clock())
+            if remaining <= 0:
+                raise TimeoutError('HTTP transfer deadline exceeded')
+            kwargs['deadline_seconds'] = min(remaining, self.http.download_budgets['cvelist_delta']['deadline_seconds'])
         response = self.http.get(url, source='cvelist',
                                  on_response=lambda host, status, headers: self._rate_limit(host, status, headers, now),
                                  **kwargs)
@@ -275,24 +293,23 @@ class CveListSource:
             self.http.github_token = None
             self.store.set_meta('github_auth', 'token rejected')
             logging.getLogger(__name__).warning('GitHub token rejected (HTTP 401); using unauthenticated access')
-            return self._get(url, now, allowed=allowed, **{key: value for key, value in kwargs.items() if key != 'etag'})
+            return self._get(url, now, allowed=allowed, deadline_at=deadline_at,
+                             **{key: value for key, value in kwargs.items() if key != 'etag'})
         headers = {key.lower(): value for key, value in response.headers.items()}
         if cacheable and response.url == url:
             if response.status == 304:
                 if row is None:
                     raise ValueError('HTTP 304 without cached body')
-                self.store.connection.execute('UPDATE http_cache SET used_at=? WHERE url=?', (now.isoformat(), url))
+                self._cache_touch(url, now.isoformat())
                 response = Response(200, {'link': row['link'] or ''}, zlib.decompress(row['body']), None, response.url)
             elif response.status == 200:
                 etag = headers.get('etag', '')
                 if 1 <= len(etag) <= 256 and all(32 <= ord(char) <= 126 for char in etag):
-                    self.store.connection.execute(
-                        'INSERT OR REPLACE INTO http_cache VALUES (?,?,?,?,?)',
-                        (url, etag, headers.get('link'), zlib.compress(response.body), now.isoformat()))
+                    self._cache_put(url, etag, headers.get('link'), zlib.compress(response.body), now.isoformat())
                 else:
-                    self.store.connection.execute('DELETE FROM http_cache WHERE url=?', (url,))
+                    self._cache_delete(url)
             elif response.status == 404:
-                self.store.connection.execute('DELETE FROM http_cache WHERE url=?', (url,))
+                self._cache_delete(url)
         if response.status == 429 or (response.status == 403 and headers.get('x-ratelimit-remaining') == '0'):
             deadlines = []
             try:
@@ -321,8 +338,14 @@ class CveListSource:
             raise ValueError(f'HTTP {response.status}')
         return response
 
+    def latest_release(self, repository, now, *, deadline_at=None):
+        """Use the shared GitHub transport, credentials, ETags and rate metadata."""
+        return self._get('https://api.github.com/repos/' + repository + '/releases/latest',
+                         now, allowed=(404,), deadline_at=deadline_at)
+
     def _listing(self, cursor, now):
         releases = []
+        self._listing_tag_counts = {}
         entries_seen = 0
         exhausted = False
         url = RELEASES_URL
@@ -352,6 +375,9 @@ class CveListSource:
             for release in page:
                 if not isinstance(release, dict):
                     raise ValueError('Invalid release')
+                tag = release.get('tag_name')
+                if isinstance(tag, str):
+                    self._listing_tag_counts[tag] = self._listing_tag_counts.get(tag, 0) + 1
                 if release.get('draft') or release.get('prerelease'):
                     continue
                 tag = release.get('tag_name')
@@ -392,15 +418,17 @@ class CveListSource:
             raise ValueError('Record size limit exceeded')
         return json.loads(payload)
 
-    def _read_records(self, zipped, records, errors, snapshot):
+    def _read_records(self, zipped, records, errors, snapshot, *, first_release=False):
         validation_errors = 0
         seen = set()
         decoded = set()
         manifests = []
         unrecognised_json = False
         expanded = 0
+        entries = 0
         root = 'cves/' if snapshot else 'deltaCves/'
         for entry in zipped.infolist():
+            entries += 1
             if snapshot and entry.filename in validate.SNAPSHOT_MANIFESTS:
                 # These describe delta history, not snapshot coverage. Never
                 # open them or apply record/expansion budgets to their contents.
@@ -457,10 +485,11 @@ class CveListSource:
             errors.append('Unrecognised delta record layout')
         if not snapshot and (decoded or manifests or not errors):
             for manifest in manifests or [None]:
-                errors.extend(validate.delta(manifest, decoded))
+                errors.extend(validate.delta(manifest, decoded,
+                    empty_first_release=first_release and entries == 0))
         return validation_errors
 
-    def _archive(self, release, origin, now):
+    def _archive(self, release, origin, now, *, first_release=False):
         snapshot = origin == Origin.SNAPSHOT
         path = None
         records = _Records(self.directory)
@@ -495,7 +524,8 @@ class CveListSource:
                         with _SnapshotZip(inner) as record_zip:
                             validation_errors = self._read_records(record_zip, records, errors, True)
                 else:
-                    validation_errors = self._read_records(zipped, records, errors, False)
+                    validation_errors = self._read_records(zipped, records, errors, False,
+                                                          first_release=first_release)
             if snapshot and not records and not errors:
                 raise ValueError('Empty CVE snapshot')
             # The engine stores snapshot identity separately from delta coverage.
@@ -526,7 +556,7 @@ class CveListSource:
         if deferred and now < datetime.fromisoformat(deferred):
             return results
         try:
-            row = self.store.connection.execute("SELECT value FROM cursors WHERE source='cvelist'").fetchone()
+            row = self.store.connection.execute("SELECT value, content_time FROM cursors WHERE source='cvelist'").fetchone()
             cursor = row[0] if row else None
             if cursor and _stamp(cursor) > now + timedelta(hours=2):
                 raise ValueError('Persisted CVE cursor is more than 2 hours in the future')
@@ -616,7 +646,23 @@ class CveListSource:
                         release, order = candidate, candidate_order
                 if cursor and not reconcile and _stamp(release['tag_name']) <= _stamp(cursor):
                     continue
-                result = self._archive(release, Origin.DELTA, now)
+                stamp = _stamp(release['tag_name'])
+                coverage = order[0]
+                # The zero-entry exception is limited to an unambiguous
+                # midnight tag and asset. Counts include filtered releases, so
+                # a duplicate cannot disappear through draft/prerelease policy.
+                midnight = stamp == coverage == stamp.replace(hour=0, minute=0, second=0,
+                                                               microsecond=0)
+                # Literal ASCII spellings only: the shared parsers accept any
+                # Unicode digit, which int() folds to the same midnight.
+                ascii_day = re.fullmatch(r'cve_([0-9]{4}-[0-9]{2}-[0-9]{2})_0000Z', release['tag_name'])
+                first_release = (midnight and ascii_day is not None
+                                 and len(release['assets']) == 1
+                                 and re.fullmatch(re.escape(ascii_day[1]) + r'_delta_CVEs_at_0000Z\.zip',
+                                                  release['assets'][0].get('name') or '') is not None
+                                 and self._listing_tag_counts.get(release['tag_name']) == 1)
+                result = self._archive(release, Origin.DELTA, now,
+                                       first_release=first_release)
                 results.append(result)
                 # A later complete ingest must never move the cursor past an
                 # earlier incomplete day in the same engine cycle.

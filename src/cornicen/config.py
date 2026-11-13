@@ -84,6 +84,11 @@ class Config:
     acceptance_interval_days: int = 7
     deadman_url: SecretToken | None = field(default=None, repr=False)
     deadman_interval_minutes: int = 5
+    webhook_url: SecretToken | None = field(default=None, repr=False)
+    webhook_secret: SecretToken | None = field(default=None, repr=False)
+    webhook_format: str = "json"
+    epss_rearm_ratio: float = 0.8
+    epss_crossing: bool = True
 
 
 def load_config(path: Path, env: Mapping[str, str]) -> Config:
@@ -100,7 +105,8 @@ def load_config(path: Path, env: Mapping[str, str]) -> Config:
     def check_secrets(value):
         if isinstance(value, dict):
             for key, nested in value.items():
-                if key != "allow_shared_token_file" and any(word in key.casefold() for word in ("token", "secret", "password")):
+                if (key.casefold().startswith("webhook_url") or
+                        key != "allow_shared_token_file" and any(word in key.casefold() for word in ("token", "secret", "password"))):
                     raise ValueError(FixedDiagnostic("Secrets are forbidden in TOML; use CORNICEN_NTFY_TOKEN "
                                                      "or CORNICEN_NTFY_TOKEN_FILE"))
                 check_secrets(nested)
@@ -112,7 +118,7 @@ def load_config(path: Path, env: Mapping[str, str]) -> Config:
         check_secrets(settings)
     except RecursionError:
         raise ValueError(FixedDiagnostic("Configuration nesting is too deep")) from None
-    allowed = set(Config.__dataclass_fields__) - {"ntfy_token", "deadman_url"} | {"owner"}
+    allowed = set(Config.__dataclass_fields__) - {"ntfy_token", "deadman_url", "webhook_url", "webhook_secret"} | {"owner"}
     unknown = settings.keys() - allowed
     if unknown:
         raise ValueError(FixedDiagnostic(f"{len(unknown)} unknown configuration keys "
@@ -129,6 +135,12 @@ def load_config(path: Path, env: Mapping[str, str]) -> Config:
     if (type(threshold) not in (float, int) or not math.isfinite(threshold)
             or not 0 <= threshold <= 1):
         raise ValueError(FixedDiagnostic("epss_threshold must be between 0 and 1"))
+    ratio = settings.get("epss_rearm_ratio", 0.8)
+    if (type(ratio) not in (float, int) or not math.isfinite(ratio) or not 0 < ratio < 1):
+        raise ValueError(FixedDiagnostic("epss_rearm_ratio must be greater than 0 and less than 1"))
+    crossing = settings.get("epss_crossing", True)
+    if type(crossing) is not bool:
+        raise ValueError(FixedDiagnostic("epss_crossing must be a boolean"))
     digest = string("digest_time", "08:00")
     if not re.fullmatch(r"(?:[01][0-9]|2[0-3]):[0-5][0-9]", digest):
         raise ValueError(FixedDiagnostic("digest_time must be HH:MM"))
@@ -170,12 +182,44 @@ def load_config(path: Path, env: Mapping[str, str]) -> Config:
     if not valid_url:
         raise ValueError(FixedDiagnostic("ntfy_url must be http or https with a host and no userinfo, query or fragment"))
     notifier = string("notifier", "ntfy")
-    if notifier not in {"ntfy", "file"}:
-        raise ValueError(FixedDiagnostic("notifier must be ntfy or file"))
+    if notifier not in {"ntfy", "file", "webhook"}:
+        raise ValueError(FixedDiagnostic("notifier must be ntfy, file or webhook"))
     notification_path = Path(string("notification_path", "/data/notifications.jsonl"))
     allow_shared = settings.get('allow_shared_token_file', False)
     if type(allow_shared) is not bool:
         raise ValueError(FixedDiagnostic('allow_shared_token_file must be a boolean'))
+    from cornicen.notify.webhook import FORMATS
+    webhook_format = string('webhook_format', 'json')
+    if webhook_format not in FORMATS:
+        raise ValueError(FixedDiagnostic('Invalid webhook_format'))
+    webhook_values = {}
+    for key in ('webhook_url', 'webhook_secret'):
+        variable = 'CORNICEN_' + key.upper()
+        value = env.get(variable) or None
+        if value is None and env.get(variable + '_FILE'):
+            try:
+                with Path(env[variable + '_FILE']).open(encoding='utf-8') as source:
+                    if os.fstat(source.fileno()).st_mode & 0o077 and not allow_shared:
+                        raise ValueError(token_permissions(variable + '_FILE'))
+                    value = source.read().strip() or None
+            except (OSError, UnicodeError) as error:
+                raise ValueError(file_error(variable + '_FILE', error)) from None
+        value = value.strip() if value else None
+        if not value and notifier == 'webhook':
+            raise ValueError(FixedDiagnostic(variable + ' is required for webhook'))
+        if value and (_has_control(value) or any(char.isspace() for char in value)):
+            raise ValueError(FixedDiagnostic(variable + ' must not contain whitespace or control characters'))
+        if value and key == 'webhook_url':
+            try:
+                destination = urlsplit(value)
+                valid = (destination.scheme == 'https' and bool(destination.hostname)
+                         and destination.port != 0 and destination.username is None
+                         and destination.password is None and '#' not in value)
+            except ValueError:
+                valid = False
+            if not valid:
+                raise ValueError(FixedDiagnostic('CORNICEN_WEBHOOK_URL must be https with a host and no userinfo or fragment'))
+        webhook_values[key] = SecretToken(value) if value else None
     token = env.get("CORNICEN_NTFY_TOKEN") or None
     if token is None and env.get("CORNICEN_NTFY_TOKEN_FILE"):
         try:
@@ -230,6 +274,7 @@ def load_config(path: Path, env: Mapping[str, str]) -> Config:
         except (OSError, UnicodeError):
             github_problem = 'unreadable'
     return Config(
+        **webhook_values, webhook_format=webhook_format,
         deadman_url=deadman, deadman_interval_minutes=settings.get("deadman_interval_minutes", 5),
         **acceptance_paths, acceptance_interval_days=settings.get("acceptance_interval_days", 7),
         db_path=string("db_path", "/data/cornicen.db"),
@@ -239,6 +284,7 @@ def load_config(path: Path, env: Mapping[str, str]) -> Config:
         ntfy_topic=string("ntfy_topic", "cornicen"),
         github_token=github_token, github_token_problem=github_problem,
         ntfy_token=token, epss_threshold=float(threshold), digest_time=digest,
+        epss_rearm_ratio=float(ratio), epss_crossing=crossing,
         timezone=timezone, overdue_minutes=settings.get("overdue_minutes", 60),
         user_agent=user_agent, user_agent_overrides=overrides,
         retention_days=settings.get("retention_days", 365),
