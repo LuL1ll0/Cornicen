@@ -13,9 +13,6 @@ Cornicen is for homelabs and small networks. You tell it what you run. It watche
   Email uses the ntfy server’s own forwarding; Cornicen stores no mail credentials.
 - **Silent first run.** The first bootstrap records what already matches and sends one summary; after that you hear only about changes.
 
-The container log carries only Cornicen's own words, integers and ISO times,
-including release-check diagnostics; upstream release tags stay in digest bodies.
-
 **Status:** version 0.1.15, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
 
 ## Contents
@@ -25,6 +22,7 @@ including release-check diagnostics; upstream release tags stay in digest bodies
 - [Quick start](#quick-start)
 - [Watch lists](#watch-lists)
 - [Commands](#commands)
+- [Optional monitoring](#optional-monitoring)
 - [Design goals](#design-goals)
 - [Limits](#limits)
 - [Privacy](#privacy)
@@ -50,6 +48,12 @@ CNA CVSS score: 8.1
 
 Anything listed in CISA's Known Exploited Vulnerabilities catalog (KEV), affected with CISA SSVC Exploitation `active`, or affected with an EPSS score at or above the threshold (10% by default), goes out at once. Everything else waits for one daily digest, most severe first. Unknowns are shown as unknown: "KEV: not listed" means not listed, not "not exploited".
 
+A match you have already been told about alerts once more if its EPSS score
+later rises to the threshold. It can alert again only after the score falls
+below 80% of the threshold (the default) and then climbs back. Matches already urgent for KEV
+or SSVC active exploitation don't send this alert. The settings are in
+[docs/install.md](docs/install.md).
+
 Alerts show CISA Vulnrichment's SSVC exploitation, automatable and technical
 impact decisions when available. Missing points say `unknown`; without an
 assessment the line says `SSVC: not assessed`. SSVC alone does not alert on an
@@ -60,9 +64,10 @@ stored SSVC data; projection health reads `incomplete` until it finishes.
 
 | Source | What it gives | Polled |
 |---|---|---|
-| [CVE List V5](https://github.com/CVEProject/cvelistV5) | Every CVE record, with the affected products and versions each CNA published | hourly |
+| [CVE List V5](https://github.com/CVEProject/cvelistV5) | Every CVE record, with the affected products and versions each CNA published. CISA's SSVC decisions arrive inside these records | hourly |
 | [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) | CVEs known to be exploited in the wild | every 6 hours |
-| [EPSS](https://www.first.org/epss/) | Daily probability that a CVE will be exploited in the next 30 days | daily |
+| [EPSS](https://www.first.org/epss/) | Daily probability that a CVE will be exploited in the next 30 days | hourly until the day's file arrives |
+| GitHub releases (opt-in per watch) | The latest release of a repository you name, for [latest-release checks](#watch-lists) | daily |
 
 ## Quick start
 
@@ -135,6 +140,10 @@ All of these run inside the container (`docker compose exec cornicen python -m c
 | `selftest` | Check configured pinned acceptance watches; exit 3 if records are missing |
 | `replay --list FILE` | Check a deployment against CVEs you know should match |
 
+Details and exit codes: [docs/cli.md](docs/cli.md). `replay` is covered in [docs/testing.md](docs/testing.md).
+
+## Optional monitoring
+
 For scheduled acceptance checks, set both `acceptance_list_path` and
 `acceptance_watchlist_path` in the config. Keep the second file pinned to versions
 that known past CVEs hit. `acceptance_interval_days` is a positive integer,
@@ -150,8 +159,6 @@ notification delivery. Set `CORNICEN_DEADMAN_URL` or `CORNICEN_DEADMAN_URL_FILE`
 keep the URL out of TOML because it contains a secret. The only TOML setting is
 `deadman_interval_minutes` (positive integer, default 5). Pings send no inventory
 or CVE data. See [installation](docs/install.md#dead-man-ping-optional).
-
-Details and exit codes: [docs/cli.md](docs/cli.md). `replay` is covered in [docs/testing.md](docs/testing.md).
 
 ## Design goals
 
@@ -171,11 +178,14 @@ Cornicen only knows what the CVE List, KEV and EPSS publish, and CNA data is inc
 - **Not covered:** anything without a CVE record (a blog post, a GitHub issue), Apple (no official machine-readable feed), and Raspberry Pi-specific packages or firmware.
 - **GitHub rate limit:** without a token, GitHub allows 60 API requests an hour per IP address. An [optional GitHub token](docs/install.md#github-token-optional) raises the primary allowance to 5,000 an hour. Anything else on your network calling GitHub without a token draws on the same allowance. If it runs out, the CVE List source reports unhealthy until the hour resets.
 - **Plex:** no machine-readable advisory feed was found, so coverage comes from CVE records alone. Latest-release checks support GitHub releases only, which Plex does not publish, so a Plex latest-version check is still planned.
-- **Planned:** vendor advisory feeds, Debian data, NVD enrichment, more delivery channels.
+- **Planned:** vendor advisory feeds, Debian data, NVD enrichment.
 
 ## Privacy
 
 CVE matching is local: Cornicen downloads whole public datasets and sends no product name, version or CVE ID to them. Per-watch latest-release checks are opt-in and disclose only the configured repository path to GitHub; they never send the watched version. There is no telemetry, analytics or Cornicen self-update check. Alerts do name the product and version they matched, so whoever runs your ntfy server sees them; self-host ntfy if that matters. The exact hosts contacted and the network safeguards are in [docs/privacy.md](docs/privacy.md).
+
+The container log carries only Cornicen's own words, integers and ISO times,
+including release-check diagnostics; upstream release tags stay in digest bodies.
 
 ## Getting help
 
