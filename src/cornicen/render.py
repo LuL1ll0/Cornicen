@@ -68,11 +68,11 @@ def _percentage(score, threshold):
 def render(n: Notification) -> tuple[str, str, int, list[str]]:
     body = n.body
     if 'items' in body:
-        blocks = []
-        for item in body['items']:
-            title, text, _, _ = render(Notification(**item))
-            blocks.append(title + '\n' + text)
-        return f'Cornicen digest: {len(blocks)} items', '\n\n'.join(blocks), 3, ['information_source']
+        items = [Notification(**({'watch_id': '', **item})) for item in body['items']]
+        if len(items) == 1:
+            title, text, _, _ = render(items[0])
+            return 'Cornicen digest: 1 items', title + '\n' + text, 3, ['information_source']
+        return _digest(items)
     if not n.watch_id:
         state = next((reason for reason in n.reasons if reason in ('healthy', 'unhealthy')), None)
         title = f'Cornicen: {n.record_id}'
@@ -85,7 +85,8 @@ def render(n: Notification) -> tuple[str, str, int, list[str]]:
                 f'{body["record_id"]}: unhealthy — {body["reason"]}'
                 + (f' since {body["since"]}' if 'since' in body else ''))
         return title, detail, 5 if state == 'unhealthy' else 3, ['information_source']
-    title = f'Cornicen: {n.record_id} — {body.get("name", n.watch_id)} ({body.get("product", "product unknown")} {body.get("version", "version unknown")})'
+    name, product, version = _inventory(n)
+    title = f'Cornicen: {n.record_id} — {name} ({product} {version})'
     if n.urgency == 'urgent':
         title = '🚨 ' + title
     lines = ['EOL: ' + _EOL] if body.get('eol') else []
@@ -106,6 +107,13 @@ def render(n: Notification) -> tuple[str, str, int, list[str]]:
         lines.append(text)
     else:
         lines.append('KEV: not listed')
+    ssvc = body.get('ssvc')
+    if ssvc:
+        lines.append('SSVC (CISA): exploitation ' + ssvc.get('Exploitation', 'unknown')
+                     + ' · automatable ' + ssvc.get('Automatable', 'unknown')
+                     + ' · technical impact ' + ssvc.get('Technical Impact', 'unknown'))
+    else:
+        lines.append('SSVC: not assessed')
     epss = body.get('epss')
     if epss:
         percent = _percentage(epss['score'], body.get('epss_threshold', .10))
@@ -134,3 +142,60 @@ def render(n: Notification) -> tuple[str, str, int, list[str]]:
 def _clean_reason(reason):
     return ' '.join(''.join(' ' if unicodedata.category(char).startswith('C') else char
                             for char in reason).split())[:160]
+
+
+def _epss_score(item):
+    return (item.body.get('epss') or {}).get('score', -1)
+
+
+def _inventory(item):
+    """Use the same inventory defaults in individual titles and block context."""
+    return (item.body.get('name', item.watch_id),
+            item.body.get('product', 'product unknown'),
+            item.body.get('version', 'version unknown'))
+
+
+def _digest(items):
+    """Group presentation only; leave durable membership and row ordering alone."""
+    watches = {}
+    for item in items:
+        watches.setdefault(item.watch_id, []).append(item)
+    kinds = (('new match', 'new matches'), ('KEV added', 'KEV added'),
+             ('correction', 'correction'), ('acceptance lapsed', 'acceptance lapsed'))
+    counts = [(sum(kind in item.reasons for item in items), label) for kind, label in kinds]
+    summary = f'{len(items)} items on {len(watches)} watches'
+    present = [f'{count} {label}' for count, label in counts if count]
+    if present:
+        summary += ': ' + ', '.join(present)
+    blocks = [summary]
+    ordered = sorted(watches, key=lambda watch: (
+        -max(item.body.get('severity', 0) for item in watches[watch]),
+        -max(_epss_score(item) for item in watches[watch]),
+        (watch is not None, watch or '')))
+    for watch in ordered:
+        members = sorted(watches[watch],
+                         key=lambda item: (-_epss_score(item), item.record_id) + (item.key,))
+        representative = next((item for item in members if 'correction' not in item.reasons), members[0])
+        inventory = _inventory(representative)
+        name, product, version = inventory
+        header = f'{name} ({product} {version}): {len(members)} items'
+        lines = [header]
+        for index, item in enumerate(members):
+            body = item.body
+            if (index < 3 or 'correction' in item.reasons or 'acceptance lapsed' in item.reasons
+                    or body.get('acceptance_lapsed') or body.get('eol')
+                    or _inventory(item) != inventory or not item.watch_id):
+                title, text, _, _ = render(item)
+                lines.append(title + '\n' + text)
+            else:
+                epss = body.get('epss')
+                score = ('EPSS ' + _percentage(epss['score'], body.get('epss_threshold', .10)) + '%'
+                         if epss else 'EPSS: not yet scored')
+                state = body.get('state', 'unknown').replace('_', ' ')
+                kev = 'KEV listed' if body.get('kev') else 'KEV not listed'
+                ssvc = body.get('ssvc')
+                active = isinstance(ssvc, dict) and ssvc.get('Exploitation') == 'active'
+                lines.append(f'{item.record_id} — {score} · {state} · {kev}'
+                             + (' · SSVC exploitation active' if active else ''))
+        blocks.append('\n'.join(lines))
+    return f'Cornicen digest: {len(items)} items', '\n\n'.join(blocks), 3, ['information_source']

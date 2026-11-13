@@ -16,9 +16,10 @@ from cornicen.config import Config
 from cornicen.identity import AliasMap
 from cornicen.model import FetchStatus, IngestResult, Notification, Notifier, Origin
 from cornicen.render import health_body, render
+from cornicen.store import record_ssvc
 from cornicen.scheduler import redact_tokens, safe_message
 from cornicen.outbox import deliver
-from cornicen.store import Store
+from cornicen.store import Store, TransactionAborted
 from cornicen.watchlist import Watch
 from cornicen.versions import Scheme
 
@@ -129,6 +130,7 @@ class Engine:
                 'version': watch.version, 'eol': watch.eol, 'state': result.state.value,
                 'evidence': result.evidence, 'confidence': result.confidence,
                 'kev': self._json_row('kev', 'cve', record_id),
+                'ssvc': record_ssvc(record),
                 'epss': dict(epss) if epss else None, 'epss_threshold': self.config.epss_threshold,
                 'cve_title': cna.get('title') if isinstance(cna, dict) else None,
                 'cna_cvss_score': score}
@@ -136,8 +138,9 @@ class Engine:
     def _urgent(self, body, reasons):
         if not set(reasons) & {'new match', 'KEV added'}:
             return False
-        return bool(body.get('kev') or (body['state'] == 'affected' and body.get('epss')
-                                       and body['epss']['score'] >= self.config.epss_threshold))
+        return bool(body.get('kev') or (body['state'] == 'affected' and (
+            body.get('ssvc', {}).get('Exploitation') == 'active' or
+            (body.get('epss') and body['epss']['score'] >= self.config.epss_threshold))))
 
     def _event(self, watch_id, record_id, kind, episode, body, immediate=False, resolution=False):
         key = f'{watch_id}|{record_id}|{kind}|{episode}'
@@ -256,7 +259,7 @@ class Engine:
         return record_id, key
 
     def _retry(self, source, record_id, detail):
-        detail = validate.error_detail(redact_tokens(detail, self.config.ntfy_token, self.config.github_token))
+        detail = validate.error_detail(redact_tokens(detail, self.config.ntfy_token, self.config.github_token, self.config.deadman_url))
         self.store.set_meta('last_error:' + source, detail)
         old = self.db.execute('SELECT attempts FROM retry_queue WHERE source=? AND record_id=?',
                               (source, record_id)).fetchone()
@@ -280,7 +283,11 @@ class Engine:
                 for table in ('retry_queue', 'dead_letters'):
                     self.db.execute(f'DELETE FROM {table} WHERE source=? AND record_id=?', (source, key))
             return True
+        except TransactionAborted:
+            raise
         except Exception as error:
+            if not self.db.in_transaction:
+                raise TransactionAborted('transaction aborted') from error
             # Successful ingests remove their retries. Only failures need a
             # same-cycle suppression key; snapshots must not retain every ID.
             self._attempted_records.add((source, key))
@@ -383,8 +390,9 @@ class Engine:
         self.db.execute('DELETE FROM meta WHERE k=?', ('pending_ingest:' + source,))
 
     def _health(self, source, state, detail, reason=None):
-        error = type(detail).__name__ if isinstance(detail, Exception) else None
-        detail = safe_message(detail if error else RuntimeError(detail), self.config.ntfy_token, self.config.github_token)
+        error = (redact_tokens(type(detail).__name__, self.config.ntfy_token, self.config.github_token, self.config.deadman_url)
+                 if isinstance(detail, Exception) else None)
+        detail = safe_message(detail if error else RuntimeError(detail), self.config.ntfy_token, self.config.github_token, self.config.deadman_url)
         if error:
             detail = (error + ': ' + detail)[:300]
         old = self.db.execute('SELECT * FROM health WHERE source=?', (source,)).fetchone()
@@ -442,7 +450,7 @@ class Engine:
                 if ingest.cursor and validate.TAG.fullmatch(ingest.cursor):
                     self.store.set_meta('cvelist_snapshot_release', ingest.cursor)
         if ingest.errors:
-            self.store.set_meta('last_error:' + source, validate.error_detail(redact_tokens('; '.join(ingest.errors), self.config.ntfy_token, self.config.github_token)))
+            self.store.set_meta('last_error:' + source, validate.error_detail(redact_tokens('; '.join(ingest.errors), self.config.ntfy_token, self.config.github_token, self.config.deadman_url)))
         complete = ingest.status == FetchStatus.COMPLETE and not ingest.errors
         transport_complete = complete
         first_kev = self.store.get_meta('kev_initialized') is None
@@ -461,7 +469,7 @@ class Engine:
                     if problems:
                         self.db.execute('INSERT OR REPLACE INTO invalid_revisions VALUES (?,?)',
                                         (key, zlib.compress(json.dumps(record).encode())))
-                        self.store.set_meta('last_error:' + source, validate.error_detail(redact_tokens('; '.join(problems), self.config.ntfy_token, self.config.github_token)))
+                        self.store.set_meta('last_error:' + source, validate.error_detail(redact_tokens('; '.join(problems), self.config.ntfy_token, self.config.github_token, self.config.deadman_url)))
                     else:
                         self.db.execute('DELETE FROM invalid_revisions WHERE record_id=?', (key,))
                         self.store.put_record(key, record, self._now().isoformat())
@@ -558,6 +566,7 @@ class Engine:
         self._cache_watch_identities()
         last_report = self.report
         self.report = self._pending_report
+        completed = False
         try:
             with self.store.transaction():
                 # Re-matching is transactional; only run_cycle releases queued work.
@@ -594,12 +603,16 @@ class Engine:
                         self.db.execute('DELETE FROM outbox WHERE id=?', (row['id'],))
                 self.db.execute('UPDATE outbox SET dirty=1 WHERE sent_at IS NULL')
                 self._save_watches()
-        except BaseException:
-            self.watches = old_watches
-            self._cache_watch_identities()
-            raise
+            completed = True
         finally:
-            self.report = last_report
+            # Restore only in-memory state while every failure propagates unchanged.
+            # The report is restored even if rebuilding the identity cache fails.
+            try:
+                if not completed:
+                    self.watches = old_watches
+                    self._cache_watch_identities()
+            finally:
+                self.report = last_report
 
     def _finish_health(self):
         verdicts = dict(self._health_verdicts)

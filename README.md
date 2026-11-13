@@ -12,7 +12,7 @@ Cornicen is for homelabs and small networks. You tell it what you run. It watche
 The container log carries only Cornicen's own words, integers and ISO times,
 except for the upstream release tag name in the skip warning.
 
-**Status:** version 0.1.13, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
+**Status:** version 0.1.14, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
 
 ## Contents
 
@@ -36,6 +36,7 @@ An urgent alert, as Cornicen renders it (fictional CVE and inventory):
 🚨 Cornicen: CVE-2026-4321 — Example reverse proxy (nginx:nginx 1.25.3)
 Why: new match · KEV added
 KEV: listed 2026-10-30, CISA due 2026-11-20
+SSVC (CISA): exploitation active · automatable yes · technical impact total
 EPSS 42% (98th pct, 2026-11-02)
 Match: 1.25.3 is inside the CNA range >=1.25.0, <1.25.5 — affected
 https://www.cve.org/CVERecord?id=CVE-2026-4321
@@ -43,7 +44,13 @@ CVE title: Example request smuggling in the HTTP/2 module
 CNA CVSS score: 8.1
 ```
 
-Anything listed in CISA's Known Exploited Vulnerabilities catalog (KEV), or affected with an EPSS score at or above the threshold (10% by default), goes out at once. Everything else waits for one daily digest, most severe first. Unknowns are shown as unknown: "KEV: not listed" means not listed, not "not exploited".
+Anything listed in CISA's Known Exploited Vulnerabilities catalog (KEV), affected with CISA SSVC Exploitation `active`, or affected with an EPSS score at or above the threshold (10% by default), goes out at once. Everything else waits for one daily digest, most severe first. Unknowns are shown as unknown: "KEV: not listed" means not listed, not "not exploited".
+
+Alerts show CISA Vulnrichment's SSVC exploitation, automatable and technical
+impact decisions when available. Missing points say `unknown`; without an
+assessment the line says `SSVC: not assessed`. SSVC alone does not alert on an
+unknown applicability result. On upgrade, a one-time full snapshot refreshes
+stored SSVC data; projection health reads `incomplete` until it finishes.
 
 ## Where the data comes from
 
@@ -124,6 +131,12 @@ Only affected results pass. Failures and recoveries use health notifications.
 An unhealthy `acceptance` component marks the container unhealthy, like any other
 component. While unhealthy, the self-test retries hourly.
 Run `cornicen selftest` for a read-only check. See [testing](docs/testing.md).
+
+Optional dead-man pings let an outside monitor detect a stopped process or failed
+notification delivery. Set `CORNICEN_DEADMAN_URL` or `CORNICEN_DEADMAN_URL_FILE`;
+keep the URL out of TOML because it contains a secret. The only TOML setting is
+`deadman_interval_minutes` (positive integer, default 5). Pings send no inventory
+or CVE data. See [installation](docs/install.md#dead-man-ping-optional).
 
 Details and exit codes: [docs/cli.md](docs/cli.md). `replay` is covered in [docs/testing.md](docs/testing.md).
 

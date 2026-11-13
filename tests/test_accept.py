@@ -1,4 +1,12 @@
-"""Expiring operator accept entries: T1–T22 from the v0.1.6 plan."""
+# script-purpose: Verify acceptance entries and their private validation labels.
+# script-class: harness
+# script-trigger: unittest discovery and make gate
+# script-tests: tests/test_accept.py
+"""Expiring operator accept entries: T1–T22 from the v0.1.6 plan.
+
+Reads local fixtures, writes temporary files; run with unittest.
+Exit codes: 0 success, 1 failed assertions, 2 invalid arguments.
+"""
 from contextlib import redirect_stdout, redirect_stderr
 from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
@@ -160,7 +168,7 @@ class AcceptTests(unittest.TestCase):
         for entry in invalid:
             with self.subTest(entry=entry):
                 text = WATCH + entry if not entry.startswith('\naccept =') else entry + WATCH
-                with self.assertRaisesRegex(watchlist.WatchlistError, r'accept entry \d+ \('):
+                with self.assertRaisesRegex(watchlist.WatchlistError, r'accept entry \d+(?: \([^)]*\))?:'):
                     watchlist.load_watchlist_text(text)
                 self.path.write_text(text)
                 code, out, _ = self.invoke('watch', 'check', '--file', str(self.path))

@@ -21,6 +21,8 @@ class CveListTests(unittest.TestCase):
         self.addCleanup(self.directory.cleanup)
         self.store = Store(str(Path(self.directory.name) / 'state.db'))
         self.store.migrate()
+        # These archive/cursor tests start after the independent projection pass.
+        self.store.set_meta('applied_projection_revision', '2')
         self.addCleanup(self.store.connection.close)
 
     def source(self, releases, **routes):

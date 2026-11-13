@@ -1,6 +1,7 @@
 """Offline HTTP and archive builders for source tests."""
 
 from copy import deepcopy
+from datetime import datetime
 import io
 import json
 from pathlib import Path
@@ -90,9 +91,32 @@ def expected_projection(record):
         if name == 'adp' and 'adp' in containers:
             projected['adp'] = targets = [{} for _ in sources]
         for source, target in zip(sources, targets):
+            cisa = name == 'adp' and source.get('providerMetadata', {}).get('shortName') == 'CISA-ADP'
+            if cisa:
+                target['providerMetadata'] = {'shortName': 'CISA-ADP'}
             if 'metrics' in source:
                 target['metrics'] = [{key: deepcopy(value) for key, value in metric.items()
                                       if key.startswith('cvss')} for metric in source['metrics']]
+                if cisa:
+                    for metric, retained in zip(source['metrics'], target['metrics']):
+                        other = metric.get('other', {})
+                        if other.get('type') != 'ssvc' or not isinstance(other.get('content'), dict):
+                            continue
+                        content = other['content']
+                        allowed = {'Exploitation': ('none', 'poc', 'active'),
+                                   'Automatable': ('yes', 'no'), 'Technical Impact': ('partial', 'total')}
+                        options = [{key: value} for option in content.get('options', [])
+                                   for key, value in option.items()
+                                   if key in allowed and value in allowed[key]]
+                        clean = {'options': options}
+                        stamp = content.get('timestamp')
+                        if isinstance(stamp, str):
+                            try:
+                                datetime.fromisoformat(stamp.replace('Z', '+00:00'))
+                                clean['timestamp'] = stamp
+                            except ValueError:
+                                pass
+                        retained['other'] = {'type': 'ssvc', 'content': clean}
     if 'containers' in record:
         result['containers'] = projected
     return result

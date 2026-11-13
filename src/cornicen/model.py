@@ -30,6 +30,8 @@ class IngestResult:
     epss_date: date | None = None
     errors: tuple[str, ...] = ()
     unchanged: bool = False
+    # Number of errors emitted solely by validate.record on decoded records.
+    record_validation_errors: int = 0
 
 
 @dataclass(frozen=True)

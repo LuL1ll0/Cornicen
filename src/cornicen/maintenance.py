@@ -6,14 +6,19 @@ from pathlib import Path
 import sqlite3
 import tempfile
 
+from cornicen.diagnostics import FixedDiagnostic, file_error
+
 
 def backup(source, output):
     """Copy a live read-only connection, then atomically publish without replacement."""
     output = Path(output)
     if os.path.lexists(output):
-        raise FileExistsError('Backup destination exists; choose a new output path')
-    fd, name = tempfile.mkstemp(prefix='.' + output.name + '-', suffix='.staging',
-                                dir=output.parent)
+        raise FileExistsError(FixedDiagnostic('backup destination not writable'))
+    try:
+        fd, name = tempfile.mkstemp(prefix='.' + output.name + '-', suffix='.staging',
+                                    dir=output.parent)
+    except OSError as error:
+        raise type(error)(file_error('backup destination', error)) from None
     staging = Path(name)
     try:
         os.fchmod(fd, 0o600)
@@ -28,7 +33,14 @@ def backup(source, output):
         with staging.open('rb') as copied:
             os.fsync(copied.fileno())
         os.link(staging, output)
+    except OSError as error:
+        raise type(error)(file_error('backup destination', error)) from None
+    except sqlite3.Error:
+        raise ValueError(FixedDiagnostic('backup destination not writable')) from None
     finally:
-        if fd is not None:
-            os.close(fd)
-        staging.unlink()
+        try:
+            if fd is not None:
+                os.close(fd)
+            staging.unlink()
+        except OSError as error:
+            raise type(error)(file_error('backup destination', error)) from None

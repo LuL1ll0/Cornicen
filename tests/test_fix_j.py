@@ -1,4 +1,12 @@
-"""Offline regressions for concurrent diagnostics and resilient minute cycles."""
+# script-purpose: Check fix j behavior and private diagnostics.
+# script-class: harness
+# script-trigger: unittest discovery and make gate
+# script-tests: tests/test_fix_j.py
+"""Offline regressions for concurrent diagnostics and resilient minute cycles.
+
+Reads local source and fixtures; writes temporary test data and unittest output.
+Exit codes: 0 success, 1 failed tests, 2 invalid command arguments.
+"""
 from contextlib import closing, redirect_stdout
 from datetime import datetime, timedelta, timezone
 import io
@@ -332,7 +340,7 @@ scheme = "dotted"
                     'database\nis locked\x00\u202e fixture-token ' + 'x' * 400)):
             code, text = self.invoke('status')
         self.assertEqual(code, 1)
-        self.assertTrue(text.startswith('command failed: OperationalError: databaseis locked'))
+        self.assertTrue(text.startswith('command failed: OperationalError: [redacted]'))
         self.assertEqual(len(text.splitlines()), 1)
         self.assertNotIn('fixture-token', text)
         self.assertLessEqual(len(text.removeprefix('command failed: OperationalError: ').rstrip('\n')), 300)

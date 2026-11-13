@@ -1,4 +1,12 @@
-"""Watch parsing and conservative identity validation."""
+# script-purpose: Check watchlist behavior and private diagnostics.
+# script-class: harness
+# script-trigger: unittest discovery and make gate
+# script-tests: tests/test_watchlist.py
+"""Watch parsing and conservative identity validation.
+
+Reads local source and fixtures; writes temporary test data and unittest output.
+Exit codes: 0 success, 1 failed tests, 2 invalid command arguments.
+"""
 
 from pathlib import Path
 import tempfile
@@ -28,13 +36,12 @@ class WatchlistTests(unittest.TestCase):
             load_watchlist_text('[[watches]]\nid = "oops"\n[[watchs]]\nid = "oops"\n')
         self.assertEqual(len(caught.exception.problems), 2)
         for key, problem in zip(("watches", "watchs"), caught.exception.problems):
-            self.assertIn(key, problem)
-            self.assertIn("[[watch]]", problem)
+            self.assertEqual(problem, "watch list: unknown table; expected watch or accept")
         self.assertEqual(load_watchlist_text(""), ())
 
     def test_unknown_entry_keys(self):
         for key in ("versions", "matches", "typo"):
-            with self.subTest(key=key), self.assertRaisesRegex(WatchlistError, key):
+            with self.subTest(key=key), self.assertRaisesRegex(WatchlistError, "watch entry 1.*unknown key"):
                 load_watchlist_text(WATCH + f'{key} = "oops"\n')
 
     def test_version_matches_scheme(self):
@@ -92,7 +99,8 @@ class WatchlistTests(unittest.TestCase):
     def test_required_id_names_entry(self):
         with self.assertRaises(WatchlistError) as caught:
             load_watchlist_text(WATCH.replace('id = "proxy"\n', ''))
-        self.assertIn("Reverse proxy", str(caught.exception))
+        self.assertIn("watch entry 1", str(caught.exception))
+        self.assertNotIn("Reverse proxy", str(caught.exception))
         self.assertIn("id", str(caught.exception))
         self.assertIsInstance(caught.exception.problems, list)
 
@@ -221,7 +229,8 @@ class AliasTests(unittest.TestCase):
             self.assertIn(sha256(text.encode()).hexdigest()[:8], aliases.version)
             self.assertEqual(len(aliases.warnings), 1)
             self.assertIn("2", aliases.warnings[0])
-            self.assertIn(str(path), aliases.warnings[0])
+            self.assertIn("aliases_path", aliases.warnings[0])
+            self.assertNotIn(str(path), aliases.warnings[0])
             self.assertIn(("microsoft", "windows"), aliases.expand(("f5", "nginx")))
             path.write_text(text + "# changed\n")
             self.assertNotEqual(aliases.version, AliasMap.load(extra=path).version)

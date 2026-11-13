@@ -9,6 +9,9 @@ import unicodedata
 from hashlib import sha256
 
 
+from cornicen.diagnostics import read_text, toml_error
+
+
 Identity = tuple[str, str]
 
 
@@ -70,28 +73,31 @@ class AliasMap:
         if builtin:
             sources.append(("builtin", files("cornicen").joinpath("data/aliases.toml")))
         if extra is not None:
-            sources.append((str(extra), extra))
+            sources.append(("aliases_path", extra))
         result = cls()
         versions = []
         builtin_groups = {}
         for source_index, (source_name, source) in enumerate(sources):
-            text = source.read_text(encoding="utf-8")
+            text = read_text(source, source_name)
             try:
                 document = tomllib.loads(text)
             except (tomllib.TOMLDecodeError, RecursionError) as error:
-                raise ValueError(f"Invalid alias TOML ({source_name}): {error}") from None
+                raise ValueError(toml_error(source_name, error, text)) from None
             version = document.get("version")
             if not isinstance(version, str) or not version.strip():
-                raise ValueError("alias map requires a nonempty version")
+                raise ValueError(f"{source_name} alias map requires a nonempty version")
             versions.append(f"{version}-{sha256(text.encode('utf-8')).hexdigest()[:8]}")
             groups = document.get("alias", [])
             if not isinstance(groups, list):
-                raise ValueError("alias map requires [[alias]] groups")
+                raise ValueError(f"{source_name} alias map requires alias groups")
             for group_number, group in enumerate(groups, 1):
                 members = group.get("identities") if isinstance(group, dict) else None
                 if not isinstance(members, list) or len(members) < 2:
-                    raise ValueError("alias group requires at least two identities")
-                identities = {_parse_identity(member) for member in members}
+                    raise ValueError(f"{source_name} alias group {group_number}: requires at least two identities")
+                try:
+                    identities = {_parse_identity(member) for member in members}
+                except ValueError as error:
+                    raise ValueError(f"{source_name} alias group {group_number}: {error}") from None
                 if source_name != "builtin":
                     # Follow earlier local links as well, so indirect bridges warn too.
                     components = {builtin_groups[member]

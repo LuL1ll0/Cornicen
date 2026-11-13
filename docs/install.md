@@ -93,6 +93,43 @@ ETags help mainly with restarts, retries within an hour and repeated past-day
 lookups. The larger authenticated allowance is the main benefit.
 A token does not widen what the listing reads: it stops at the same 1,000 releases as anonymous access.
 
+## Dead-man ping (optional)
+
+Off by default. Configure an outside monitor to expect a ping, then set
+`CORNICEN_DEADMAN_URL` or mount a secret file and set
+`CORNICEN_DEADMAN_URL_FILE` to its container path. The direct environment value
+takes precedence. Use HTTP or HTTPS; other schemes are rejected. Treat the whole
+URL as a secret and never put it in TOML. File ownership and mode follow the ntfy
+secret rules above; an unreadable or invalid file is a configuration error.
+Restart after changing the URL.
+
+The one TOML setting is `deadman_interval_minutes = 5`, a positive integer.
+Cornicen sends a GET after printing the heartbeat of a completed cycle, at most
+once per interval, using a monotonic clock. A restart sends on the first
+completed cycle. Failed requests also consume the interval. Requests use a
+10-second socket timeout, no body, no added query, and User-Agent `Cornicen` without a
+version. Redirects to another host and HTTPS downgrades are rejected.
+The GET runs on a daemon worker so the minute loop and SIGTERM shutdown never
+wait for it. At most one request runs at a time. On the next tick, a request
+still running after 30 seconds is recorded as failed; another cannot start until
+that worker exits. A late success does not erase this failure.
+
+Unhealthy sources do not block pings: routine CVE List and EPSS outages must not
+page through this monitor. A due notification that remains unsent after a failed
+attempt blocks pings, including during retry backoff. A failed cycle sends no
+ping. Choose the monitor's grace period to allow for full cycle and download
+times as well as the ping interval.
+
+`status` shows a `deadman` health component after the scheduler collects the first result. Failures use
+fixed details and notify only on health transitions, like other components.
+The heartbeat's `deadman` value is `off` when disabled, `skipped` while delivery
+is failing, otherwise the latest request result (`ok` or `failed`). Before the
+first request it is `ok` (no failure observed). Because the request follows the
+heartbeat, its result appears on the next heartbeat. It changes no source health or container health: the outside monitor is optional.
+Disabling the URL hides stored deadman health in status and heartbeats without
+sending a recovery notification. Delivery suppression uses completion time,
+after cycle processing and notification flushes.
+
 ## File permissions
 
 SQLite, its WAL/shared-memory sidecars, and the notification JSONL use mode 0600.

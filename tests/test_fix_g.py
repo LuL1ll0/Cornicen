@@ -249,7 +249,7 @@ class ProjectionTests(unittest.TestCase):
                         aliases, config, clock, notifier)
         engine.run_cycle([])
         output = io.StringIO()
-        with redirect_stdout(output):
+        with patch('cornicen.cli._notice_printed', False), redirect_stdout(output):
             self.assertEqual(cli.watch_check(store, watches, aliases, 100000, NOW), 0)
             acceptance = directory / 'acceptance.toml'
             acceptance.write_text('\n'.join(f'[[expect]]\nwatch_id="w{i}"\ncve="{r["cveMetadata"]["cveId"]}"'

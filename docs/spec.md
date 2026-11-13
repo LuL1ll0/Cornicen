@@ -177,6 +177,7 @@ First run downloads the latest **full snapshot** of CVE List V5, then the cumula
 - Each source keeps a durable cursor (CVE List: last fully processed release; KEV: `catalogVersion`; EPSS: score date).
 - CVE List deltas are **cumulative since midnight UTC**. Catch-up processes one release per missed day, in date order, plus the latest release today. For past days it fetches the direct GitHub `/releases/tags/` endpoint for `cve_YYYY-MM-DD_at_end_of_day`, ordered after `2300Z`, with asset `YYYY-MM-DD_delta_CVEs_at_end_of_day.zip`; on HTTP 404 it falls back to the latest listed hourly `cve_YYYY-MM-DD_HH00Z` release. End-of-day releases need not carry a snapshot. Listing stops after passing the cursor day; HTTP 422 “Only the first 1000 results are available” ends the listing. A missed day older than the available releases requires full-snapshot reconciliation. If a day is missing, Cornicen reconciles from the latest available full snapshot and says so in health output. Unknown tags are skipped with a warning; a listing with no supported releases fails, including during bootstrap. Without a completed CVE List fetch, bootstrap becomes unhealthy after a two-hour grace period. Poll deadlines and loop elapsed time use a monotonic clock; UTC remains authoritative for metadata and digests. Persisted content times and cursor timestamps are checked for future skew; timestamps more than two hours in the future are unhealthy and cannot advance coverage.
 - The cursor and committed CVE release identity advance only with the release's records and resulting events in one transaction. Already committed or older releases are ignored before applying records; incomplete releases remain retryable.
+  If nested savepoint cleanup loses the whole transaction, `TransactionAborted` stops the cycle before retries or later records can commit; further nested scopes are refused until the outer scope exits. Ordinary record failures still isolate the record and preserve the cycle's other work.
 - A KEV catalog whose `dateReleased` precedes the stored content time is a failed fetch, including after restart. It leaves the accepted catalog and cursor untouched and keeps or makes KEV unhealthy.
 
 ### 6.3 Completeness
@@ -203,9 +204,19 @@ The `records.json` blob is zlib-compressed JSON containing only:
 - `containers.cna.metrics` and `containers.adp[].metrics`, retaining only
   metric keys starting with `cvss` and their complete values. Optional field
   presence and array order are preserved.
+- For ADP entries whose provider short name is `CISA-ADP`, also retain
+  `providerMetadata.shortName` and `metrics[].other` of type `ssvc`. Keep only
+  content `options` for Exploitation (`none`, `poc`, `active`), Automatable
+  (`yes`, `no`) and Technical Impact (`partial`, `total`), and an ISO content
+  `timestamp`. Unknown values and all other SSVC content are discarded.
+  Conflicting valid decision points resolve to the most severe value regardless
+  of order: Exploitation `active` > `poc` > `none`, Automatable `yes` > `no`,
+  Technical Impact `total` > `partial`. Malformed ADP containers, entries and
+  metrics arrays are dropped; non-object ADP metrics are dropped. CNA projection
+  is unchanged.
 
 Descriptions, references, credits, problem types, legacy copies, other provider
-metadata, non-CVSS metrics and other top-level/container fields are discarded.
+metadata, other non-CVSS metrics and other top-level/container fields are discarded.
 Ingestion still validates the full incoming record. Invalid records/revisions
 retain their original payload for validation and durable retries.
 
@@ -223,6 +234,28 @@ A version marker avoids rescanning on subsequent starts. Record IDs, ingestion
 times, pairs, events, outbox and retry/dead-letter state are preserved.
 Freed SQLite pages are reusable; migration does not vacuum the database, so an
 existing file may retain its previous physical size.
+
+Projection revision 2 adds CISA SSVC. When `applied_projection_revision` is
+behind, the CVE List source reads one full snapshot through the existing archive
+path and snapshot download budget (reusing a bootstrap snapshot when available).
+It replaces retained JSON only when the stored and snapshot `dateUpdated` strings
+are present and equal. Mismatches wait for normal delta updates. The pass never
+evaluates records or creates events or outbox rows; pairs and ingestion times
+remain unchanged. Pending outbox rows for replaced records are marked for
+revalidation, so an affected new match with active exploitation sends at once.
+Invalid snapshot records are skipped without changing their stored rows. The
+integer `projection_skipped_records` meta count commits with the successful pass.
+Only projection may accept a PARTIAL snapshot whose errors all come from record validation; archive, layout, expansion, decoding and transport errors still abort the pass with six-hour backoff, and bootstrap and delta PARTIAL handling is unchanged.
+The pass and revision marker commit together; failures, including commit failures,
+roll back. A failed pass persists `projection_next_attempt_at` as an ISO UTC time
+six hours later. Ordinary deltas continue during this wait. Malformed retry meta
+permits an immediate retry; a deadline beyond six hours from the current poll is
+capped and persisted once, so repeated polls cannot extend the wait indefinitely.
+Successful completion removes the retry deadline. Health component `projection` is unhealthy
+with detail `incomplete` until completion, then healthy with detail `complete`.
+When the skipped count is positive, the healthy detail is `complete; N records skipped`, with N an integer.
+A successful pass records `projection_runtime_seconds` before commit; every
+attempt logs its full runtime in integer seconds. Matching revision remains 1: SSVC changes urgency and display only.
 
 ## 7. Events and notifications
 
@@ -250,8 +283,8 @@ Classification is by **where a record came from**, not when it was processed: ev
 
 ### 7.4 Urgency
 
-- **Urgent** (sent at once, high priority): KEV-listed; or affected with EPSS ≥ the configured threshold at the time of sending (default 10%).
-- **Normal:** everything else, in a combined digest (default daily, configurable). All due normal watch rows form one notification titled "Cornicen digest: N items", with one block per item, ordered by CNA CVSS severity then EPSS probability, highest first. Each constituent row is marked sent only after the combined send succeeds; failures leave every row pending. Urgent and health notifications, and the baseline summary, stay individual.
+- **Urgent** (sent at once, high priority): KEV-listed; or affected with CISA SSVC Exploitation `active`; or affected with EPSS ≥ the configured threshold at the time of sending (default 10%). SSVC alone never activates an unknown pair or changes its exploited flag.
+- **Normal:** everything else, in a combined digest (default daily, configurable). All due normal watch rows form one notification titled "Cornicen digest: N items", with presentation grouped by watch as described below. Durable row ordering remains CNA CVSS severity then EPSS probability, highest first. Each constituent row is marked sent only after the combined send succeeds; failures leave every row pending. Urgent and health notifications, and the baseline summary, stay individual.
 - **Promotion:** after each EPSS or KEV ingest, unsent normal items are re-evaluated; any that now meet the urgent rule are sent at the end of that cycle. Already-delivered items are not re-sent for a score change.
 - **EOL:** any notification on an `eol = true` watch leads with "unsupported by the vendor — fixes unlikely; isolate or replace."
   `status`, `report`, and `watch check` also list each EOL watch ID with "coverage limited: the vendor issues no advisories for unsupported versions; absence of alerts is not evidence of safety" (structured as `eol_coverage_limited` IDs in status JSON; report JSONL sends the human notice to stderr), without creating events or notifications or changing health or exit codes. `watch check --file` reports the candidate file's EOL watches.
@@ -262,12 +295,39 @@ Classification is by **where a record came from**, not when it was processed: ev
 🚨 Cornicen: CVE-2026-1234 — Edge router (openwrt 21.02.7)
 Why: new match · KEV added
 KEV: listed 2026-11-03, CISA due 2026-11-24 · EPSS 37% (97th pct, 2026-11-03)
+SSVC (CISA): exploitation active · automatable yes · technical impact total
 Match: CNA affected openwrt < 23.05.4 — affected (version range)
 EOL: unsupported by the vendor — fixes unlikely; isolate or replace
 https://www.cve.org/CVERecord?id=CVE-2026-1234
 ```
 
+Multi-item digests begin with a summary such as `12 items on 4 watches: 9 new matches, 2 KEV added, 1 correction`.
+Counts come from each item's reasons (a coalesced item can count in several kinds).
+Only present kinds appear, in fixed order: new matches, KEV added, correction,
+acceptance lapsed. Single-item digests retain their existing text.
+
+Each watch block starts with `<watch name> (<product> <version>): N items`.
+Blocks sort by their highest item severity, then highest EPSS, descending, then
+watch ID (null before empty before named IDs). Inside a block, EPSS sorts
+descending, unscored last, then record ID, then notification key as the final
+tie breaker. Missing watch IDs render as empty IDs.
+The header uses the first non-correction item in this block order, or the first
+item if all are corrections. Any item with a different name, product or version
+retains its full individual text, at any rank. Items without a watch ID also
+retain their individual text.
+The first three items retain their complete individual title and body. Remaining
+items use `<CVE id> — EPSS <x>% · <state> · KEV listed` (or `KEV not listed`);
+unscored items say `EPSS: not yet scored`. Corrections, acceptance-lapsed items
+and EOL items always retain their full text, even beyond the first three,
+including the existing `Why: correction`, acceptance-lapsed and EOL warnings.
+Blocks of at most three items have no compact lines. This affects rendering
+only: digest membership, keys, delivery and notified marking are unchanged.
+The ntfy adapter sends the complete UTF-8 body without truncation.
+
 Fields with no data say so ("EPSS: not yet scored", "Fix: not stated by the CNA").
+The SSVC line follows KEV and shows the three CISA decision points. A partial
+assessment shows `unknown` for missing points; absent assessments, including
+older queued bodies, show `SSVC: not assessed`.
 
 ## 8. Privacy
 
@@ -339,7 +399,7 @@ Alerts append `CVE title` (one line, at most 160 characters) and `CNA CVSS score
 The score is the highest numeric retained CNA base score used for digest ordering;
 ADP scores are excluded. Missing title/score values, including old queued bodies,
 show `unknown`; a valid score of 0.0 remains visible. Existing fields retain their
-order, and EOL remains the leading warning. Urgency and digest ordering do not change.
+order, and EOL remains the leading warning. Urgency and durable digest row ordering do not change.
 
 - `explain CVE_ID --watch WATCH_ID`: resolve the locally retained CVE and KEV
   against the current watch file. Print version/scheme, applicability,
@@ -434,3 +494,13 @@ The silent first-run baseline, vendor-scoped version-bounded watches, a crash-sa
 3. **EPSS urgent threshold default:** 10% probability (configurable).
 4. **Vendor advisories:** v1.1, as in §3.
 5. **Prior art in the README:** the generic credit line in §12.
+
+### Private command failures
+
+Command failure lines name file roles and parser line/column or entry indexes
+where available, without paths, file text or operator arguments. Every command
+filters untrusted text through the public vocabulary and loaded inventory. Fixed
+roles, reasons and integer positions remain visible. Unknown config keys are
+counted with a fixed documentation hint; their names are never shown. `watch check` validation retains valid
+watch IDs, while suppressing paths and other private text. Operator inventory
+views are unchanged. See [privacy](privacy.md#command-failure-diagnostics).

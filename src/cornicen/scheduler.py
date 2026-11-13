@@ -7,12 +7,15 @@ import signal
 import threading
 import time
 import unicodedata
+from urllib.parse import urlsplit, unquote, quote, quote_plus, parse_qsl
 
 from cornicen import acceptance
+from cornicen.deadman import ping
 from cornicen.counts import REPORT_KEYS, report_counts
 from cornicen.github import github_status
-from cornicen.health import assess
+from cornicen.health import assess, active_sources
 from cornicen.public_text import prepare_inventory, public_text, public_token
+from cornicen.store import TransactionAborted
 from cornicen.watchlist import load_document, WatchlistError
 
 
@@ -24,14 +27,41 @@ GITHUB_KEYS = ('auth', 'limit', 'remaining', 'reset', 'observed_at')
 
 def redact_tokens(message, *tokens):
     message = ''.join(c for c in str(message) if not unicodedata.category(c).startswith('C'))
+    secrets = set()
     for token in tokens:
         if token is None:
             continue
         secret = token.reveal()
-        for value in (secret, json.dumps(secret)[1:-1]):
-            value = ''.join(c for c in value if not unicodedata.category(c).startswith('C'))
-            if value:
-                message = message.replace(value, '[redacted]')
+        values = {secret}
+        if secret.lower().startswith(('https://', 'http://')):
+            # Include transport and diagnostic representations before public_text.
+            for url in (secret, unquote(secret)):
+                values.update((url, url.split('#', 1)[0]))
+                try:
+                    parts = urlsplit(url)
+                except ValueError:
+                    continue
+                values.update((parts.netloc,
+                               parts.netloc.rpartition('@')[0], parts.hostname or '',
+                               parts.path, parts.query))
+                values.update(part for part in parts.path.split('/') if len(part) >= 6)
+                values.update(value for _, value in parse_qsl(parts.query) if len(value) >= 6)
+                values.update(field.partition('=')[2] for field in parts.query.split('&')
+                              if len(field.partition('=')[2]) >= 6)
+            values.update(unquote(value) for value in tuple(values))
+            values.update(quote(value, safe='') for value in tuple(values))
+            values.update(quote(value, safe='/') for value in tuple(values))
+            values.update(quote_plus(value, safe='') for value in tuple(values))
+            values.update(quote(value, safe=':/?=@') for value in tuple(values))
+        for value in values:
+            for form in (value, json.dumps(value)[1:-1]):
+                form = ''.join(c for c in form if not unicodedata.category(c).startswith('C'))
+                if form:
+                    secrets.add(form)
+    # A component must not leave a suffix of a longer representation behind.
+    if secrets:
+        message = re.sub('|'.join(re.escape(value) for value in sorted(secrets, key=lambda v: (-len(v), v))),
+                         lambda _: '[redacted]', message)
     return message
 
 
@@ -67,6 +97,11 @@ class Scheduler:
         self.component = 'scheduler'
         self.acceptance_started = False
         self.acceptance_stamp = None
+        self.deadman_last_attempt = None
+        self.deadman_result = "ok"
+        self.deadman_worker = None
+        self.deadman_outcome = []
+        self.deadman_timed_out = False
 
     def _stamp(self):
         try:
@@ -126,6 +161,8 @@ class Scheduler:
             if engine.store.get_meta('acceptance_holds') != desired:
                 with engine.store.transaction():
                     engine.store.set_meta('acceptance_holds', desired)
+        except TransactionAborted:
+            raise
         except Exception:
             pass
 
@@ -156,6 +193,8 @@ class Scheduler:
                 state, detail, reason = acceptance.verdict(outcomes)
             except acceptance.AcceptanceError:
                 state, detail, reason = 'unhealthy', 'Acceptance list rejected', 'rejected'
+            except TransactionAborted:
+                raise
             except Exception:
                 state, detail, reason = 'unhealthy', 'Acceptance self-test failed', 'failed'
             with engine.store.transaction():
@@ -164,13 +203,74 @@ class Scheduler:
             self.acceptance_started = True
             self.acceptance_stamp = stamp
             engine._flush()
+        except TransactionAborted:
+            raise
         except Exception:
             # Include baseline reads, health recording and delivery in the guard.
             # Even secondary failures must never expose private exception text.
             pass
 
+    def _deadman_status(self, now):
+        if self.engine.config.deadman_url is None:
+            return 'off'
+        # due_at is the original delivery deadline. A retry backoff must not
+        # hide a still-failing delivery from the external monitor.
+        failed = self.engine.db.execute(
+            'SELECT 1 FROM outbox WHERE sent_at IS NULL AND attempts>0 AND due_at<=? LIMIT 1',
+            (now.isoformat(),)).fetchone()
+        return 'skipped' if failed else self.deadman_result
+
+    def _collect_deadman(self):
+        worker = self.deadman_worker
+        if worker is None:
+            return
+        elapsed = self.monotonic() - self.deadman_last_attempt
+        done = not worker.is_alive()
+        if not done and elapsed < 30:
+            return
+        if not self.deadman_timed_out:
+            result, finished = self.deadman_outcome[0] if done else ('failed', elapsed)
+            self.deadman_result = result if finished < 30 else 'failed'
+            self.deadman_timed_out = True
+            # Only the scheduler touches SQLite, including timeout health.
+            try:
+                with self.engine.store.transaction():
+                    self.engine._health('deadman',
+                                        'healthy' if self.deadman_result == 'ok' else 'unhealthy',
+                                        'Ping complete' if self.deadman_result == 'ok' else 'Ping failed',
+                                        None if self.deadman_result == 'ok' else 'failed')
+            except Exception:
+                pass
+        if done:
+            self.deadman_worker = None
+
+    def _deadman(self, status):
+        if status in ('off', 'skipped') or self.deadman_worker is not None:
+            return
+        elapsed = self.monotonic()
+        if (self.deadman_last_attempt is not None
+                and elapsed - self.deadman_last_attempt < self.engine.config.deadman_interval_minutes * 60):
+            return
+        self.deadman_last_attempt = elapsed
+        self.deadman_outcome = outcome = []
+        self.deadman_timed_out = False
+        url = self.engine.config.deadman_url.reveal()
+        monotonic = self.monotonic
+        def request():
+            try:
+                ping(url)
+            except Exception:
+                result = 'failed'
+            else:
+                result = 'ok'
+            outcome.append((result, monotonic() - elapsed))
+        self.deadman_worker = threading.Thread(target=request, daemon=True)
+        self.deadman_worker.start()
+
     def tick(self):
         self.component = 'scheduler'
+        if self.engine.config.deadman_url is not None:
+            self._collect_deadman()
         now = self.clock()
         elapsed = self.monotonic()
         self.component = 'watchlist'
@@ -205,7 +305,7 @@ class Scheduler:
             db = self.engine.store.connection
             components = (*self.intervals, 'watchlist')
             health_sources = set(components)
-            health_sources.update(row[0] for row in db.execute('SELECT source FROM health'))
+            health_sources.update(active_sources(self.engine.store, self.engine.config))
             health = {name: assess(name, self.engine.store, now, self.engine.config)
                       for name in health_sources}
             statuses = {name: health[name][0] for name in components}
@@ -240,9 +340,11 @@ class Scheduler:
                     withheld += 1
                     continue
                 health_details[key] = public_text(safe_message(RuntimeError(
-                    verdict[1]), self.engine.config.ntfy_token, self.engine.config.github_token),
+                    verdict[1]), self.engine.config.ntfy_token, self.engine.config.github_token, self.engine.config.deadman_url),
                     inventory)
+            deadman = self._deadman_status(self.clock())
             self.output(json.dumps({'time': now.isoformat(), 'sources': statuses,
+                                    'deadman': deadman,
                                     'health_details': health_details,
                                     'health_details_withheld': withheld,
                                     'ingested': counts, 'events': len(report.events),
@@ -250,20 +352,22 @@ class Scheduler:
                                     'sent': report.sent, 'pending': db.execute(
                                         'SELECT count(*) FROM outbox WHERE sent_at IS NULL').fetchone()[0]},
                                    sort_keys=True))
-            return report
         finally:
             for ingest in ingests:
                 close = getattr(ingest.records, 'close', None)
                 if close is not None:
                     close()
 
+        self._deadman(deadman)
+        return report
+
     def _failed_cycle(self, error):
-        message = public_text(safe_message(error, self.engine.config.ntfy_token, self.engine.config.github_token),
+        message = public_text(safe_message(error, self.engine.config.ntfy_token, self.engine.config.github_token, self.engine.config.deadman_url),
                               self.engine.watches)
         entry = {'time': self.clock().isoformat(), 'component': self.component,
-                 'error': public_token(type(error).__name__, self.engine.watches) or 'Exception', 'message': message}
+                 'error': public_token(redact_tokens(type(error).__name__, self.engine.config.ntfy_token, self.engine.config.github_token, self.engine.config.deadman_url), self.engine.watches) or 'Exception', 'message': message}
         try:
-            # A failed RELEASE/commit can leave the cycle's transaction open.
+            # Defensively discard open work before recording cycle health.
             # Health and its outbox entry must commit independently of that work.
             self.engine.store.connection.rollback()
             with self.engine.store.transaction():
@@ -272,8 +376,8 @@ class Scheduler:
         except Exception as health_error:
             # A database/delivery outage must not defeat the cycle boundary.
             # Report the secondary failure on the same JSON line.
-            entry['health_error'] = public_token(type(health_error).__name__, self.engine.watches) or 'Exception'
-            entry['health_message'] = public_text(safe_message(health_error, self.engine.config.ntfy_token, self.engine.config.github_token),
+            entry['health_error'] = public_token(redact_tokens(type(health_error).__name__, self.engine.config.ntfy_token, self.engine.config.github_token, self.engine.config.deadman_url), self.engine.watches) or 'Exception'
+            entry['health_message'] = public_text(safe_message(health_error, self.engine.config.ntfy_token, self.engine.config.github_token, self.engine.config.deadman_url),
                                                   self.engine.watches)
         self.output(json.dumps(entry, sort_keys=True))
 

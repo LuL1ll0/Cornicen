@@ -15,6 +15,7 @@ import json
 import logging
 import re
 import tempfile
+from time import monotonic
 import weakref
 from urllib.parse import urlsplit
 import zlib
@@ -25,6 +26,7 @@ from cornicen.fetch import Response
 from cornicen.model import FetchStatus, IngestResult, Origin
 from cornicen.scheduler import redact_tokens
 from cornicen.sources import CVE_ID, data_directory
+from cornicen.store import PROJECTION_REVISION, TransactionAborted, project_record
 
 RELEASES_URL = 'https://api.github.com/repos/CVEProject/cvelistV5/releases'
 # Untrusted archive expansion budgets: 8 MiB per JSON, 4 GiB per snapshot.
@@ -154,9 +156,9 @@ class _Records(Sequence):
 _stamp = validate.release_stamp
 
 class CveListSource:
-    def __init__(self, http, store, github_token_problem=None, *, ntfy_token=None):
+    def __init__(self, http, store, github_token_problem=None, *, ntfy_token=None, deadman_url=None):
         self.http, self.store = http, store
-        self._redaction_tokens = (http.github_token, ntfy_token)
+        self._redaction_tokens = (http.github_token, ntfy_token, deadman_url)
         self.directory = data_directory(http, store)
         auth = 'token' if self.http.github_token is not None else 'none'
         if github_token_problem:
@@ -164,6 +166,86 @@ class CveListSource:
         if not self.store.connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='meta'").fetchone():
             self.store.migrate()
         self.store.set_meta('github_auth', auth)
+        complete = self.store.get_meta('applied_projection_revision') == str(PROJECTION_REVISION)
+        skipped = int(self.store.get_meta('projection_skipped_records') or 0) if complete else 0
+        detail = f'complete; {skipped} records skipped' if skipped > 0 else 'complete'
+        self.store.connection.execute('INSERT OR IGNORE INTO health VALUES (?,?,?,?)',
+            ('projection', 'healthy' if complete else 'unhealthy', datetime.now(timezone.utc).isoformat(),
+             detail if complete else 'incomplete'))
+
+    def _backfill_projection(self, releases, now, snapshot=None):
+        """Replace same-revision JSON only; never enter the engine's ingest path."""
+        if self.store.get_meta('applied_projection_revision') == str(PROJECTION_REVISION):
+            return
+        now = now.astimezone(timezone.utc)
+        retry = self.store.get_meta('projection_next_attempt_at')
+        if retry:
+            try:
+                deadline = datetime.fromisoformat(retry.replace('Z', '+00:00'))
+                if deadline.utcoffset() is None:
+                    raise ValueError('incomplete')
+                capped = min(deadline, now + timedelta(hours=6))
+                if capped != deadline:
+                    # Persist the cap once, so each poll cannot extend the wait.
+                    self.store.set_meta('projection_next_attempt_at', capped.isoformat())
+                if now < capped:
+                    return
+            except (ValueError, TypeError, OverflowError):
+                pass
+        started = monotonic()
+        owned = None
+        enclosing_transaction = self.store.connection.in_transaction
+        try:
+            if snapshot is None:
+                snapshots = [r for r in releases if validate.release_assets(r['tag_name'], r['assets'], snapshot=True)]
+                if not snapshots:
+                    return
+                owned = snapshot = self._archive(max(snapshots, key=lambda r: _stamp(r['tag_name'])),
+                                                Origin.SNAPSHOT, now)
+            if snapshot is not None and snapshot.status != FetchStatus.COMPLETE and not (
+                    snapshot.status == FetchStatus.PARTIAL and snapshot.errors
+                    and snapshot.record_validation_errors == len(snapshot.errors)):
+                raise ValueError('incomplete')
+            skipped = 0
+            with self.store.transaction():
+                for record in snapshot.records:
+                    if validate.record(record):
+                        skipped += 1
+                        continue
+                    metadata = record['cveMetadata']
+                    row = self.store.connection.execute('SELECT json FROM records WHERE id=?',
+                                                        (metadata['cveId'],)).fetchone()
+                    if row is None:
+                        continue
+                    raw = zlib.decompress(row[0]) if isinstance(row[0], bytes) else row[0]
+                    stored = json.loads(raw)
+                    updated = metadata.get('dateUpdated')
+                    if updated is None or stored.get('cveMetadata', {}).get('dateUpdated') != updated:
+                        continue
+                    self.store.connection.execute('UPDATE records SET json=? WHERE id=?',
+                        (zlib.compress(json.dumps(project_record(record)).encode()), metadata['cveId']))
+                    self.store.dirty_record(metadata['cveId'])
+                self.store.set_meta('projection_runtime_seconds', int(monotonic() - started))
+                self.store.set_meta('projection_skipped_records', skipped)
+                self.store.connection.execute("DELETE FROM meta WHERE k='projection_next_attempt_at'")
+                self.store.set_meta('applied_projection_revision', PROJECTION_REVISION)
+                detail = f'complete; {skipped} records skipped' if skipped else 'complete'
+                self.store.connection.execute("UPDATE health SET state='healthy',detail=?,since=? WHERE source='projection'",
+                                              (detail, now.isoformat()))
+        except TransactionAborted:
+            raise
+        except Exception as error:
+            if enclosing_transaction and not self.store.connection.in_transaction:
+                raise TransactionAborted('transaction aborted') from error
+            # Projection health remains incomplete. Ordinary deltas still run,
+            # and the absent marker retries after a persisted six-hour backoff.
+            self.store.set_meta('projection_next_attempt_at', (now + timedelta(hours=6)).isoformat())
+            logging.getLogger(__name__).warning('projection incomplete')
+        finally:
+            seconds = int(monotonic() - started)
+            logging.getLogger(__name__).info('projection runtime seconds %d', seconds)
+            if owned is not None and hasattr(owned.records, 'close'):
+                owned.records.close()
 
     def _rate_limit(self, host, status, headers, now):
         if host != 'api.github.com':
@@ -311,6 +393,7 @@ class CveListSource:
         return json.loads(payload)
 
     def _read_records(self, zipped, records, errors, snapshot):
+        validation_errors = 0
         seen = set()
         decoded = set()
         manifests = []
@@ -347,6 +430,7 @@ class CveListSource:
                         raise ValueError('Duplicate CVE ID')
                     seen.add(metadata['cveId'])
                     problems = validate.record(record)
+                    validation_errors += len(problems)
                     errors.extend(f'{entry.filename}: {problem}' for problem in problems)
                     if not problems:
                         decoded.add(metadata['cveId'])
@@ -374,12 +458,14 @@ class CveListSource:
         if not snapshot and (decoded or manifests or not errors):
             for manifest in manifests or [None]:
                 errors.extend(validate.delta(manifest, decoded))
+        return validation_errors
 
     def _archive(self, release, origin, now):
         snapshot = origin == Origin.SNAPSHOT
         path = None
         records = _Records(self.directory)
         errors = []
+        validation_errors = 0
         try:
             asset, stamp = validate.release_asset(release['tag_name'], release['assets'], snapshot=snapshot)
             response = self._get(asset['browser_download_url'], now, to_file=True,
@@ -407,15 +493,16 @@ class CveListSource:
                                 inner.write(chunk)
                         inner.seek(0)
                         with _SnapshotZip(inner) as record_zip:
-                            self._read_records(record_zip, records, errors, True)
+                            validation_errors = self._read_records(record_zip, records, errors, True)
                 else:
-                    self._read_records(zipped, records, errors, False)
+                    validation_errors = self._read_records(zipped, records, errors, False)
             if snapshot and not records and not errors:
                 raise ValueError('Empty CVE snapshot')
             # The engine stores snapshot identity separately from delta coverage.
             cursor = release['tag_name']
             return IngestResult('cvelist', FetchStatus.PARTIAL if errors else FetchStatus.COMPLETE,
-                                origin, cursor, stamp, records=records, errors=tuple(errors))
+                                origin, cursor, stamp, records=records, errors=tuple(errors),
+                                record_validation_errors=validation_errors)
         except (OSError, HTTPException, EOFError, ValueError, TypeError, KeyError, BadZipFile, RecursionError) as error:
             errors.append(f'{type(error).__name__}: {error}')
             status = FetchStatus.PARTIAL if records else FetchStatus.FAILED
@@ -449,6 +536,8 @@ class CveListSource:
                 cursor = f'cve_{datetime.fromisoformat(cutoff):%Y-%m-%d}_0000Z'
             releases, listing_exhausted = self._listing(cursor, now)
             latest = max(releases, key=lambda r: _stamp(r['tag_name']))
+            if cursor:
+                self._backfill_projection(releases, now)
             by_day = {}
             for release in sorted(releases, key=lambda r: _stamp(r['tag_name'])):
                 by_day[_stamp(release['tag_name']).date()] = release
@@ -500,6 +589,7 @@ class CveListSource:
                 results.append(snapshot)
                 if snapshot.status != FetchStatus.COMPLETE:
                     return results
+                self._backfill_projection(releases, now, snapshot)
                 # A resumed partial snapshot may predate page one. Its deltas
                 # are caught up from the durable cutoff on the following poll.
                 chosen = [r for day, r in sorted(by_day.items()) if day == _stamp(snapshot_release['tag_name']).date()]

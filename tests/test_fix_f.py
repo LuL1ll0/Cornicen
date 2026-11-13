@@ -44,6 +44,7 @@ def snapshot(records):
 class ReleaseCoverageTests(unittest.TestCase):
     def setUp(self):
         engines.EngineTests.setUp(self)
+        self.store.set_meta('applied_projection_revision', '2')
         directory = tempfile.TemporaryDirectory(dir='.')
         self.addCleanup(directory.cleanup)
         self.directory = Path(directory.name)

@@ -32,7 +32,8 @@ from cornicen.watchlist import load_watchlist_text
 # file bytes, in sorted file-name order. Nothing (including revision) is omitted.
 SOURCES = ('src/cornicen/applicability.py', 'src/cornicen/identity.py',
            'src/cornicen/versions.py')
-PINS = {1: 'e5a8aa924bd9e73009decc884b2bc1fcd4b7958d20b448fd9e0e395f3cac04fd'}
+# Privacy diagnostics changed identity.py without changing matching behavior.
+PINS = {1: '7b96e28f8dca2d28c29dc62c7b46a73aed55f27ba72cf31e0139eb7a0f926673'}
 CVE = 'CVE-2099-10001'
 CLEAR = Result(State.NOT_AFFECTED, False, 'CNA not affected', 'high')
 

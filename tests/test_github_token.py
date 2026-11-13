@@ -44,6 +44,8 @@ class GitHubTokenTests(unittest.TestCase):
         self.token_path.chmod(0o600)
         self.store = Store(str(self.db_path))
         self.store.migrate()
+        # Request-count fixtures exercise authentication after projection recovery.
+        self.store.set_meta('applied_projection_revision', '2')
         self.addCleanup(self.store.connection.close)
 
     def config(self, env=None):

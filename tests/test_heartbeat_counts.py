@@ -77,6 +77,7 @@ until = 2099-01-01
     def assert_schema(self, value):
         expected = {
             'time': None,
+            'deadman': None,
             'health_details_withheld': None,
             'sources': dict.fromkeys(('cvelist', 'kev', 'epss', 'watchlist')),
             'health_details': dict.fromkeys(('cvelist', 'kev', 'epss', 'watchlist')),

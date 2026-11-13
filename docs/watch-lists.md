@@ -159,3 +159,9 @@ file; `--strict` exits 1 for them. Version-change-only entries never warn as lon
 
 Deploy **0.1.6 before copying a watch list with accept entries**: v0.1.5 rejects
 `[[accept]]` as an unknown table.
+
+Command failures use watch or accept entry indexes without inventory text.
+`watch check` validation lines retain valid IDs to locate the entry, but omit
+unknown keys, paths and invalid version constraint text. TOML failures report
+the file role and line/column when available. See
+[private command failures](privacy.md#command-failure-diagnostics).

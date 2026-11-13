@@ -1,10 +1,11 @@
 """SQLite state and transactional, coalesced delivery storage."""
 
 from contextlib import contextmanager
-from datetime import timedelta
+from datetime import datetime, timedelta
 from hashlib import sha256
 import json
 import os
+import re
 from pathlib import Path
 import sqlite3
 import zlib
@@ -14,6 +15,62 @@ from cornicen import validate
 
 
 RECORD_MIGRATION_BATCH = 128
+PROJECTION_REVISION = 2
+SSVC_VALUES = {'Exploitation': ('none', 'poc', 'active'),
+               'Automatable': ('no', 'yes'), 'Technical Impact': ('partial', 'total')}
+
+
+class TransactionAborted(Exception):
+    """The enclosing transaction was lost and cannot accept more work."""
+
+
+def _merge_ssvc(result, option):
+    for key, values in SSVC_VALUES.items():
+        value = option.get(key)
+        if value in values and (key not in result or values.index(value) > values.index(result[key])):
+            result[key] = value
+
+
+def _ssvc(other):
+    if not isinstance(other, dict) or other.get('type') != 'ssvc':
+        return None
+    content = other.get('content')
+    if not isinstance(content, dict):
+        return None
+    options = content.get('options', [])
+    points = {}
+    clean = {'options': []}
+    for option in options if isinstance(options, list) else []:
+        if isinstance(option, dict):
+            _merge_ssvc(points, option)
+    clean['options'] = [{key: value} for key, value in points.items()]
+    stamp = content.get('timestamp')
+    if isinstance(stamp, str) and re.fullmatch(
+            r'[0-9]{4}-[0-9]{2}-[0-9]{2}(?:[Tt ][0-9]{2}:[0-9]{2}(?::[0-9]{2}(?:\.[0-9]+)?)?(?:Z|[+-][0-9]{2}:[0-9]{2})?)?', stamp):
+        try:
+            datetime.fromisoformat(stamp.replace('Z', '+00:00'))
+            clean['timestamp'] = stamp
+        except ValueError:
+            pass
+    return {'type': 'ssvc', 'content': clean}
+
+
+def record_ssvc(record):
+    """Read only the allowlisted CISA decision points, including partial assessments."""
+    result = {}
+    containers = record.get('containers', {})
+    entries = containers.get('adp', []) if isinstance(containers, dict) else []
+    for entry in entries if isinstance(entries, list) else []:
+        provider = entry.get('providerMetadata') if isinstance(entry, dict) else None
+        if not isinstance(provider, dict) or provider.get('shortName') != 'CISA-ADP':
+            continue
+        metrics = entry.get('metrics', [])
+        for metric in metrics if isinstance(metrics, list) else []:
+            other = _ssvc(metric.get('other')) if isinstance(metric, dict) else None
+            if other:
+                for option in other['content']['options']:
+                    _merge_ssvc(result, option)
+    return result
 
 
 def project_record(record):
@@ -21,18 +78,39 @@ def project_record(record):
     if validate.record(record):
         return record
 
-    def metrics(value):
+    def metrics(value, cisa=False):
         if not isinstance(value, list):
             return value
-        return [{key: item for key, item in metric.items() if key.startswith('cvss')}
-                if isinstance(metric, dict) else metric for metric in value]
+        result = []
+        for metric in value:
+            if not isinstance(metric, dict):
+                result.append(metric)
+                continue
+            clean = {key: item for key, item in metric.items() if key.startswith('cvss')}
+            other = _ssvc(metric.get('other')) if cisa else None
+            if other is not None:
+                clean['other'] = other
+            result.append(clean)
+        return result
+
+    def adp_entry(entry):
+        if not isinstance(entry, dict):
+            return None
+        if 'metrics' in entry and not isinstance(entry['metrics'], list):
+            return None
+        provider = entry.get('providerMetadata')
+        cisa = isinstance(provider, dict) and provider.get('shortName') == 'CISA-ADP'
+        clean = {'metrics': metrics([metric for metric in entry['metrics']
+                                     if isinstance(metric, dict)], cisa)} if 'metrics' in entry else {}
+        if cisa:
+            clean['providerMetadata'] = {'shortName': 'CISA-ADP'}
+        return clean
 
     result = {'cveMetadata': record['cveMetadata']}
     if 'containers' not in record:
         return result
     containers = record['containers']
     if not isinstance(containers, dict):
-        result['containers'] = containers
         return result
     projected = {}
     if 'cna' in containers:
@@ -49,11 +127,7 @@ def project_record(record):
     if 'adp' in containers:
         adp = containers['adp']
         if isinstance(adp, list):
-            projected['adp'] = [
-                ({'metrics': metrics(entry['metrics'])} if 'metrics' in entry else {})
-                if isinstance(entry, dict) else entry for entry in adp]
-        else:
-            projected['adp'] = adp
+            projected['adp'] = [clean for entry in adp if (clean := adp_entry(entry)) is not None]
     result['containers'] = projected
     return result
 
@@ -82,6 +156,8 @@ class Store:
         self.connection.execute('PRAGMA journal_mode' if read_only else 'PRAGMA journal_mode = WAL')
         self.connection.execute('PRAGMA foreign_keys = ON')
         self._savepoint = 0
+        self._transaction_depth = 0
+        self._transaction_aborted = False
 
     def migrate(self):
         with self.transaction():
@@ -200,17 +276,40 @@ class Store:
     @contextmanager
     def transaction(self):
         """Nested transactions isolate a record without committing its ingest."""
+        if self._transaction_aborted:
+            raise TransactionAborted('transaction aborted')
         self._savepoint += 1
         name = f'tx_{self._savepoint}'
+        nested = self.connection.in_transaction
         self.connection.execute(f'SAVEPOINT {name}')
+        self._transaction_depth += 1
         try:
             yield self.connection
-        except BaseException:
-            self.connection.execute(f'ROLLBACK TO {name}')
+            if self._transaction_aborted:
+                raise TransactionAborted('transaction aborted')
             self.connection.execute(f'RELEASE {name}')
+        except BaseException as error:
+            if not nested:
+                self.connection.rollback()
+            elif not self._transaction_aborted and self.connection.in_transaction:
+                try:
+                    self.connection.execute(f'ROLLBACK TO {name}')
+                    self.connection.execute(f'RELEASE {name}')
+                except BaseException:
+                    # SQLite may have aborted the entire transaction, or cleanup
+                    # itself may fail. Never let a caller continue abandoned work.
+                    self._transaction_aborted = True
+                    self.connection.rollback()
+                    raise TransactionAborted('transaction aborted') from error
+            elif not self.connection.in_transaction:
+                self._transaction_aborted = True
+            if self._transaction_aborted and not isinstance(error, TransactionAborted):
+                raise TransactionAborted('transaction aborted') from error
             raise
-        else:
-            self.connection.execute(f'RELEASE {name}')
+        finally:
+            self._transaction_depth -= 1
+            if self._transaction_depth == 0:
+                self._transaction_aborted = False
 
     def get_meta(self, key):
         row = self.connection.execute('SELECT v FROM meta WHERE k=?', (key,)).fetchone()

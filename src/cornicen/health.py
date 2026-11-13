@@ -35,6 +35,13 @@ def coverage_problem(source, store, now):
 
 
 def assess(source, store, now, config):
+    if source == 'projection':
+        from cornicen.store import PROJECTION_REVISION
+        complete = store.get_meta('applied_projection_revision') == str(PROJECTION_REVISION)
+        if not complete:
+            return 'unhealthy', 'incomplete'
+        skipped = int(store.get_meta('projection_skipped_records') or 0)
+        return 'healthy', f'complete; {skipped} records skipped' if skipped > 0 else 'complete'
     row = store.connection.execute('SELECT state,detail FROM health WHERE source=?', (source,)).fetchone()
     if row and row['state'] == 'unhealthy':
         detail = row['detail'] or 'Incomplete fetch'
@@ -60,9 +67,14 @@ def assess(source, store, now, config):
     return 'healthy', detail
 
 
+def active_sources(store, config):
+    return {row[0] for row in store.connection.execute('SELECT source FROM health')
+            if row[0] != 'deadman' or config.deadman_url is not None}
+
+
 def container_healthy(store, now, config):
     sources = {'cvelist', 'kev', 'epss'}
-    sources.update(row[0] for row in store.connection.execute('SELECT source FROM health'))
+    sources.update(active_sources(store, config) - {'deadman'})
     if any(assess(source, store, now, config)[0] == 'unhealthy' for source in sources):
         return False
     for row in store.connection.execute('SELECT due_at FROM outbox WHERE sent_at IS NULL'):

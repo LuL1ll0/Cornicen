@@ -202,3 +202,13 @@ could-not-check, and 2 for command errors, including unconfigured acceptance.
 Exit 3 takes priority over 1. The command writes no health or metadata.
 See [scheduled acceptance checks](testing.md#scheduled-acceptance-self-test)
 for daemon scheduling, health alerts and retention holds.
+
+### Private command failures
+
+Command failure lines name file roles and parser line/column or entry indexes
+where available, without paths, file text or operator arguments. Every command
+filters untrusted text through the public vocabulary and loaded inventory. Fixed
+roles, reasons and integer positions remain visible. Unknown config keys are
+counted with a fixed documentation hint; their names are never shown. `watch check` validation retains valid
+watch IDs, while suppressing paths and other private text. Operator inventory
+views are unchanged. See [privacy](privacy.md#command-failure-diagnostics).

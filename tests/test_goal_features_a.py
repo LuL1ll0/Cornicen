@@ -1,4 +1,12 @@
-"""Local operator feature contracts; fictional inventory and no network."""
+# script-purpose: Check goal features a behavior and private diagnostics.
+# script-class: harness
+# script-trigger: unittest discovery and make gate
+# script-tests: tests/test_goal_features_a.py
+"""Local operator feature contracts; fictional inventory and no network.
+
+Reads local source and fixtures; writes temporary test data and unittest output.
+Exit codes: 0 success, 1 failed tests, 2 invalid command arguments.
+"""
 import contextlib
 from datetime import datetime, timedelta, timezone
 import io
@@ -303,7 +311,7 @@ class GoalFeaturesATests(unittest.TestCase):
         for flags in ((), ('--strict',)):
             code, text = self.invoke('watch', 'check', '--file', str(draft), *flags)
             self.assertEqual(code, 1)
-            self.assertIn("unknown key 'mystery_key'", text)
+            self.assertIn('unknown key', text)
         self.assertEqual(draft.read_bytes(), before)
         self.assertFalse(self.db.exists())
 
@@ -315,14 +323,14 @@ class GoalFeaturesATests(unittest.TestCase):
         self.watch.write_text(self.watch.read_text() + 'mystery_key=true\n')
         code, text = self.invoke('watch', 'check')
         self.assertEqual(code, 1)
-        self.assertIn('WatchlistError: Watchlist validation failed', text)
+        self.assertIn('WatchlistError: watch entry 1: unknown key', text)
         self.assertNotIn('mystery_key', text)
         code, text = self.invoke('watch', 'check', '--strict')
         self.assertEqual(code, 1)
-        self.assertIn("unknown key 'mystery_key'", text)
+        self.assertIn('unknown key', text)
 
     def test_f07_missing_candidate_is_local_error(self):
         code, text = self.invoke('watch', 'check', '--file', str(self.root / 'absent.toml'))
         self.assertEqual(code, 1)
-        self.assertIn('Cannot read watch list:', text)
+        self.assertIn('watch list file not found', text)
         self.assertFalse(self.db.exists())

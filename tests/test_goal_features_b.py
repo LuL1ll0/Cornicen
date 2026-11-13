@@ -1,4 +1,12 @@
-"""Batch B contracts: fictional inventory, local files, and no network."""
+# script-purpose: Verify local features, backup, operator reports and notification context.
+# script-class: harness
+# script-trigger: unittest discovery and make gate
+# script-tests: tests/test_goal_features_b.py
+"""Batch B contracts: fictional inventory, local files, and no network.
+
+Reads local fixtures, writes temporary files; run with unittest.
+Exit codes: 0 success, 1 failed assertions, 2 invalid arguments.
+"""
 import contextlib
 from dataclasses import asdict
 from datetime import datetime, timezone
@@ -101,7 +109,7 @@ class LocalFeaturesTests(unittest.TestCase):
         for path in (existing, self.db, symlink, hardlink):
             code, text = self.invoke('db', 'backup', '--output', str(path))
             self.assertEqual(code, 1)
-            self.assertIn('destination exists', text)
+            self.assertIn('backup destination not writable', text)
         self.assertEqual(existing.read_bytes(), b'keep')
         self.assertEqual(list(self.root.glob('*.staging')), [])
 
@@ -120,7 +128,7 @@ class LocalFeaturesTests(unittest.TestCase):
 
         code, text = self.invoke('db', 'backup', '--output', str(output), store_type=FailingSource)
         self.assertEqual(code, 1)
-        self.assertIn('injected', text)
+        self.assertIn('backup destination not writable', text)
         self.assertFalse(output.exists())
         self.assertEqual(list(self.root.glob('*.staging')), [leftover])
         self.assertEqual(leftover.read_bytes(), b'older invocation')
@@ -144,7 +152,7 @@ class LocalFeaturesTests(unittest.TestCase):
         with patch('cornicen.maintenance.sqlite3.connect', side_effect=connect):
             code, text = self.invoke('db', 'backup', '--output', str(output))
         self.assertEqual(code, 1)
-        self.assertIn('quick_check failed', text)
+        self.assertIn('backup destination not writable', text)
         self.assertFalse(output.exists())
         self.assertEqual(list(self.root.glob('*.staging')), [])
 
@@ -168,7 +176,7 @@ class LocalFeaturesTests(unittest.TestCase):
     def test_f04_missing_database(self):
         output = self.root / 'backup.db'
         self.assertEqual(self.invoke('db', 'backup', '--output', str(output)),
-                         (1, 'unhealthy: database unavailable\n'))
+                         (1, 'command failed: FileNotFoundError: database file not found\n'))
         self.assertFalse(output.exists())
 
     def report_fixture(self):
@@ -337,21 +345,26 @@ class AlertContextTests(unittest.TestCase):
         lines = text.splitlines()
         self.assertTrue(lines[0].startswith('EOL: unsupported'))
         self.assertEqual(lines[1:], [
-            'Why: new match', 'KEV: not listed', 'EPSS: not yet scored',
+            'Why: new match', 'KEV: not listed', 'SSVC: not assessed', 'EPSS: not yet scored',
             'Match: CNA affected mistbox — affected',
             'https://www.cve.org/CVERecord?id=' + CVE,
             'CVE title: unknown', 'CNA CVSS score: unknown'])
         self.assertEqual(render(self.notification(old))[2:], (3, ['information_source']))
 
     def test_f09_standalone_digest_and_local_file_delivery(self):
-        first = self.notification(self.body('Mistbox issue', [{'cvssV3_1': {'baseScore': 7.5}}]))
-        second = self.notification({'name': 'Vaporbox'}, 'urgent')
+        first = Notification('first', 'mist', 'CVE-2099-4321', ('new match',), 'normal',
+                             {'name': 'Mistbox', 'product': 'mistbox', 'version': '73.8.91',
+                              'cve_title': 'Mistbox issue', 'cna_cvss_score': 7.5})
+        second = Notification('second', 'mist', 'CVE-2099-4322', ('new match',), 'urgent',
+                              dict(first.body))
         digest = Notification('digest', '', 'digest', (), 'normal',
                               {'items': [asdict(first), asdict(second)]})
         title, text, priority, tags = render(digest)
         self.assertEqual(title, 'Cornicen digest: 2 items')
         self.assertEqual((priority, tags), (3, ['information_source']))
-        expected = '\n\n'.join(render(item)[0] + '\n' + render(item)[1] for item in (first, second))
+        expected = ('2 items on 1 watches: 2 new matches\n\n'
+                    'Mistbox (mistbox 73.8.91): 2 items\n'
+                    + '\n'.join(render(item)[0] + '\n' + render(item)[1] for item in (first, second)))
         self.assertEqual(text, expected)
         with tempfile.TemporaryDirectory(dir='.') as directory:
             path = Path(directory) / 'notifications.jsonl'

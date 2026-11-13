@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import sys
+import sqlite3
 import tomllib
 import zlib
 
@@ -14,11 +15,13 @@ from cornicen.applicability import resolve, State
 from cornicen import accept
 from cornicen import acceptance
 from cornicen.config import load_config
+from cornicen.diagnostics import (FixedDiagnostic, alias_diagnostic, file_error,
+                                  read_text, toml_error, token_permissions)
 from cornicen.counts import report_counts
 from cornicen.github import github_status
 from cornicen.engine import Engine
 from cornicen.fetch import Http
-from cornicen.health import assess, container_healthy
+from cornicen.health import active_sources, assess, container_healthy
 from cornicen.identity import AliasMap, normalise, is_placeholder
 from cornicen.maintenance import backup
 from cornicen.model import Notification
@@ -26,7 +29,7 @@ from cornicen.notify.file import FileNotifier
 from cornicen.notify.ntfy import NtfyNotifier, post
 from cornicen.public_text import public_text, public_token
 from cornicen.render import _clean_reason
-from cornicen.scheduler import Scheduler, safe_message
+from cornicen.scheduler import Scheduler, redact_tokens, safe_message
 from cornicen.sources.cvelist import CveListSource
 from cornicen.sources.epss import EpssSource
 from cornicen.sources.kev import KevSource
@@ -132,18 +135,22 @@ def watch_check(store, watches, aliases, days, now):
 
 
 def replay(store, watches, aliases, path):
-    document = tomllib.loads(path.read_text(encoding='utf-8'))
+    text = read_text(path, 'acceptance list')
+    try:
+        document = tomllib.loads(text)
+    except (tomllib.TOMLDecodeError, RecursionError) as error:
+        raise ValueError(toml_error('acceptance list', error, text)) from None
     expected = document.get('expect')
     if not isinstance(expected, list) or not expected:
-        raise ValueError('Acceptance list requires [[expect]] entries')
+        raise ValueError(FixedDiagnostic('Acceptance list requires [[expect]] entries'))
     by_id = {watch.id: watch for watch in watches}
     entries = []
-    for entry in expected:
+    for number, entry in enumerate(expected, 1):
         if (not isinstance(entry, dict) or set(entry) != {'watch_id', 'cve'}
                 or not isinstance(entry['watch_id'], str) or entry['watch_id'] not in by_id
                 or not isinstance(entry['cve'], str)
                 or not re.fullmatch(r'CVE-[0-9]{4}-[0-9]{4,}', entry['cve'])):
-            raise ValueError('Invalid acceptance entry')
+            raise ValueError(FixedDiagnostic(f'acceptance list entry {number}: invalid entry'))
         entries.append((by_id[entry['watch_id']], entry['cve']))
     success = True
     for watch, cve in entries:
@@ -268,6 +275,9 @@ def github_status_line(store):
         'token-unusable': f"token unusable ({state['problem']}), using unauthenticated access",
         'token-rejected': 'token rejected by GitHub (HTTP 401), using unauthenticated access; replace the token file and restart',
     }
+    if state['auth'] == 'token-unusable' and state['problem'] == 'permissions':
+        descriptions['token-unusable'] = (str(token_permissions('CORNICEN_GITHUB_TOKEN_FILE'))
+                                          + '; using unauthenticated access')
     rate = state['rate_limit']
     detail = 'rate limit not seen yet'
     if rate:
@@ -291,13 +301,13 @@ def status_json(store, now, config):
             pass
     if store is not None:
         sources = {'cvelist', 'kev', 'epss'}
-        sources.update(row[0] for row in store.connection.execute('SELECT source FROM health'))
+        sources.update(active_sources(store, config))
         for source in sorted(sources):
             state, detail = assess(source, store, now, config)
             cursor = store.connection.execute(
                 'SELECT value,content_time FROM cursors WHERE source=?', (source,)).fetchone()
             result['sources'][source] = dict(
-                state=state, detail=safe_message(RuntimeError(detail), config.ntfy_token, config.github_token),
+                state=state, detail=safe_message(RuntimeError(detail), config.ntfy_token, config.github_token, config.deadman_url),
                 cursor=cursor['value'] if cursor else None,
                 content_time=cursor['content_time'] if cursor else None)
         result.update(available=True, container_healthy=container_healthy(store, now, config),
@@ -503,10 +513,17 @@ def main(argv=None):
         if args.command != 'run' and not Path(config.db_path).is_file():
             if args.command == 'status' and args.json:
                 return status_json(None, now(), config)
+            if args.command == 'db':
+                raise FileNotFoundError(file_error('database', FileNotFoundError()))
             print('unhealthy: database unavailable')
             _coverage_notice(eol_ids, file=notice_file)
             return 1
-        store = Store(config.db_path, read_only=args.command != 'run')
+        try:
+            store = Store(config.db_path, read_only=args.command != 'run')
+        except (OSError, sqlite3.Error):
+            if args.command == 'db':
+                raise ValueError(file_error('database', PermissionError())) from None
+            raise
         if args.command == 'run':
             store.migrate()
         if args.command == 'healthcheck':
@@ -517,10 +534,10 @@ def main(argv=None):
             if args.json:
                 return status_json(store, now(), config)
             sources = {'cvelist', 'kev', 'epss'}
-            sources.update(row[0] for row in store.connection.execute('SELECT source FROM health'))
+            sources.update(active_sources(store, config))
             for source in sorted(sources):
                 state, detail = assess(source, store, now(), config)
-                detail = safe_message(RuntimeError(detail), config.ntfy_token, config.github_token)
+                detail = safe_message(RuntimeError(detail), config.ntfy_token, config.github_token, config.deadman_url)
                 print(f'{source}: {state}; {detail}')
             print(github_status_line(store))
             print('container: ' + ('healthy' if container_healthy(store, now(), config) else 'unhealthy'))
@@ -550,7 +567,7 @@ def main(argv=None):
         http = Http(config.user_agent, config.user_agent_overrides,
                     data_dir=Path(config.db_path).parent,
                     download_budgets=config.download_budgets, github_token=config.github_token)
-        return Scheduler(engine, {'cvelist': CveListSource(http, store, config.github_token_problem, ntfy_token=config.ntfy_token),
+        return Scheduler(engine, {'cvelist': CveListSource(http, store, config.github_token_problem, ntfy_token=config.ntfy_token, deadman_url=config.deadman_url),
                                   'kev': KevSource(http), 'epss': EpssSource(http, store)}).run()
     except Exception as error:
         if args.command == 'status' and args.json:
@@ -559,12 +576,39 @@ def main(argv=None):
                 and (args.file is not None or args.strict
                      or any(problem.startswith('accept entry ') for problem in error.problems))):
             for problem in error.problems:
-                print('watch validation error: ' + problem)
+                print(redact_tokens('watch validation error: ' + problem,
+                                    config.ntfy_token if config else None,
+                                    config.github_token if config else None,
+                                    config.deadman_url if config else None))
             return 1
-        message = safe_message(error, config.ntfy_token if config else None, config.github_token if config else None)
-        error_name = type(error).__name__
-        if args.command == 'run':
-            error_name = public_token(error_name, watches) or 'Exception'
+        if config is not None and not watches:
+            try:
+                watches, _ = load_document(config.watchlist_path)
+            except Exception:
+                # An unavailable inventory must not replace the original failure.
+                pass
+        fixed = error.args[0] if error.args and type(error.args[0]) is FixedDiagnostic else None
+        message = safe_message(error, config.ntfy_token if config else None, config.github_token if config else None, config.deadman_url if config else None)
+        error_name = redact_tokens(type(error).__name__, config.ntfy_token if config else None, config.github_token if config else None, config.deadman_url if config else None)
+        if isinstance(error, acceptance.AcceptanceError):
+            if type(error.public_message) is FixedDiagnostic:
+                fixed = error.public_message
+            else:
+                fixed = None
+                message = safe_message(ValueError(error.public_message),
+                                       config.ntfy_token if config else None,
+                                       config.github_token if config else None,
+                                       config.deadman_url if config else None)
+        if isinstance(error, WatchlistError):
+            if all(type(problem) is FixedDiagnostic for problem in error.public_problems):
+                fixed = '; '.join(error.public_problems)
+        error_name = public_token(error_name, watches) or 'Exception'
+        # Only explicitly fixed diagnostics bypass inventory and secret filters.
+        # Alias validation uses a closed grammar because its source is pinned.
+        fixed = fixed if fixed is not None else alias_diagnostic(str(error))
+        if fixed is not None:
+            message = str(fixed)
+        else:
             message = public_text(message, watches)
         print(f'command failed: {error_name}: {message}')
         _coverage_notice(eol_ids, file=notice_file)

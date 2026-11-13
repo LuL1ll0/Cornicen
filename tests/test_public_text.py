@@ -1,4 +1,12 @@
-"""Container-log word rule, using only fictional inventory."""
+# script-purpose: Check public text behavior and private diagnostics.
+# script-class: harness
+# script-trigger: unittest discovery and make gate
+# script-tests: tests/test_public_text.py
+"""Container-log word rule, using only fictional inventory.
+
+Reads local source and fixtures; writes temporary test data and unittest output.
+Exit codes: 0 success, 1 failed tests, 2 invalid command arguments.
+"""
 
 from contextlib import redirect_stdout
 from dataclasses import replace
@@ -267,7 +275,7 @@ class LogBoundaryTests(unittest.TestCase):
         self.assertEqual(self.heartbeat('docker CVE'), '[redacted]')
         self.scheduler._failed_cycle(RuntimeError('docker CVE'))
         self.assertEqual(json.loads(self.lines[-1])['message'], '[redacted]')
-        self.assertIn('quartz-watch-77391', self.startup(primary, 'healthcheck'))
+        self.assertNotIn('quartz-watch-77391', self.startup(primary, 'healthcheck'))
 
     def test_readability_pins_through_heartbeat(self):
         for text in PINNED:
@@ -282,7 +290,7 @@ class LogBoundaryTests(unittest.TestCase):
         normal = json.loads(self.lines[-1])
         self.assertEqual(normal['health_details_withheld'], 0)
         self.assertIs(type(normal['health_details_withheld']), int)
-        old_keys = ['events', 'github', 'health_details', 'ingested', 'pending', 'report', 'sent', 'sources', 'time']
+        old_keys = ['deadman', 'events', 'github', 'health_details', 'ingested', 'pending', 'report', 'sent', 'sources', 'time']
         self.assertEqual([key for key in normal if key != 'health_details_withheld'], old_keys)
         self.assertEqual(list(normal['sources']), ['cvelist', 'epss', 'kev', 'watchlist'])
         self.assertEqual(list(normal['ingested']), ['cvelist', 'epss', 'kev'])
