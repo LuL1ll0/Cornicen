@@ -2,7 +2,7 @@
 # script-class: harness
 # script-trigger: unittest discovery and make gate
 # script-tests: tests/test_private_diagnostics_r3.py
-"""Read local fixtures, write temporary files under .build, and use no network.
+"""Read local fixtures, write temporary files under the working directory, and use no network.
 
 Run with python -m unittest tests.test_private_diagnostics_r3. Exit 0 means
 success, 1 means failed tests, and 2 means invalid unittest arguments.

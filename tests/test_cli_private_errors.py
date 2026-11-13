@@ -36,7 +36,7 @@ COMMANDS = (('run',), ('healthcheck',), ('status',), ('status', '--json'),
 
 class PrivateCommandErrors(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(dir='.build')
+        self.temp = tempfile.TemporaryDirectory(dir='.')
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.config = self.root / 'config.toml'

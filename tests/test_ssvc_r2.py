@@ -183,7 +183,7 @@ class SsvcRound2Tests(unittest.TestCase):
                     self.store.put_record(f'CVE-2099-{number}', fixtures.record(number, {}), 'original')
                 before = self.store.connection.execute("SELECT json FROM records WHERE id='CVE-2099-5202'").fetchone()[0]
                 source = self.source(())
-                source.directory = Path('.build')
+                source.directory = Path('.')
                 source._archive = CveListSource._archive.__get__(source)
                 inner = io.BytesIO()
                 with ZipFile(inner, 'w') as zipped:
@@ -193,7 +193,7 @@ class SsvcRound2Tests(unittest.TestCase):
                         zipped.writestr('cves/2099/5xxx/CVE-2099-5203.json', '{')
                     if extra == 'bad-layout':
                         zipped.writestr('cves/unexpected.json', '{}')
-                with tempfile.TemporaryDirectory(dir='.build') as directory:
+                with tempfile.TemporaryDirectory(dir='.') as directory:
                     path = Path(directory) / 'snapshot.zip'
                     with ZipFile(path, 'w') as zipped:
                         zipped.writestr('invented.zip', b'invalid' if extra == 'corrupt' else inner.getvalue())

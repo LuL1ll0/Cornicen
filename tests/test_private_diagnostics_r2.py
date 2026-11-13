@@ -2,7 +2,7 @@
 # script-class: harness
 # script-trigger: unittest discovery and make gate
 # script-tests: tests/test_private_diagnostics_r2.py
-"""Read local fixtures and write temporary files under .build; no network.
+"""Read local fixtures and write temporary files under the working directory; no network.
 
 Run with python -m unittest tests.test_private_diagnostics_r2. Exit 0 means
 success; exit 1 means a failed assertion, and exit 2 means invalid arguments.

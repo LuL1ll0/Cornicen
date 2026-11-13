@@ -2,7 +2,7 @@
 # script-class: harness
 # script-trigger: Run by unittest discovery and make gate.
 # script-tests: tests/test_rematch_revision.py
-"""Read local sources and exercise temporary stores; write only unittest output.
+"""Read local sources; write temporary stores under the working directory and unittest output.
 
 Run with python -m unittest tests.test_rematch_revision. Exit codes: 0 success,
 1 failed tests, 2 invalid command arguments.
@@ -236,7 +236,7 @@ scheme="semver"
                                         revision_corrections=True)
 
     def revision_fixture(self, dead=False):
-        directory = tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[1] / '.build')
+        directory = tempfile.TemporaryDirectory(dir='.')
         self.addCleanup(directory.cleanup)
         self.path = str(Path(directory.name) / 'state.db')
         self.store = Store(self.path)

@@ -4,7 +4,7 @@
 # script-tests: tests/test_integration_0114.py
 """Seams between the 0.1.14 lanes: dead-man redaction meets the command-error rules.
 
-Reads local fixtures, writes temporary files under .build, and uses no network.
+Reads local fixtures, writes temporary files under the working directory, and uses no network.
 Run with python -m unittest tests.test_integration_0114. Exit 0 means success,
 1 means failed tests, and 2 means invalid unittest arguments.
 """

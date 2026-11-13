@@ -2,7 +2,7 @@
 # script-class: harness
 # script-trigger: Run python3 -m unittest tests.test_epss_crossing.
 # script-tests: tests/test_epss_crossing.py
-"""Read application code; write temporary SQLite fixtures under .build.
+"""Read application code; write temporary SQLite fixtures under the working directory.
 Unittest exits 0 on success and 1 on failure. No network is used.
 """
 
@@ -29,7 +29,7 @@ CVE = 'CVE-2099-81001'
 
 class EpssCrossingTests(unittest.TestCase):
     def setUp(self):
-        self.directory = tempfile.TemporaryDirectory(dir='.build')
+        self.directory = tempfile.TemporaryDirectory(dir='.')
         self.addCleanup(self.directory.cleanup)
         self.path = str(Path(self.directory.name) / 'crossing.db')
         self.clock = FakeClock(datetime(2099, 6, 1, 7, tzinfo=timezone.utc))
