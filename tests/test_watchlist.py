@@ -55,7 +55,7 @@ class WatchlistTests(unittest.TestCase):
                 with self.subTest(scheme=scheme, version=version), self.assertRaises(WatchlistError):
                     load_watchlist_text(WATCH.replace("semver", scheme).replace("v1.25.3", version))
         for scheme, version in (("semver", ">=1.0.0, <2.0.0"), ("dotted", ">=1.0, <2.0"),
-                                ("python", "3.14.11"), ("python", ">=3.14.0a1, <3.14.0b1"),
+                                ("python", "3.14.90"), ("python", ">=3.14.0a1, <3.14.0b1"),
                                 ("debian", "1:2.0-1"), ("opaque", "release-a"), ("opaque", "=release-a"),
                                 ("opaque", "RomePI 1.0.0.G")):
             self.assertEqual(load_watchlist_text(WATCH.replace("semver", scheme).replace(

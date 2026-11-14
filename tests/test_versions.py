@@ -81,7 +81,7 @@ class VersionTests(unittest.TestCase):
 
     def test_dotted_numeric_order(self):
         self.assert_order("7.2.2", "7.2.10", Scheme.DOTTED, -1)
-        self.assert_order("1.43.5.11031", "1.43.5.11032", Scheme.DOTTED, -1)
+        self.assert_order("1.43.5.19001", "1.43.5.19002", Scheme.DOTTED, -1)
         self.assert_order("21.02.7", "21.2.7", Scheme.DOTTED, 0)
         self.assert_order("7.1", "7.2.3", Scheme.DOTTED, -1)
 

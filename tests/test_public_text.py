@@ -321,17 +321,17 @@ class LogBoundaryTests(unittest.TestCase):
     def test_ported_item9_leak_inputs(self):
         # Each group names the original probe file. Calls target this base's tick.
         groups = {
-            'codex-r1-probes.py': [
+            'probe-a1.py': [
                 'Cannot evaluate watch quartz-watch-77391 for Quartz Fiction Appliance 77391 quartzfiction:prism77391 CVE-2098-77391001',
                 'quartz-watch-77391', 'prefixCVE-2098-77391001'],
-            'codex-r1-archive_privacy.py': [
+            'probe-a1-archive.py': [
                 'deltaCves/quartz-watch-77391prefixCVE-2098-77391001.json: ValueError: Unexpected record path'],
-            's-head-exp_priv.py': ['cve-2098-77391001', 'XCVE-2098-77391002',
+            'probe-b1.py': ['cve-2098-77391001', 'XCVE-2098-77391002',
                 'x_CVE-2098-77391003', 'Cve-2098-77391004', 'CVE‑2098-77391005',
                 'CVE-２098-77391006', 'private-inventory', 'Private product name', ' CVE-2098-77391007'],
-            's-head-exp_priv2.py': ['cve-2098-77391001'],
-            's-head-exp_priv3.py': ['failed matching private-inventory product Private product name'],
-            'codex-r2-probes.py': ['Cannot evaluate STRASSE-FICTION-77391',
+            'probe-b2.py': ['cve-2098-77391001'],
+            'probe-b3.py': ['failed matching private-inventory product Private product name'],
+            'probe-c1.py': ['Cannot evaluate STRASSE-FICTION-77391',
                 'Cannot evaluate Mößquarz:prism77391', 'Cannot evaluate i\u0307granitefiction-77391',
                 'Cannot evaluate quartz-only-77391', 'Cannot evaluate [redacted]',
                 'Missing stored record: redacted', 'Missing stored record: STRASSE-OPAQUE-77391',
@@ -340,7 +340,7 @@ class LogBoundaryTests(unittest.TestCase):
                 'Failure quartz-\u200bwatch-77391 CVE-\u200b2098-77391042',
                 'Failure Acme.[x]+(quartz)?|^$\\fiction',
                 'Failure abcdefghijklmnopqrstuvwxyz', 'Failure CVE-2098-77391042'],
-            'sonnet-r2-e1.py': ['bad STRASSE:PRISM77391 here', 'bad Straße product',
+            'probe-d1.py': ['bad STRASSE:PRISM77391 here', 'bad Straße product',
                 'x Ｑuartz  Fiction (v1.0)* [x] y', 'x Quartz Fiction (v1.0)* [x] y',
                 'x Straße Ｑuartz Fiction (v1.0)* [x] y', 'x Straße Ｑuartz  Fiction (v1.0)* [x] y',
                 'x quartz-watch\u200b-77391 y', 'x quartz\u00ad-watch-77391 y', 'x STRASSE y',
@@ -349,15 +349,15 @@ class LogBoundaryTests(unittest.TestCase):
                 'quartz redacted [redacted] x', '[red[redacted]']
                 + ['x' * offset + ' quartz\u200b-watch-77391 CVE\u200b-2098-77391042'
                    for offset in range(270, 300)],
-            'sonnet-r2-e2.py': ['Cannot evaluate zephyr gizmo 9000 against 1.0',
+            'probe-d2.py': ['Cannot evaluate zephyr gizmo 9000 against 1.0',
                 'Cannot evaluate oldwatch-55512 for Old Prod',
                 'Dead-letter records: ' + ', '.join(f'CVE-2098-7739{i:04}' for i in range(40))],
-            'sonnet-r2-e3.py': ['failed matching oldwatch-55512 product Old Prod'],
-            'sonnet-r2-e4.py': ['Dead-letter records: ' + ', '.join(f'CVE-2098-{7739100+i}'
+            'probe-d3.py': ['failed matching oldwatch-55512 product Old Prod'],
+            'probe-d4.py': ['Dead-letter records: ' + ', '.join(f'CVE-2098-{7739100+i}'
                 for i in range(n)) + '; failed after 5 attempts' for n in range(1, 40)],
-            'sonnet-r2-e5.py': ['Dead-letter records: ' + ', '.join(f'CVE-2098-{7000000+i}'
+            'probe-d5.py': ['Dead-letter records: ' + ', '.join(f'CVE-2098-{7000000+i}'
                 for i in range(30)) + '; last error: ValueError: ' + 'x' * 150],
-            'sonnet-r2-e6.py': ['database is locked'],
+            'probe-d6.py': ['database is locked'],
         }
         self.engine.watches = INVENTORY + (
             Watch('CVE', 'Private product name Quartz Fiction Appliance Straße Ｑuartz Fiction (v1.0)* [x]',
