@@ -88,6 +88,26 @@ For a local dry run set `notifier = "file"`; notifications append as JSONL to
 `notification_path` (default `/data/notifications.jsonl`). This file contains alert
 data and belongs in private storage. No ntfy requests are made in file mode.
 
+## What the first run costs
+
+The first cycle downloads the full CVE List snapshot (a zip of about 650 MB),
+the KEV catalog and the day's EPSS file, then builds the local database. The
+snapshot is staged in the `/data` volume, not in `/tmp`, and is deleted once it
+has been read. Leave at least 1 GB free in the data volume.
+
+Measured with v0.1.15 on 2026-11-14, on an Apple-silicon desktop with a fast
+connection:
+
+| | First cycle | Running |
+|---|---|---|
+| Time | about 75 seconds | polls on the schedule above |
+| CPU | about 1 minute | near idle between cycles |
+| Peak memory | about 210 MB | about 150 MB, on a homelab server |
+| Data volume | about 750 MB at peak, about 410 MB after | about 490 MB after ten days, on a homelab server |
+
+Slower connections, disks and CPUs take longer. The database grows as new CVEs
+are published. `status` shows each source as healthy once it has been fetched.
+
 ## GitHub token (optional)
 
 GitHub allows 60 unauthenticated API requests per hour per public IP, shared
