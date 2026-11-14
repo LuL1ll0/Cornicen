@@ -16,7 +16,8 @@ class FetchTests(unittest.TestCase):
                                 source='cvelist')
             self.assertEqual(response.status, 200)
             self.assertIsNone(response.body)
-            self.assertEqual(response.path.parent, Path(directory))
+            # 3.11's TemporaryDirectory(dir='.') is relative; 3.12+ returns it absolute.
+            self.assertEqual(response.path.parent.resolve(), Path(directory).resolve())
             self.assertEqual(response.path.stat().st_size, 2000000)
             response.path.unlink()
         request = opener.requests[0]
