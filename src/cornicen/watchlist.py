@@ -9,7 +9,7 @@ import re
 from cornicen.accept import Accept
 from cornicen.diagnostics import FixedDiagnostic, file_error, toml_error
 
-from cornicen.identity import AliasMap, Identity, _parse_identity, is_placeholder, normalise
+from cornicen.identity import AliasMap, Identity, _parse_identity, is_placeholder, normalise_identity
 from cornicen.versions import Scheme, compare, parse_constraint
 
 
@@ -97,7 +97,7 @@ def _watch(entry: dict) -> Watch:
             or len(prefix) > 100 or any(ord(c) < 33 or ord(c) > 126 for c in prefix)
             or latest is None):
         raise ValueError(FixedDiagnostic("release_tag_prefix is invalid"))
-    return Watch(watch_id, name, identities, tuple(map(normalise, products)),
+    return Watch(watch_id, name, identities, tuple(map(normalise_identity, products)),
                  version, scheme, eol, latest, prefix)
 
 

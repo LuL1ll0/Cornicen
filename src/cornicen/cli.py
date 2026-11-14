@@ -22,7 +22,7 @@ from cornicen.github import github_status
 from cornicen.engine import Engine
 from cornicen.fetch import Http
 from cornicen.health import active_sources, assess, container_healthy
-from cornicen.identity import AliasMap, normalise, is_placeholder
+from cornicen.identity import AliasMap, normalise, normalise_identity, is_placeholder
 from cornicen.maintenance import backup
 from cornicen.model import Notification
 from cornicen.notify.file import FileNotifier
@@ -91,7 +91,7 @@ def _near(record, watch, aliases):
             continue
         if is_placeholder(vendor) or is_placeholder(product):
             continue
-        vendor, product = normalise(vendor), normalise(product)
+        vendor, product = normalise_identity(vendor), normalise_identity(product)
         if product in watch.product_only or any(vendor == v or product == p for v, p in identities):
             return True
     return False

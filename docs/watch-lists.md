@@ -16,8 +16,7 @@ human notice to stderr. `watch check --file` reports the candidate file's EOL wa
 [command reference](cli.md). This notice does not change health, exit codes, or notifications.
 
 `product_only` is an explicit loose match across vendors and caps applicability at
-unknown. Prefer scoped identities. Normalisation trims and collapses whitespace
-and ignores case while keeping punctuation. Placeholder products never match;
+unknown. Prefer scoped identities. Identity normalisation removes U+00AD, U+200B, U+200E, U+200F, U+202A–U+202E, U+2060, U+2066–U+2069 and U+FEFF before NFKC, casefolding and whitespace collapse. It preserves U+200C/U+200D, variation selectors, Hangul fillers and U+034F. Opaque versions use plain NFKC, casefolding and whitespace collapse without this removal set. Punctuation is kept. Placeholder products never match;
 a placeholder vendor can match a real product only through `product_only`.
 For CPython use `python`, which orders three numeric components and optional
 `aN`, `bN` or `rcN` pre-releases. Other PEP 440 forms remain unknown.

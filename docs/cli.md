@@ -42,7 +42,9 @@ cornicen watch check --file /config/draft.toml --strict --days 90
   print exactly `less`, `equal`, `greater` or `unknown`. Decidable results exit 0;
   unknown exits 1; argument errors exit 2. This command loads no configuration
   and opens no database. Opaque equality normalizes case and whitespace like
-  applicability evaluation. This compares literal versions, not CNA range
+  applicability evaluation; it does not remove the identity-only set (U+00AD,
+  U+200B, U+200E, U+200F, U+202A–U+202E, U+2060, U+2066–U+2069, U+FEFF).
+  This compares literal versions, not CNA range
   coverage, support status or whether an upgrade fixes a CVE.
 
 Alerts append `CVE title` (one line, at most 160 characters) and `CNA CVSS score`.

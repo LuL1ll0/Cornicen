@@ -19,9 +19,18 @@ def normalise(s: str) -> str:
     return " ".join(unicodedata.normalize("NFKC", s).casefold().split())
 
 
+# Explicit identity-only removal set; meaningful joiners and selectors are retained.
+IDENTITY_IGNORABLES = frozenset(
+    "\u00ad\u200b\u200e\u200f\u202a\u202b\u202c\u202d\u202e"
+    "\u2060\u2066\u2067\u2068\u2069\ufeff")
+
+
+def normalise_identity(s: str) -> str:
+    return normalise("".join(c for c in s if c not in IDENTITY_IGNORABLES))
+
+
 def is_placeholder(s: str) -> bool:
-    s = re.sub(r"[\u200b-\u200d\ufeff]", "", s)
-    core = re.sub(r"[\W_]+", "", normalise(s))
+    core = re.sub(r"[\W_]+", "", normalise_identity(s))
     return core in {"", "na", "unknown", "none", "null", "tbd", "unspecified",
                     "notapplicable", "notavailable"}
 
@@ -29,7 +38,7 @@ def is_placeholder(s: str) -> bool:
 def _parse_identity(text: str) -> Identity:
     if not isinstance(text, str) or text.count(":") != 1:
         raise ValueError("identity must be vendor:product")
-    vendor, product = map(normalise, text.split(":"))
+    vendor, product = map(normalise_identity, text.split(":"))
     if is_placeholder(vendor) or is_placeholder(product):
         raise ValueError("identity must not contain a placeholder vendor or product")
     return vendor, product
@@ -51,7 +60,7 @@ class AliasMap:
     def expand(self, i: Identity) -> frozenset[Identity]:
         if not isinstance(i, tuple) or len(i) != 2 or any(not isinstance(p, str) for p in i):
             raise ValueError("identity must be a 2-tuple of strings")
-        identity = tuple(normalise(part) for part in i)
+        identity = tuple(normalise_identity(part) for part in i)
         if any(is_placeholder(part) for part in identity):
             return frozenset()
         found = set()

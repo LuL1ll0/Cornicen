@@ -5,13 +5,13 @@ from enum import Enum
 from functools import cmp_to_key
 import re
 
-from cornicen.identity import AliasMap, is_placeholder, normalise
+from cornicen.identity import AliasMap, is_placeholder, normalise, normalise_identity
 from cornicen.versions import Scheme, compare, parse_constraint, python_successor
 from cornicen.watchlist import Watch
 
 
 # Bump by hand whenever applicability, version comparison or identity matching changes.
-MATCHING_REVISION = 1
+MATCHING_REVISION = 2
 
 
 class State(str, Enum):
@@ -56,7 +56,7 @@ def _combine(states):
 def watch_identities(watch, aliases):
     """Compile invariant watch identities once per watch/alias revision."""
     expanded = frozenset(identity for candidate in watch.match for identity in aliases.expand(candidate))
-    return expanded, frozenset(map(normalise, watch.product_only))
+    return expanded, frozenset(map(normalise_identity, watch.product_only))
 
 
 def _identity_match(vendor, product, watch, aliases, prepared=None, identities=None):
@@ -67,7 +67,7 @@ def _identity_match(vendor, product, watch, aliases, prepared=None, identities=N
     if cached is None:
         if is_placeholder(product):
             return None
-        identity = normalise(vendor), normalise(product)
+        identity = normalise_identity(vendor), normalise_identity(product)
         # Placeholder vendors expand to no scoped identities; a real product
         # can still match the explicitly opted-in loose names below.
         expanded = aliases.expand(identity)
@@ -84,6 +84,9 @@ def _identity_match(vendor, product, watch, aliases, prepared=None, identities=N
 
 
 def _check_types(entry, scheme):
+    if any(key in entry for key in
+           ('version', 'lessThan', 'lessThanOrEqual', 'changes', 'versionType')):
+        raise _Undecidable('version fields outside versions[]')
     if 'defaultStatus' in entry and not isinstance(entry['defaultStatus'], str):
         raise _Undecidable('invalid defaultStatus')
     versions = entry.get('versions', [])
@@ -412,7 +415,8 @@ def _evaluate(entry, watch):
                 and entry.get('defaultStatus') != 'unaffected')
         return state, detail, weak
     except _Undecidable as error:
-        return State.UNKNOWN, str(error), False
+        # Structural uncertainty blocks even another entry's explicit exclusion.
+        return State.UNKNOWN, str(error), str(error) == 'version fields outside versions[]'
 
 
 def rejected(record: dict) -> bool:
@@ -466,14 +470,15 @@ def resolve(record: dict, kev_entry: dict | None, watch: Watch,
     exact = [entry for entry, kind in matches if kind == 'exact']
     if exact:
         evaluated = [(entry, *_evaluate(entry, watch)) for entry in exact]
-        # Keep explicit exclusions' existing precedence, but let uncertainty
-        # win over another entry's history inference.
+        # Malformed parent version fields block all exclusions; other uncertainty
+        # blocks only history-inferred exclusions. Affected evidence still wins.
+        malformed = any(item[1] == State.UNKNOWN and item[3] for item in evaluated)
         decisive = [item for item in evaluated
-                    if item[1] != State.NOT_AFFECTED or not item[3]]
+                    if item[1] != State.NOT_AFFECTED or (not item[3] and not malformed)]
         state = _combine([item[1] for item in decisive]) if decisive else State.NOT_AFFECTED
         entry, _, detail, _ = next(item for item in (decisive or evaluated) if item[1] == state)
         label = 'unaffected' if state == State.NOT_AFFECTED else state.value
-        evidence = f'CNA {label} {normalise(entry["product"])}: {detail}'
+        evidence = f'CNA {label} {normalise_identity(entry["product"])}: {detail}'
         return Result(state, kev_entry is not None, evidence,
                       'medium' if state == State.UNKNOWN else 'high')
     if matches or kev_kind == 'product_only':

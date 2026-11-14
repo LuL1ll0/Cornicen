@@ -15,7 +15,7 @@ Cornicen is for homelabs and small networks. You tell it what you run. It watche
   Email uses the ntfy server’s own forwarding; Cornicen stores no mail credentials.
 - **Silent first run.** The first bootstrap records what already matches and sends one summary; after that you hear only about changes.
 
-**Status:** version 0.1.15, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
+**Status:** version 0.1.16, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
 
 ## Contents
 

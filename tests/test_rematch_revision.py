@@ -33,7 +33,8 @@ from cornicen.watchlist import load_watchlist_text
 SOURCES = ('src/cornicen/applicability.py', 'src/cornicen/identity.py',
            'src/cornicen/versions.py')
 # Privacy diagnostics changed identity.py without changing matching behavior.
-PINS = {1: '7b96e28f8dca2d28c29dc62c7b46a73aed55f27ba72cf31e0139eb7a0f926673'}
+PINS = {1: '7b96e28f8dca2d28c29dc62c7b46a73aed55f27ba72cf31e0139eb7a0f926673',
+        2: '9aa75a4a0f6d2bc3f2e6a7b55c3942c1352bd45ba0c2bb77e09133e1c2d6b913'}
 CVE = 'CVE-2099-10001'
 CLEAR = Result(State.NOT_AFFECTED, False, 'CNA not affected', 'high')
 

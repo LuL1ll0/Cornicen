@@ -421,6 +421,12 @@ class Engine:
         # events, so it must not turn a delta's new match into a baseline pair.
         baseline = (not self.store.get_meta('baseline_complete')
                     and bool(self.store.get_meta('record_baseline:' + record_id)))
+        # Synthetic KEV-only contexts retain ingestion's historical policy.
+        # A KEV marker on a stored CNA record does not make it a baseline match.
+        kev_baseline = (bool(self.store.get_meta('kev_only:' + record_id))
+                        and self.db.execute('SELECT 1 FROM records WHERE id=?',
+                                            (record_id,)).fetchone() is None
+                        and bool(self.store.get_meta('kev_baseline:' + record_id)))
         retry_key = 'matching_revision_retry:' + record_id
         if self.store.get_meta(retry_key):
             # A pending revision pass must cover all watches even if another
@@ -428,6 +434,7 @@ class Engine:
             watches = None
             revision_corrections = True
         self._evaluate(record, record_id, reload=True, watches=watches, baseline=baseline,
+                       kev_baseline=kev_baseline,
                        revision_corrections=revision_corrections)
 
     def _retry_records(self):
@@ -676,7 +683,13 @@ class Engine:
         try:
             with self.store.transaction():
                 # Re-matching is transactional; only run_cycle releases queued work.
-                ids = self.db.execute('SELECT id FROM records UNION SELECT record_id FROM pairs').fetchall() if changed else ()
+                # Initial-catalog KEV rows wait for CNA records; only explicitly
+                # eligible KEV-only rows have a synthetic evaluation context.
+                ids = self.db.execute("""SELECT id FROM records
+                    UNION SELECT record_id FROM pairs
+                    UNION SELECT cve FROM kev WHERE EXISTS (
+                        SELECT 1 FROM meta WHERE k='kev_only:' || kev.cve)
+                    """).fetchall() if changed else ()
                 for row in ids:
                     record_id = row[0]
                     record = self._record(record_id)

@@ -110,7 +110,7 @@ Deploy 0.1.6 before copying accept entries: 0.1.5 rejects the new table.
 
 ### Identity
 
-- **Normalisation:** lowercase, trim, collapse internal whitespace. Punctuation is kept (`foo-bar` ≠ `foobar`).
+- **Normalisation:** Identity normalisation removes U+00AD, U+200B, U+200E, U+200F, U+202A–U+202E, U+2060, U+2066–U+2069 and U+FEFF before NFKC, casefolding and whitespace collapse. It preserves U+200C/U+200D, variation selectors, Hangul fillers and U+034F. Opaque versions use plain NFKC, casefolding and whitespace collapse without this removal set. Punctuation is kept (`foo-bar` ≠ `foobar`).
 - `match` entries are **vendor-scoped exact** identities, compared after normalisation against CNA `vendor`/`product` and KEV `vendorProject`/`product`.
 - `product_only` entries match a product string from any vendor, at reduced confidence, and must be opted into per watch.
 - Cornicen ships a **versioned alias map** of known spelling variants (e.g. a vendor's CNA spelling vs its CPE spelling). The map version is recorded with every match. Users can extend it locally.
@@ -440,7 +440,9 @@ All commands accept the global `--config PATH`. Existing commands are `run`,
   print exactly `less`, `equal`, `greater` or `unknown`. Decidable results exit 0;
   unknown exits 1; argument errors exit 2. This command loads no configuration
   and opens no database. Opaque equality normalizes case and whitespace like
-  applicability evaluation. This compares literal versions, not CNA range
+  applicability evaluation; it does not remove the identity-only set (U+00AD,
+  U+200B, U+200E, U+200F, U+202A–U+202E, U+2060, U+2066–U+2069, U+FEFF).
+  This compares literal versions, not CNA range
   coverage, support status or whether an upgrade fixes a CVE.
 
 Alerts append `CVE title` (one line, at most 160 characters) and `CNA CVSS score`.
