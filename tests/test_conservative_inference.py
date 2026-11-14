@@ -33,8 +33,8 @@ def check(entries, version, scheme='semver', loose=False):
 class ConservativeInferenceTests(unittest.TestCase):
     def test_outside_ranges_ignores_prefixes(self):
         for lower, fix, version, scheme in (
-                ('7.2.2', '7.2.2-72806-8', '7.2.2-72806-40', 'debian'),
-                ('7.2.2', '7.2.2-72806-8', '7.2.20-72806-40', 'debian'),
+                ('7.2.2', '7.2.2-72806-39', '7.2.2-72806-40', 'debian'),
+                ('7.2.2', '7.2.2-72806-39', '7.2.20-72806-40', 'debian'),
                 ('11.0', '11.0.3', '11.0.5', 'dotted'),
                 ('11.0', '11.0.3', '11.01.5', 'dotted'),
                 ('1', '1.4', '1.31.4', 'dotted'),
