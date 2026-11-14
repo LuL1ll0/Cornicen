@@ -1,5 +1,7 @@
 # Cornicen
 
+[![gate](https://github.com/LuL1ll0/cornicen/actions/workflows/gate.yml/badge.svg?branch=main)](https://github.com/LuL1ll0/cornicen/actions/workflows/gate.yml)
+
 Self-hosted CVE alerter for homelabs: matches CVE List, KEV and EPSS locally and alerts via ntfy.
 
 Cornicen is for homelabs and small networks. You tell it what you run. It watches the public vulnerability feeds, matches them on your own machine, and sends a push notification when something you run is affected. When nothing is, it stays quiet. When it can't see the feeds, it says so.
