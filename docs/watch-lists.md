@@ -204,3 +204,14 @@ records completed results on a later tick, in its own transaction. After ten
 seconds an unfinished check makes `releases` unhealthy; CVE ingestion and delivery
 continue. A running check is never duplicated, even if DNS never returns. A
 restart retries any check whose results were not committed.
+
+## GitHub selectors
+
+The optional `github` array adds exact repository, ecosystem and package selectors.
+A watch still needs `match` or `product_only`. Package spellings are explicit aliases:
+
+```toml
+github = [{ repository = "examplecorp/widget-engine", ecosystem = "other", package = "Widget Engine" }]
+```
+
+Selectors alone do not enable the adapter; gate G remains unmet in this release.

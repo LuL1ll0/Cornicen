@@ -1,7 +1,7 @@
 # script-purpose: Reconcile permanent advisory facets and merge explicit identity links.
 # script-class: pipeline-tool
 # script-trigger: Validated advisory commits.
-# script-tests: tests/test_f3b.py, tests/test_replay_v11.py
+# script-tests: tests/test_f3b.py, tests/test_replay_v11.py, tests/test_task1_b1.py
 """Read SQLite histories and normalized facets; write atomic identity mappings.
 
 Library functions have no process exit codes. Invalid identity changes raise ValueError.
@@ -10,6 +10,8 @@ import json
 import re
 from datetime import datetime
 from types import SimpleNamespace
+
+from cornicen.diagnostics import FixedDiagnostic
 
 
 def canonical_id(db, identity):
@@ -45,7 +47,7 @@ def covered(db, watch, identity, reason, episode):
 def reconcile_facets(db, data):
     facets = data.get('facets', [])
     if not isinstance(facets, list) or any(not isinstance(f, dict) for f in facets):
-        raise ValueError('invalid facets')
+        raise ValueError(FixedDiagnostic('invalid facets'))
     prior = db.execute('SELECT json FROM advisories WHERE source=? AND source_id=?',
                        (data['source'], data['source_id'])).fetchone()
     prior_data = json.loads(prior[0]) if prior else {}
@@ -53,9 +55,10 @@ def reconcile_facets(db, data):
         'cves': [c['value'] for c in prior_data.get('cves', [])],
         'facets': prior_data.get('facets', []),
     })
-    relaxed_withdrawal = bool(data.get('withdrawn') and not data['cves'] and not facets)
+    from cornicen.advisory import retracted
+    relaxed_withdrawal = bool(retracted(data) and not data['cves'] and not facets)
     if not relaxed_withdrawal and not set(history['cves']) <= {c['value'] for c in data['cves']}:
-        raise ValueError('advisory identifier removed or reassigned')
+        raise ValueError(FixedDiagnostic('advisory identifier removed or reassigned'))
     old = history['facets']
     def keys(f):
         cves = frozenset([f['cve']] if f.get('cve') else f.get('cves', []))
@@ -77,17 +80,17 @@ def reconcile_facets(db, data):
             if candidates:
                 break
         if len(candidates)>1:
-            raise ValueError('ambiguous facet reconciliation')
+            raise ValueError(FixedDiagnostic('ambiguous facet reconciliation'))
         if candidates and candidates[0] in used:
-            raise ValueError('ambiguous facet reconciliation')
+            raise ValueError(FixedDiagnostic('ambiguous facet reconciliation'))
         if candidates:
             n = candidates[0]
             if not previous[n][0] <= key[0] or not previous[n][1] <= key[1]:
-                raise ValueError('facet identifier removed or reassigned')
+                raise ValueError(FixedDiagnostic('facet identifier removed or reassigned'))
             # An identifier cannot migrate while its former title/product
             # identity is still represented by a different incoming facet.
             if previous[n][2] != key[2] and any(k[2] == previous[n][2] for k in current):
-                raise ValueError('facet identifier reassigned')
+                raise ValueError(FixedDiagnostic('facet identifier reassigned'))
             used.add(n)
             number = old[n].get('number', n+1)
         else:
@@ -95,7 +98,7 @@ def reconcile_facets(db, data):
             next_number += 1
         output.append(dict(f, number=number))
     if not relaxed_withdrawal and any((k[0] or k[1]) and n not in used for n,k in enumerate(previous)):
-        raise ValueError('facet identifier removed')
+        raise ValueError(FixedDiagnostic('facet identifier removed'))
     # Keep retired anonymous numbers reserved so they cannot be reused.
     if old:
         data = dict(data, facet_next=max(next_number, prior_data.get('facet_next', 1)))
@@ -111,7 +114,7 @@ def reconcile_facets(db, data):
 
 def _cve_target(identity):
     if not isinstance(identity, str) or not re.fullmatch(r'CVE-[0-9]{4}-[0-9]{4,}', identity):
-        raise ValueError('identity link target must be a well-formed CVE')
+        raise ValueError(FixedDiagnostic('identity link target must be a well-formed CVE'))
 
 
 def link(engine, old_id, new_id, tick):
@@ -133,18 +136,18 @@ def _link(engine, old_id, new_id, tick):
     for row in db.execute('SELECT json FROM advisories WHERE source=? AND source_id=?', (source, source_id)):
         data = json.loads(row[0])
         if any(advisory.parent_id(f) == old_id and len(f['cves']) > 1 for f in advisory.facet_records(data)):
-            raise ValueError('split parent cannot redirect')
+            raise ValueError(FixedDiagnostic('split parent cannot redirect'))
     old_target = canonical_id(db, old_id)
     if old_id == new_id:
-        raise ValueError('identity link cycle')
+        raise ValueError(FixedDiagnostic('identity link cycle'))
     if target == old_id:
-        raise ValueError('identity link cycle')
+        raise ValueError(FixedDiagnostic('identity link cycle'))
     if old_target == target:
         return
     if old_target != old_id:
-        raise ValueError('identity identifier reassigned')
+        raise ValueError(FixedDiagnostic('identity identifier reassigned'))
     if old_id.partition('-')[0] == target.partition('-')[0] == 'CVE':
-        raise ValueError('distinct CVEs cannot merge')
+        raise ValueError(FixedDiagnostic('distinct CVEs cannot merge'))
     aliases = [old_id] + [r[0] for r in db.execute('SELECT old_id FROM identity_redirects WHERE new_id=?', (old_id,))]
     pairs = db.execute('SELECT * FROM pairs WHERE record_id IN (?,?) ORDER BY watch_id', (old_id,target)).fetchall()
     watches = {p['watch_id'] for p in pairs if p['record_id'] == old_id}

@@ -1,17 +1,23 @@
 # script-purpose: Store and aggregate scoped advisory applicability and fix evidence.
 # script-class: pipeline-tool
 # script-trigger: Adapter commits and engine evaluation.
-# script-tests: tests/test_f3a.py, tests/test_f3b.py, tests/test_r11_differential.py, tests/test_r11_shells.py, tests/test_r11_integration.py
+# script-tests: tests/test_f3a.py, tests/test_f3b.py, tests/test_r11_differential.py, tests/test_r11_shells.py, tests/test_r11_integration.py, tests/test_task1_b1.py
 """Read validated advisories and SQLite evidence; write scoped evidence rows.
 
 Library API, no command entry point or exit codes. No network access.
 """
 import json
+import re
 
 from cornicen.versions import compare
 
 from cornicen import applicability, cnascope
 from cornicen.applicability import State, Result
+
+
+def retracted(data):
+    """An explicit withdrawal or administrative retraction retires evidence."""
+    return bool(data.get('withdrawn') or data.get('retraction') == 'administrative')
 
 
 def aggregate(states):
@@ -71,11 +77,11 @@ def write_evidence(db, data, baseline=False, *, append=False):
         # Withdrawal retains prior identities as explicit retraction history.
         for row in db.execute('SELECT identity FROM advisory_support WHERE source=? AND source_id=?',
                               (data['source'], data['source_id'])).fetchall():
-            if not data.get('withdrawn') and row[0] not in current:
+            if not retracted(data) and row[0] not in current:
                 db.execute('DELETE FROM advisory_support WHERE source=? AND source_id=? AND identity=?',
                            (data['source'], data['source_id'], row[0]))
         clear_shells(db, data)
-    if data.get('withdrawn'):
+    if retracted(data):
         return
     if data.get('facets'):
         for facet in facet_records(data):
@@ -126,7 +132,7 @@ def write_evidence(db, data, baseline=False, *, append=False):
 
 def clear_shells(db, data):
     """Retire provisional routing markers when a validated advisory is accepted."""
-    if not data.get('withdrawn'):
+    if not retracted(data):
         db.execute('DELETE FROM advisory_shells WHERE source=? AND source_id=?',
                    (data['source'], data['source_id']))
 
@@ -176,7 +182,50 @@ def entry_for(row):
     return entry
 
 
+def _selector_matches(row, watch):
+    name = row['package'].removeprefix('github-selector:')
+    return any(name == f'{s.repository}#{s.ecosystem}#{s.package}' for s in watch.github)
+
+
+def _github_entry(row, watch):
+    bounds = json.loads(row['range']) if row['range'] else {}
+    text = bounds.get('github') if isinstance(bounds, dict) else None
+    if not isinstance(text, str) or not text:
+        return None
+    versions = []
+    for alternative in text.split('||'):
+        terms = []
+        for term in alternative.split(','):
+            match = re.fullmatch(r'\s*(<=|>=|<|>|=)\s*([^,|]+?)\s*', term)
+            if not match:
+                return None
+            op, bound = match.groups()
+            if (not bound or (op != '=' and any(c.isspace() for c in bound))
+                    or compare(bound, bound, watch.scheme) is None):
+                return None
+            terms.append((op, bound))
+        ops = [op for op, _ in terms]
+        if (len(terms) > 2 or ('=' in ops and len(terms) != 1)
+                or sum(op in ('>', '>=') for op in ops) > 1
+                or sum(op in ('<', '<=') for op in ops) > 1):
+            return None
+        if watch.scheme.value == 'opaque' and ops != ['=']:
+            return None
+        version = terms[0][1] if ops == ['='] else ', '.join(f'{op} {b}' for op, b in terms)
+        versions.append(dict(version=version, status='affected', versionType=watch.scheme.value))
+    return dict(defaultStatus='unaffected', versions=versions)
+
+
 def evaluate_row(row, watch, aliases):
+    if row['package'].startswith('github-selector:'):
+        if row['source'] != 'github' or not _selector_matches(row, watch):
+            return None
+        if row['status'] != 'known_affected':
+            return State.UNKNOWN
+        entry = _github_entry(row, watch)
+        if entry is None:
+            return State.UNKNOWN
+        return applicability._evaluate(entry, watch)[0]
     entry = entry_for(row)
     kind = applicability._identity_match(entry['vendor'], entry['product'], watch, aliases)
     if not kind:
@@ -284,7 +333,12 @@ def route(db, identity, watch, aliases, scope=None, equivalents=()):
 
 def fix_for(db, identity, watch, aliases, scope=None, equivalents=()):
     fixes = {row['fix'] for row in rows_for(db, identity)
-             if row['fix'] and row['scheme'] == watch.scheme.value
+             if row['fix'] and (
+                 (row['package'].startswith('github-selector:')
+                  and not any(c.isspace() or c in ',|' for c in row['fix'])
+                  and compare(row['fix'], row['fix'], watch.scheme) is not None)
+                 or (not row['package'].startswith('github-selector:')
+                     and row['scheme'] == watch.scheme.value))
              and scope_matches(row, scope or {}, equivalents)
              and evaluate_row(row, watch, aliases) is not None}
     versions = sorted(fixes - {'available'})

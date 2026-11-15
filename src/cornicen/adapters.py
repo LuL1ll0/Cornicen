@@ -1,7 +1,7 @@
 # script-purpose: Define adapter gates, settings and the runtime protocol.
 # script-class: pipeline-tool
 # script-trigger: Adapter configuration, status and engine dispatch.
-# script-tests: tests/test_f1.py
+# script-tests: tests/test_f1.py, tests/test_task1_b1.py
 """Release gates and the adapter protocol; no factories live in this registry.
 
 Reads install settings; returns validated settings and status without writes.
@@ -20,6 +20,10 @@ class AdapterProtocol(Protocol):
     by AdapterStore.process. Resource export flags default to registry policy;
     discovery and metadata outcomes must use export=False when inapplicable.
     """
+
+    def required_resources(self):
+        """Independent adapters return the logical resource keys currently watched."""
+        ...
 
     def poll(self, *, cutoff):
         """Return scheduled resource outcomes bounded by the stored cutoff."""
@@ -45,12 +49,13 @@ class Adapter:
     gate: str = 'not met'
     export: bool = False
     last_modified_validated: bool = False
+    independent: bool = False
 
     def effective(self, setting):
         return setting is True and self.gate == 'met'
 
 
-REGISTRY = {name: Adapter(name, gate, export=name in ('debian','ubuntu')) for name, gate in
+REGISTRY = {name: Adapter(name, gate, export=name in ('debian','ubuntu'), independent=name == 'github') for name, gate in
             zip(('synology', 'debian', 'ubuntu', 'msrc', 'cisco', 'github'), 'SDUMCG')}
 
 

@@ -15,7 +15,7 @@ Cornicen is for homelabs and small networks. You tell it what you run. It watche
   Email uses the ntfy server’s own forwarding; Cornicen stores no mail credentials.
 - **Silent first run.** The first bootstrap records what already matches and sends one summary; after that you hear only about changes.
 
-**Status:** version 0.2.0, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
+**Status:** version 0.3.0, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
 
 ## Contents
 
@@ -188,6 +188,13 @@ CVE matching is local: Cornicen downloads whole public datasets and sends no pro
 
 The container log carries only Cornicen's own words, integers and ISO times,
 including release-check diagnostics; upstream release tags stay in digest bodies.
+
+When the GitHub advisories adapter is enabled (not in this release: gate G is unmet), GitHub sees which repositories your watches name and your IP address. Requests carry Cornicen's User-Agent, which includes its version. To turn it off:
+
+```toml
+[adapters.github]
+enabled = false
+```
 
 ## Getting help
 

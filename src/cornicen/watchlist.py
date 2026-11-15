@@ -1,16 +1,59 @@
-"""Validate complete watch lists before callers replace their active list."""
+# script-purpose: Validate complete watch lists before replacing active watches.
+# script-class: pipeline-tool
+# script-trigger: Watch list loading and engine reloads.
+# script-tests: tests/test_task1_b1.py
+"""Validate complete watch lists before callers replace their active list.
+
+Reads configuration or request inputs; returns validated values without persistent writes.
+Library API with no process exit codes; invalid inputs raise exceptions.
+"""
 
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 import tomllib
 import re
+import unicodedata
 
 from cornicen.accept import Accept
 from cornicen.diagnostics import FixedDiagnostic, file_error, toml_error
 
 from cornicen.identity import AliasMap, Identity, _parse_identity, is_placeholder, normalise_identity
 from cornicen.versions import Scheme, compare, parse_constraint
+
+
+@dataclass(frozen=True)
+class GitHubSelector:
+    repository: str
+    ecosystem: str
+    package: str
+
+
+_REPOSITORY = r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/[A-Za-z0-9_.-]{1,100}'
+_ECOSYSTEMS = frozenset('actions composer erlang go maven npm nuget other pip pub rubygems rust swift'.split())
+
+
+def _github_selectors(entries):
+    if not isinstance(entries, list) or len(entries) > 20:
+        raise ValueError(FixedDiagnostic('github must be an array of at most 20 selectors'))
+    result = []
+    for entry in entries:
+        if not isinstance(entry, dict) or entry.keys() != {'repository', 'ecosystem', 'package'}:
+            raise ValueError(FixedDiagnostic('github selector requires repository, ecosystem and package'))
+        repository, ecosystem, package = (entry[k] for k in ('repository', 'ecosystem', 'package'))
+        if (not isinstance(repository, str) or not re.fullmatch(_REPOSITORY, repository)
+                or repository.split('/')[-1] in ('.', '..')):
+            raise ValueError(FixedDiagnostic('github repository is invalid'))
+        if not isinstance(ecosystem, str) or ecosystem not in _ECOSYSTEMS:
+            raise ValueError(FixedDiagnostic('github ecosystem is invalid'))
+        if (not isinstance(package, str) or not package or len(package) > 200
+                or any(unicodedata.category(c) in ('Cc', 'Cf') for c in package)):
+            raise ValueError(FixedDiagnostic('github package is invalid'))
+        selector = GitHubSelector(repository.casefold(), ecosystem, package)
+        if selector in result:
+            raise ValueError(FixedDiagnostic('duplicate github selector'))
+        result.append(selector)
+    return tuple(result)
 
 
 @dataclass(frozen=True)
@@ -24,6 +67,7 @@ class Watch:
     eol: bool
     latest_release: str | None = None
     release_tag_prefix: str | None = None
+    github: tuple[GitHubSelector, ...] = ()
 
 
 class WatchlistError(Exception):
@@ -82,6 +126,7 @@ def _watch(entry: dict) -> Watch:
     identities = tuple(_parse_identity(value) for value in matches)
     if any(not isinstance(value, str) or is_placeholder(value) for value in products):
         raise ValueError(FixedDiagnostic("product_only must contain non-placeholder product strings"))
+    github = _github_selectors(entry.get('github', []))
     if not identities and not products:
         raise ValueError(FixedDiagnostic("match or product_only must declare at least one identity"))
     eol = entry.get("eol", False)
@@ -98,7 +143,7 @@ def _watch(entry: dict) -> Watch:
             or latest is None):
         raise ValueError(FixedDiagnostic("release_tag_prefix is invalid"))
     return Watch(watch_id, name, identities, tuple(map(normalise_identity, products)),
-                 version, scheme, eol, latest, prefix)
+                 version, scheme, eol, latest, prefix, github)
 
 
 def load_document_text(text: str):
@@ -123,7 +168,7 @@ def load_document_text(text: str):
         try:
             if not isinstance(entry, dict):
                 raise ValueError(FixedDiagnostic("entry must be a table"))
-            unknown = entry.keys() - {"id", "name", "match", "product_only", "version", "scheme", "eol", "latest_release", "release_tag_prefix"}
+            unknown = entry.keys() - {"id", "name", "match", "product_only", "version", "scheme", "eol", "latest_release", "release_tag_prefix", "github"}
             if unknown:
                 problems.extend(f"{label}: unknown key" for key in sorted(unknown))
                 public_problems.extend(FixedDiagnostic(f"watch entry {number}: unknown key") for _ in unknown)

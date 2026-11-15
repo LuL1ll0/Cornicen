@@ -25,9 +25,11 @@ class OracleGeneratorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp)
             builder.build(output)
-            names = {p.name for p in original.glob('*.jsonl')}
-            self.assertEqual(names, {p.name for p in output.glob('*.jsonl')})
+            # Hand-authored scenarios (task 1's GitHub oracles) sit beside these
+            # but are not generator outputs; every generated file must match.
+            names = {p.name for p in output.glob('*.jsonl')}
             self.assertEqual(len(names), 26)
+            self.assertTrue(names <= {p.name for p in original.glob('*.jsonl')})
             for name in sorted(names):
                 with self.subTest(file=name):
                     self.assertEqual((original / name).read_bytes(), (output / name).read_bytes())
@@ -127,7 +129,10 @@ class OracleGeneratorTests(unittest.TestCase):
         def rows(name, kind='expected'):
             return [row for line in (root / f'{name}.{kind}.jsonl').read_text().splitlines()
                     if '#' not in (row := json.loads(line))]
-        for path in root.glob('*.expected.jsonl'):
+        with tempfile.TemporaryDirectory() as temp:
+            builder.build(Path(temp))
+            generated = sorted(Path(temp).glob('*.expected.jsonl'))
+        for path in generated:
             for row in rows(path.name.removesuffix('.expected.jsonl')):
                 state = row.get('state', {})
                 for key in ('classification', 'quarantine'):

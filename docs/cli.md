@@ -217,14 +217,14 @@ counted with a fixed documentation hint; their names are never shown. `watch che
 watch IDs, while suppressing paths and other private text. Operator inventory
 views are unchanged. See [privacy](privacy.md#command-failure-diagnostics).
 
-### Adapter maintenance (v0.2.0)
+### Adapter maintenance (v0.3.0)
 
 `cornicen adapter rebaseline NAME` re-enumerates the adapter's cached resources
 and staged work. It advances the current completeness cursor only after a
 complete result. Success acknowledges existing gap rows without deleting them;
 historical completeness continues to report the permanent gap. Existing event
 keys and pending notifications are preserved. Failure exits 1 and does not
-acknowledge the gap. No adapter is effective in v0.2.0; this local maintenance
+acknowledge the gap. No adapter is effective in v0.3.0; this local maintenance
 command does not enable one or fetch new resources.
 
 Text `status` shows each adapter's gate and installation setting, for example

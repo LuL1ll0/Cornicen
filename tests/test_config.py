@@ -1,3 +1,8 @@
+# script-purpose: Verify configuration defaults and validation.
+# script-class: harness
+# script-trigger: unittest discovery and make gate.
+# script-tests: tests/test_config.py
+"""Read test settings and write temporary files; unittest exits 0 success or 1 failure."""
 """Configuration defaults and secret sources."""
 
 from pathlib import Path
@@ -27,7 +32,7 @@ class ConfigTests(unittest.TestCase):
         self.assertIsNone(config.aliases_path)
         self.assertEqual(config.user_agent_overrides, {})
         self.assertEqual(config.user_agent,
-                         "Cornicen/0.2.0 (+https://github.com/<owner>/cornicen)")
+                         "Cornicen/0.3.0 (+https://github.com/<owner>/cornicen)")
 
     def test_overrides(self):
         config = self.load('''db_path = "state.db"

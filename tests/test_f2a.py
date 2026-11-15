@@ -43,7 +43,7 @@ def complete_memory_probe(count):
     reference = hashlib.sha256(b'[')
     for n in range(count):
         i = n
-        raw = m(n, id=f'FIX-2099-{n:07}', title='x'*1024)
+        raw = m(n, id=f'FIX-2099-{n:07}', title='x'*300, padding='x'*724)
         md = hashlib.sha256(json.dumps(raw, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()
         entry = json.dumps({'digest': md, 'source_id': raw['id']}, sort_keys=True, separators=(',', ':')).encode()
         reference.update((b',' if i else b'') + entry)
@@ -52,7 +52,7 @@ def complete_memory_probe(count):
         store = Store(Path(directory)/'state.db')
         store.migrate()
         p = AdapterStore(store, directory)
-        p.stage_members(S, 'listing.json', (m(n, id=f'FIX-2099-{n:07}', title='x'*1024) for n in range(count)), T)
+        p.stage_members(S, 'listing.json', (m(n, id=f'FIX-2099-{n:07}', title='x'*300, padding='x'*724) for n in range(count)), T)
         candidates = []
         state = p.commit_staged(S, 'listing.json', T, deferred=candidates)
         p._accept_batch(S, T, candidates)
@@ -143,9 +143,9 @@ class F2aTests(unittest.TestCase):
     def check_commit_path_bounded(self, count):
         def members():
             for n in range(count):
-                yield m(n, title='x'*1024)
+                yield m(n, title='x'*300, padding='x'*724)
             yield m(0,title='conflict')
-            yield m(1,title='x'*1024)
+            yield m(1,title='x'*300, padding='x'*724)
         self.p.stage_members(S,'listing.json',members(),T)
         tracemalloc.start()
         try:
@@ -366,7 +366,7 @@ class F2aTests(unittest.TestCase):
                 retry=self.db.execute("SELECT attempts,last_error FROM adapter_retries WHERE source=? AND resource='@dispatch'",(S,)).fetchone()
                 self.assertIsNotNone(retry)
                 self.assertEqual(retry['attempts'],attempt)
-                self.assertIn(phase+' broke',retry['last_error'])
+                self.assertEqual(retry['last_error'],'RuntimeError: adapter error')
                 self.assertEqual(self.rows('retry_queue'),[])
 
     def test_dispatch_gate(self):

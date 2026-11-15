@@ -29,10 +29,20 @@ distinct CVEs never merge. Facet numbers remain permanent across revisions.
 Fetch, completeness, publication freshness and audit timeliness are independent
 health dimensions. Every completed, intact unconditional HTTP 200 resets its
 resource audit timestamp, including content that later fails validation.
-Audits become due at seven days and unhealthy strictly after seven days.
+Audits become due at seven days. Independent sources become unhealthy at seven
+days; shared sources become unhealthy strictly after seven days.
 
 The schema adds eighteen tables without changing v1 columns. The
 [replay harness notes](../tests/replay_v11/README.md) document crash injection,
 the exact v1 projection, offline checks and known limits. Delivery remains
 at-least-once: a crash after sending but before recording acknowledgement can
 duplicate delivery ([design spec §1](spec.md#1-design-goals)).
+
+## GitHub repository advisories
+
+Gate G remains not met in 0.3.0. No transport is constructed while disabled.
+Explicit watch selectors consent to repository enumeration. The adapter sends
+unconditional listings, checks two consecutive traversals, and reconciles missing
+members with details. Local limits are 30 requests per cycle and 60 per rolling
+hour, shared across repositories; these cannot guarantee GitHub's shared IP budget.
+Each repository has independent coverage, retries and a seven-day audit clock.

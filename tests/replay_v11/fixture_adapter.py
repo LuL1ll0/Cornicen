@@ -1,7 +1,7 @@
 # script-purpose: Persist and classify invented raw fixture outcomes.
 # script-class: harness
 # script-trigger: tests/replay_v11/harness.py.
-# script-tests: tests/test_f1.py, tests/test_f2a.py, tests/test_f3a.py, tests/test_f3b.py, tests/replay_v11/test-harness.py
+# script-tests: tests/test_f1.py, tests/test_f2a.py, tests/test_f3a.py, tests/test_f3b.py, tests/replay_v11/test-harness.py, tests/test_task1_b2.py
 """Read replay actions; write temporary databases and staged files.
 
 Used by unittest discovery; exit codes are the parent runner's 0/1 status.
@@ -166,27 +166,27 @@ class ValidationBackend:
         if 'seed' in row:
             self.seed(row['seed'],row['t'])
         if 'adapter' in row:
-            self.pending[row['adapter']] = (row['result'], row['t'])
+            self.pending.setdefault(row['adapter'], []).append((row['result'], row['t']))
         if 'cycle' in row:
             classification = {}
             def dispatch():
                 for name in sorted(self.pending, key=lambda name: self.registry[name].position):
-                    raw, tick = self.pending[name]
-                    resources=[]
-                    for resource in raw['resources']:
-                        resource=dict(resource)
-                        # Map raw publisher metadata into the production clock contract.
-                        if self.registry[name].export and resource['status']==200:
-                            from cornicen import feedvalidate
-                            try:
-                                body=feedvalidate.decode_json(resource.get('body',''))
-                                if isinstance(body,dict) and 'generation' in body:
-                                    resource['publication_clock']=dict(value=body['generation'],provenance='publisher_generation')
-                            except ValueError:
-                                pass
-                        resources.append(resource)
-                    self.persistence.restore_health(name,tick)
-                    classification[name] = self.persistence.process(name,resources,tick,export=self.registry[name].export)
+                    for raw, tick in self.pending[name]:
+                        resources=[]
+                        for resource in raw['resources']:
+                            resource=dict(resource)
+                            # Map raw publisher metadata into the production clock contract.
+                            if self.registry[name].export and resource['status']==200:
+                                from cornicen import feedvalidate
+                                try:
+                                    body=feedvalidate.decode_json(resource.get('body',''))
+                                    if isinstance(body,dict) and 'generation' in body:
+                                        resource['publication_clock']=dict(value=body['generation'],provenance='publisher_generation')
+                                except ValueError:
+                                    pass
+                            resources.append(resource)
+                        self.persistence.restore_health(name,tick)
+                        classification[name] = self.persistence.process(name,resources,tick,export=self.registry[name].export)
                 for name in self.pending:
                     self.persistence.finish_cycle(name, row['t'], export=self.registry[name].export)
             # Invoke engine ingest/matching and delivery, leaving the unused v1

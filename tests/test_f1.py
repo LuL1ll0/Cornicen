@@ -227,7 +227,7 @@ class F1Tests(unittest.TestCase):
     def test_members_streamed(self):
         def members():
             for n in range(200000):
-                yield member() | {'id': f'FIX-2099-{n:06}', 'title': 'x' * 1024}
+                yield member() | {'id': f'FIX-2099-{n:06}', 'title': 'x' * 300, 'padding': 'x' * 724}
         tracemalloc.start()
         try:
             result = v.validate_members(members(), source='fixture_a', observed_at=T)

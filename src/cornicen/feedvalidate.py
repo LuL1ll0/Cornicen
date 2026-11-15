@@ -1,7 +1,7 @@
 # script-purpose: Validate shared feed boundaries and normalize advisory evidence.
 # script-class: pipeline-tool
 # script-trigger: Adapter resource and member ingestion.
-# script-tests: tests/test_f1.py, tests/test_f3a.py, tests/test_f3b.py
+# script-tests: tests/test_f1.py, tests/test_f3a.py, tests/test_f3b.py, tests/test_task1_a.py, tests/test_task1_b1.py, tests/test_task1_b2.py
 """Read raw feed objects; return validated records without writing files.
 
 Library API with no process exit codes; invalid inputs raise ValueError.
@@ -124,6 +124,12 @@ def _string_list(value):
     return isinstance(value, list) and all(isinstance(item, str) for item in value)
 
 
+def _advisory_text(value, cap):
+    if isinstance(value, str) and (len(value) > cap or any(
+            unicodedata.category(c) in ('Cc', 'Cf') for c in value)):
+        raise _error('unsafe advisory text')
+
+
 def _validate_evidence(evidence_rows, products):
     for evidence in evidence_rows:
         if not isinstance(evidence, dict):
@@ -135,6 +141,8 @@ def _validate_evidence(evidence_rows, products):
         for field in ('release', 'platform', 'fix', 'first_fixed'):
             if evidence.get(field) is not None and not isinstance(evidence[field], str):
                 raise _error('invalid advisory evidence field type')
+        for field in ('fix', 'first_fixed'):
+            _advisory_text(evidence.get(field), 200)
         if not isinstance(evidence.get('product_id'), str) or evidence['product_id'] not in products:
             raise _error('unresolved advisory product reference')
         if evidence.get('status') not in ('known_affected', 'known_not_affected', 'under_investigation', 'first_fixed'):
@@ -148,7 +156,13 @@ def _validate_evidence(evidence_rows, products):
 def validate_advisory(raw, *, source, observed_at, input_path='', date_fields=None):
     if not isinstance(raw, dict):
         raise _error('advisory must be an object')
+    if 'mapping_error' in raw:
+        raise _error('advisory mapping failed')
+    if 'retraction' in raw and raw['retraction'] != 'administrative':
+        raise _error('invalid advisory retraction')
     identity = source_id(raw.get('id'))
+    _advisory_text(raw.get('url'), 2000)
+    _advisory_text(raw.get('title'), 300)
     url = display_url(raw.get('url'))
     if not isinstance(raw.get('title'), str) or not raw['title'].strip():
         raise _error('advisory requires a title')
@@ -201,6 +215,7 @@ def validate_advisory(raw, *, source, observed_at, input_path='', date_fields=No
                 any(g not in groups for g in remediation.get('group_ids', [])) or
                 any(p not in products for p in remediation.get('product_ids', []))):
             raise _error('unresolved advisory remediation reference')
+        _advisory_text(remediation.get('version'), 200)
     if any(not isinstance(cve, str) or not re.fullmatch(r'CVE-[0-9]{4}-[0-9]{4,}', cve) for cve in raw['cves']):
         raise _error('invalid advisory CVE relationship')
     for association in raw.get('associations', []):
@@ -235,6 +250,7 @@ def validate_advisory(raw, *, source, observed_at, input_path='', date_fields=No
         facet['cves'] = values
         if 'title' in facet and not isinstance(facet['title'], str):
             raise _error('invalid facet title')
+        _advisory_text(facet.get('title'), 300)
         ids = facet.get('ids', [])
         if not isinstance(ids, list) or any(not isinstance(i, dict) or
                 any(not isinstance(k, str) or not isinstance(v, str) for k, v in i.items()) for i in ids):
@@ -272,6 +288,8 @@ def validate_advisory(raw, *, source, observed_at, input_path='', date_fields=No
                 provenance=dict(input_path=input_path, field_path='$', alias_map_version=None),
                 products=raw['products'], evidence=raw['evidence'], **{'dates': dates})
     data['withdrawn'] = dates.get('withdrawn')
+    if 'retraction' in raw:
+        data['retraction'] = raw['retraction']
     for key in ('associations', 'product_groups', 'remediations'):
         data[key] = raw.get(key, [])
     return ValidatedAdvisory(data, _token=_VALIDATED)
@@ -289,7 +307,8 @@ def validate_members(members, *, source, observed_at, input_path='', date_fields
                 result.classification = 'PARTIAL'
                 try:
                     key = source_id(raw.get('id') if isinstance(raw, dict) else None)
-                    reason = str(error)
+                    from cornicen.adapterstore import safe_detail
+                    reason = safe_detail(error)
                 except ValueError:
                     key = '@invalid:' + sha256(json.dumps(raw, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()
                     reason = 'invalid id'
@@ -304,7 +323,7 @@ def validate_members(members, *, source, observed_at, input_path='', date_fields
 def validate_resource(resource, *, source, observed_at, prior_count=0, date_fields=None):
     """Classify raw transport/envelope; callers must exhaust records before use."""
     empty = lambda state: AdapterResult(iter(()), state)
-    if resource['status'] < 200 or resource['status'] >= 300:
+    if resource.get('invalid_envelope') or resource['status'] < 200 or resource['status'] >= 300:
         return empty('FAILED')
     if not resource.get('transfer_complete', True) or resource.get('integrity', 'intact') == 'pending':
         return empty('PARTIAL')

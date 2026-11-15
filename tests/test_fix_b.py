@@ -1,4 +1,11 @@
-"""Offline regressions for public-source egress and resource budgets."""
+# script-purpose: Verify public transport egress and bounded resource downloads.
+# script-class: harness
+# script-trigger: unittest discovery and make gate.
+# script-tests: tests/test_fix_b.py
+"""Read invented HTTP outcomes; write temporary offline downloads and settings.
+
+Run through unittest; exit 0 on success, 1 on failure.
+"""
 
 from datetime import datetime, timezone
 import gzip
@@ -202,6 +209,7 @@ class DownloadTests(unittest.TestCase):
     def test_defaults_and_config_overrides(self):
         from cornicen.config import DOWNLOAD_BUDGETS
         self.assertEqual(DOWNLOAD_BUDGETS, {
+            'github_advisories': {'max_bytes': 8 * 1024**2, 'deadline_seconds': 60},
             'cvelist_snapshot': {'max_bytes': 2 * 1024**3, 'deadline_seconds': 2700},
             'cvelist_delta': {'max_bytes': 200 * 1024**2, 'deadline_seconds': 300},
             'kev': {'max_bytes': 20 * 1024**2, 'deadline_seconds': 300},

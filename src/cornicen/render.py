@@ -1,7 +1,7 @@
 # script-purpose: Render plain notification text for delivery adapters.
 # script-class: pipeline-tool
 # script-trigger: Notification delivery and digest rendering.
-# script-tests: tests/test_render_urgency.py, tests/test_f3a.py
+# script-tests: tests/test_render_urgency.py, tests/test_f3a.py, tests/test_task1_a.py
 """Read notifications; return text without writing files. Library API, no exit codes."""
 
 from datetime import datetime, timezone
@@ -136,7 +136,8 @@ def render(n: Notification) -> tuple[str, str, int, list[str]]:
     state = body.get('state', 'unknown').replace('_', ' ')
     lines.append(f'Match: {body.get("evidence", "evidence unknown")} — {state}')
     if body.get('fix'):
-        lines.append('Fix: ' + body['fix'])
+        lines.append('Fix: ' + ''.join(
+            char for char in body['fix'] if not unicodedata.category(char).startswith('C')))
     if n.record_id.startswith('advisory:'):
         url = body.get('advisory_url') or body.get('url')
         if url:

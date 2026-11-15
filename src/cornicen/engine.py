@@ -1,7 +1,7 @@
 # script-purpose: Evaluate local feed evidence and deliver durable notifications.
 # script-class: pipeline-tool
 # script-trigger: Cornicen scheduler cycles and local command paths.
-# script-tests: tests/test_engine.py, tests/test_f3a.py, tests/test_f3b.py, tests/test_r11_differential.py, tests/test_r11_shells.py, tests/test_r11_integration.py
+# script-tests: tests/test_engine.py, tests/test_f3a.py, tests/test_f3b.py, tests/test_r11_differential.py, tests/test_r11_shells.py, tests/test_r11_integration.py, tests/test_task1_b1.py, tests/test_task1_b2.py
 """Read feed results and stored evidence; write SQLite state and notification outbox.
 
 Library API with no process exit codes; callers report operational failures.
@@ -27,7 +27,7 @@ from cornicen.store import record_ssvc
 from cornicen.scheduler import redact_tokens, safe_message
 from cornicen.outbox import deliver
 from cornicen.store import Store, TransactionAborted
-from cornicen.watchlist import Watch
+from cornicen.watchlist import Watch, GitHubSelector
 from cornicen.versions import Scheme
 
 
@@ -77,7 +77,8 @@ class Engine:
         from cornicen.adapters import REGISTRY
         from cornicen.adapterstore import AdapterStore
         registry = REGISTRY if registry is None else registry
-        factories = {} if factories is None else factories
+        from cornicen.adapterfactories import production_factories
+        factories = production_factories(self) if factories is None else factories
         persistence = AdapterStore(self.store, Path(self.config.db_path).parent, on_record=self.commit_advisory,
                                    on_unknown=self.observe_unknown_advisory)
         return persistence.dispatch(registry, self.config.adapters, factories,
@@ -111,7 +112,8 @@ class Engine:
             elif saved != canonical or aliases_changed or revision_changed:
                 # Missing metadata on an older DB requires a full re-match too.
                 self.watches = tuple(Watch(**dict(w, match=tuple(map(tuple, w['match'])),
-                    product_only=tuple(w['product_only']), scheme=Scheme(w['scheme'])))
+                    product_only=tuple(w['product_only']), scheme=Scheme(w['scheme']),
+                    github=tuple(GitHubSelector(**g) for g in w.get('github', []))))
                     for w in json.loads(saved)) if saved else ()
                 previous_ids = ({row[0] for row in self.db.execute('SELECT DISTINCT watch_id FROM pairs')}
                                 if saved is None else None)
@@ -207,8 +209,10 @@ class Engine:
 
     @staticmethod
     def _canonical_watches(watches):
-        return json.dumps([{k: v for k, v in asdict(w).items()
-                            if k not in ('latest_release', 'release_tag_prefix') or v is not None}
+        return json.dumps([{k: v for k, v in dict(asdict(w), github=[asdict(g) for g in sorted(w.github,
+                                key=lambda g: (g.repository, g.ecosystem, g.package))]).items()
+                            if (k not in ('latest_release', 'release_tag_prefix') or v is not None)
+                            and (k != 'github' or v)}
                            for w in sorted(watches, key=lambda w: w.id)],
                           sort_keys=True, separators=(',', ':'))
 
@@ -333,14 +337,14 @@ class Engine:
                                   (data['source'], data['source_id'])).fetchone() or ['1'])[0],
                  data['digest'], canonical(data),
                  data['observed_at'], data['published'], data['updated'],
-                 'withdrawn' if data.get('withdrawn') else 'active'))
+                 'withdrawn' if advisory.retracted(data) else 'active'))
             previous = {r[0] for r in self.db.execute(
                 'SELECT identity FROM advisory_evidence WHERE source=? AND source_id=?',
                 (data['source'], data['source_id']))}
             advisory.write_evidence(self.db, data, baseline)
             parent = advisory.parent_id(data)
             for facet in advisory.facet_records(data):
-                if len(facet['cves']) == 1 and not data.get('withdrawn'):
+                if len(facet['cves']) == 1 and not advisory.retracted(data):
                     provisional = advisory.parent_id(facet)
                     target = facet['cves'][0]['value']
                     # A sole-CVE revision can replace membership without
@@ -913,7 +917,7 @@ class Engine:
             if watch is None:
                 return None
             # Preserve existing reload behavior for CVE configuration and labels.
-            return (watch.name, watch.match, watch.product_only, watch.version, watch.scheme, watch.eol)
+            return (watch.name, watch.match, watch.product_only, watch.version, watch.scheme, watch.eol, watch.github)
         changed = tuple(watch for watch in watches if force_all or alias_changed
                         or matching_fields(previous.get(watch.id)) != matching_fields(watch))
         self.watches = watches

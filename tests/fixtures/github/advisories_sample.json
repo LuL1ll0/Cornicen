@@ -1,0 +1,601 @@
+[
+  {
+    "author": null,
+    "closed_at": null,
+    "collaborating_teams": null,
+    "collaborating_users": null,
+    "comments": 0,
+    "created_at": null,
+    "credits": [
+      {
+        "login": "example-user-20",
+        "type": "reporter"
+      }
+    ],
+    "credits_detailed": [
+      {
+        "state": "accepted",
+        "type": "reporter",
+        "user": {
+          "avatar_url": "https://avatars.example.invalid/u/20",
+          "events_url": "https://api.github.com/users/example-user-20/events{/privacy}",
+          "followers_url": "https://api.github.com/users/example-user-20/followers",
+          "following_url": "https://api.github.com/users/example-user-20/following{/other_user}",
+          "gists_url": "https://api.github.com/users/example-user-20/gists{/gist_id}",
+          "gravatar_id": "",
+          "html_url": "https://github.com/example-user-20",
+          "id": 900020,
+          "login": "example-user-20",
+          "node_id": "U_example20",
+          "organizations_url": "https://api.github.com/users/example-user-20/orgs",
+          "received_events_url": "https://api.github.com/users/example-user-20/received_events",
+          "repos_url": "https://api.github.com/users/example-user-20/repos",
+          "site_admin": false,
+          "starred_url": "https://api.github.com/users/example-user-20/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/example-user-20/subscriptions",
+          "type": "User",
+          "url": "https://api.github.com/users/example-user-20",
+          "user_view_type": "public"
+        }
+      }
+    ],
+    "cve_id": null,
+    "cvss": {
+      "score": 3.8,
+      "vector_string": "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:L/I:L/A:N"
+    },
+    "cvss_severities": {
+      "cvss_v3": {
+        "score": 3.8,
+        "vector_string": "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:L/I:L/A:N"
+      },
+      "cvss_v4": {
+        "score": null,
+        "vector_string": null
+      }
+    },
+    "cwe_ids": [
+      "CWE-20",
+      "CWE-20"
+    ],
+    "cwes": [
+      {
+        "cwe_id": "CWE-20",
+        "name": "Improper Input Validation"
+      },
+      {
+        "cwe_id": "CWE-20",
+        "name": "Improper Input Validation"
+      }
+    ],
+    "description": "Invented description 1. A request to the widget-engine admin API is handled unsafely.",
+    "ghsa_id": "GHSA-9gmr-x47c-hpv2",
+    "html_url": "https://github.com/examplecorp/widget-engine/security/advisories/GHSA-9gmr-x47c-hpv2",
+    "identifiers": [
+      {
+        "type": "GHSA",
+        "value": "GHSA-9gmr-x47c-hpv2"
+      }
+    ],
+    "private_fork": null,
+    "published_at": "2099-02-11T01:00:00Z",
+    "publisher": {
+      "avatar_url": "https://avatars.example.invalid/u/1",
+      "events_url": "https://api.github.com/users/example-user-1/events{/privacy}",
+      "followers_url": "https://api.github.com/users/example-user-1/followers",
+      "following_url": "https://api.github.com/users/example-user-1/following{/other_user}",
+      "gists_url": "https://api.github.com/users/example-user-1/gists{/gist_id}",
+      "gravatar_id": "",
+      "html_url": "https://github.com/example-user-1",
+      "id": 900001,
+      "login": "example-user-1",
+      "node_id": "U_example1",
+      "organizations_url": "https://api.github.com/users/example-user-1/orgs",
+      "received_events_url": "https://api.github.com/users/example-user-1/received_events",
+      "repos_url": "https://api.github.com/users/example-user-1/repos",
+      "site_admin": false,
+      "starred_url": "https://api.github.com/users/example-user-1/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/example-user-1/subscriptions",
+      "type": "User",
+      "url": "https://api.github.com/users/example-user-1",
+      "user_view_type": "public"
+    },
+    "severity": "medium",
+    "state": "published",
+    "submission": null,
+    "summary": "Invented advisory 1: input handling flaw in widget-engine",
+    "updated_at": "2099-02-11T01:00:00Z",
+    "url": "https://api.github.com/repos/examplecorp/widget-engine/security-advisories/GHSA-9gmr-x47c-hpv2",
+    "vulnerabilities": [
+      {
+        "package": {
+          "ecosystem": "other",
+          "name": "examplecorp/widget-engine"
+        },
+        "patched_versions": "2099.8",
+        "vulnerable_functions": [],
+        "vulnerable_version_range": "<= 2099.7.1"
+      }
+    ],
+    "withdrawn_at": null
+  },
+  {
+    "author": null,
+    "closed_at": null,
+    "collaborating_teams": null,
+    "collaborating_users": null,
+    "comments": 2,
+    "created_at": null,
+    "credits": [
+      {
+        "login": "example-user-30",
+        "type": "reporter"
+      }
+    ],
+    "credits_detailed": [
+      {
+        "state": "accepted",
+        "type": "reporter",
+        "user": {
+          "avatar_url": "https://avatars.example.invalid/u/30",
+          "events_url": "https://api.github.com/users/example-user-30/events{/privacy}",
+          "followers_url": "https://api.github.com/users/example-user-30/followers",
+          "following_url": "https://api.github.com/users/example-user-30/following{/other_user}",
+          "gists_url": "https://api.github.com/users/example-user-30/gists{/gist_id}",
+          "gravatar_id": "",
+          "html_url": "https://github.com/example-user-30",
+          "id": 900030,
+          "login": "example-user-30",
+          "node_id": "U_example30",
+          "organizations_url": "https://api.github.com/users/example-user-30/orgs",
+          "received_events_url": "https://api.github.com/users/example-user-30/received_events",
+          "repos_url": "https://api.github.com/users/example-user-30/repos",
+          "site_admin": false,
+          "starred_url": "https://api.github.com/users/example-user-30/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/example-user-30/subscriptions",
+          "type": "User",
+          "url": "https://api.github.com/users/example-user-30",
+          "user_view_type": "public"
+        }
+      }
+    ],
+    "cve_id": null,
+    "cvss": {
+      "score": null,
+      "vector_string": null
+    },
+    "cvss_severities": {
+      "cvss_v3": {
+        "score": null,
+        "vector_string": null
+      },
+      "cvss_v4": {
+        "score": null,
+        "vector_string": null
+      }
+    },
+    "cwe_ids": [
+      "CWE-20"
+    ],
+    "cwes": [
+      {
+        "cwe_id": "CWE-20",
+        "name": "Improper Input Validation"
+      }
+    ],
+    "description": "Invented description 2. A request to the widget-engine admin API is handled unsafely.",
+    "ghsa_id": "GHSA-pv25-8fjq-w369",
+    "html_url": "https://github.com/examplecorp/widget-engine/security/advisories/GHSA-pv25-8fjq-w369",
+    "identifiers": [
+      {
+        "type": "GHSA",
+        "value": "GHSA-pv25-8fjq-w369"
+      }
+    ],
+    "private_fork": null,
+    "published_at": "2099-03-12T02:00:00Z",
+    "publisher": {
+      "avatar_url": "https://avatars.example.invalid/u/1",
+      "events_url": "https://api.github.com/users/example-user-1/events{/privacy}",
+      "followers_url": "https://api.github.com/users/example-user-1/followers",
+      "following_url": "https://api.github.com/users/example-user-1/following{/other_user}",
+      "gists_url": "https://api.github.com/users/example-user-1/gists{/gist_id}",
+      "gravatar_id": "",
+      "html_url": "https://github.com/example-user-1",
+      "id": 900001,
+      "login": "example-user-1",
+      "node_id": "U_example1",
+      "organizations_url": "https://api.github.com/users/example-user-1/orgs",
+      "received_events_url": "https://api.github.com/users/example-user-1/received_events",
+      "repos_url": "https://api.github.com/users/example-user-1/repos",
+      "site_admin": false,
+      "starred_url": "https://api.github.com/users/example-user-1/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/example-user-1/subscriptions",
+      "type": "User",
+      "url": "https://api.github.com/users/example-user-1",
+      "user_view_type": "public"
+    },
+    "severity": "low",
+    "state": "published",
+    "submission": null,
+    "summary": "Invented advisory 2: input handling flaw in widget-engine",
+    "updated_at": "2099-03-12T02:00:00Z",
+    "url": "https://api.github.com/repos/examplecorp/widget-engine/security-advisories/GHSA-pv25-8fjq-w369",
+    "vulnerabilities": [
+      {
+        "package": {
+          "ecosystem": "other",
+          "name": "examplecorp/widget-engine"
+        },
+        "patched_versions": "2099.8",
+        "vulnerable_functions": [],
+        "vulnerable_version_range": "<= 2099.7.1"
+      }
+    ],
+    "withdrawn_at": null
+  },
+  {
+    "author": null,
+    "closed_at": null,
+    "collaborating_teams": null,
+    "collaborating_users": null,
+    "comments": 0,
+    "created_at": null,
+    "credits": [
+      {
+        "login": "example-user-40",
+        "type": "reporter"
+      }
+    ],
+    "credits_detailed": [
+      {
+        "state": "accepted",
+        "type": "reporter",
+        "user": {
+          "avatar_url": "https://avatars.example.invalid/u/40",
+          "events_url": "https://api.github.com/users/example-user-40/events{/privacy}",
+          "followers_url": "https://api.github.com/users/example-user-40/followers",
+          "following_url": "https://api.github.com/users/example-user-40/following{/other_user}",
+          "gists_url": "https://api.github.com/users/example-user-40/gists{/gist_id}",
+          "gravatar_id": "",
+          "html_url": "https://github.com/example-user-40",
+          "id": 900040,
+          "login": "example-user-40",
+          "node_id": "U_example40",
+          "organizations_url": "https://api.github.com/users/example-user-40/orgs",
+          "received_events_url": "https://api.github.com/users/example-user-40/received_events",
+          "repos_url": "https://api.github.com/users/example-user-40/repos",
+          "site_admin": false,
+          "starred_url": "https://api.github.com/users/example-user-40/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/example-user-40/subscriptions",
+          "type": "User",
+          "url": "https://api.github.com/users/example-user-40",
+          "user_view_type": "public"
+        }
+      }
+    ],
+    "cve_id": null,
+    "cvss": {
+      "score": 3.8,
+      "vector_string": "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:L/I:L/A:N"
+    },
+    "cvss_severities": {
+      "cvss_v3": {
+        "score": 3.8,
+        "vector_string": "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:L/I:L/A:N"
+      },
+      "cvss_v4": {
+        "score": null,
+        "vector_string": null
+      }
+    },
+    "cwe_ids": [
+      "CWE-20"
+    ],
+    "cwes": [
+      {
+        "cwe_id": "CWE-20",
+        "name": "Improper Input Validation"
+      }
+    ],
+    "description": "Invented description 3. A request to the widget-engine admin API is handled unsafely.",
+    "ghsa_id": "GHSA-369g-mrx4-7chp",
+    "html_url": "https://github.com/examplecorp/widget-engine/security/advisories/GHSA-369g-mrx4-7chp",
+    "identifiers": [
+      {
+        "type": "GHSA",
+        "value": "GHSA-369g-mrx4-7chp"
+      }
+    ],
+    "private_fork": null,
+    "published_at": "2099-04-13T03:00:00Z",
+    "publisher": {
+      "avatar_url": "https://avatars.example.invalid/u/1",
+      "events_url": "https://api.github.com/users/example-user-1/events{/privacy}",
+      "followers_url": "https://api.github.com/users/example-user-1/followers",
+      "following_url": "https://api.github.com/users/example-user-1/following{/other_user}",
+      "gists_url": "https://api.github.com/users/example-user-1/gists{/gist_id}",
+      "gravatar_id": "",
+      "html_url": "https://github.com/example-user-1",
+      "id": 900001,
+      "login": "example-user-1",
+      "node_id": "U_example1",
+      "organizations_url": "https://api.github.com/users/example-user-1/orgs",
+      "received_events_url": "https://api.github.com/users/example-user-1/received_events",
+      "repos_url": "https://api.github.com/users/example-user-1/repos",
+      "site_admin": false,
+      "starred_url": "https://api.github.com/users/example-user-1/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/example-user-1/subscriptions",
+      "type": "User",
+      "url": "https://api.github.com/users/example-user-1",
+      "user_view_type": "public"
+    },
+    "severity": "medium",
+    "state": "published",
+    "submission": null,
+    "summary": "Invented advisory 3: input handling flaw in widget-engine",
+    "updated_at": "2099-04-13T03:00:00Z",
+    "url": "https://api.github.com/repos/examplecorp/widget-engine/security-advisories/GHSA-369g-mrx4-7chp",
+    "vulnerabilities": [
+      {
+        "package": {
+          "ecosystem": "other",
+          "name": "examplecorp/widget-engine"
+        },
+        "patched_versions": "2099.8",
+        "vulnerable_functions": [],
+        "vulnerable_version_range": "<= 2099.7.1"
+      }
+    ],
+    "withdrawn_at": null
+  },
+  {
+    "author": null,
+    "closed_at": null,
+    "collaborating_teams": null,
+    "collaborating_users": null,
+    "comments": 3,
+    "created_at": null,
+    "credits": [
+      {
+        "login": "example-user-50",
+        "type": "reporter"
+      }
+    ],
+    "credits_detailed": [
+      {
+        "state": "accepted",
+        "type": "reporter",
+        "user": {
+          "avatar_url": "https://avatars.example.invalid/u/50",
+          "events_url": "https://api.github.com/users/example-user-50/events{/privacy}",
+          "followers_url": "https://api.github.com/users/example-user-50/followers",
+          "following_url": "https://api.github.com/users/example-user-50/following{/other_user}",
+          "gists_url": "https://api.github.com/users/example-user-50/gists{/gist_id}",
+          "gravatar_id": "",
+          "html_url": "https://github.com/example-user-50",
+          "id": 900050,
+          "login": "example-user-50",
+          "node_id": "U_example50",
+          "organizations_url": "https://api.github.com/users/example-user-50/orgs",
+          "received_events_url": "https://api.github.com/users/example-user-50/received_events",
+          "repos_url": "https://api.github.com/users/example-user-50/repos",
+          "site_admin": false,
+          "starred_url": "https://api.github.com/users/example-user-50/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/example-user-50/subscriptions",
+          "type": "User",
+          "url": "https://api.github.com/users/example-user-50",
+          "user_view_type": "public"
+        }
+      }
+    ],
+    "cve_id": null,
+    "cvss": {
+      "score": 3.8,
+      "vector_string": "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:L/I:L/A:N"
+    },
+    "cvss_severities": {
+      "cvss_v3": {
+        "score": 3.8,
+        "vector_string": "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:L/I:L/A:N"
+      },
+      "cvss_v4": {
+        "score": null,
+        "vector_string": null
+      }
+    },
+    "cwe_ids": [
+      "CWE-20",
+      "CWE-20",
+      "CWE-20"
+    ],
+    "cwes": [
+      {
+        "cwe_id": "CWE-20",
+        "name": "Improper Input Validation"
+      },
+      {
+        "cwe_id": "CWE-20",
+        "name": "Improper Input Validation"
+      },
+      {
+        "cwe_id": "CWE-20",
+        "name": "Improper Input Validation"
+      }
+    ],
+    "description": "Invented description 4. A request to the widget-engine admin API is handled unsafely.",
+    "ghsa_id": "GHSA-chpv-258f-jqw3",
+    "html_url": "https://github.com/examplecorp/widget-engine/security/advisories/GHSA-chpv-258f-jqw3",
+    "identifiers": [
+      {
+        "type": "GHSA",
+        "value": "GHSA-chpv-258f-jqw3"
+      }
+    ],
+    "private_fork": null,
+    "published_at": "2099-05-14T04:00:00Z",
+    "publisher": {
+      "avatar_url": "https://avatars.example.invalid/u/1",
+      "events_url": "https://api.github.com/users/example-user-1/events{/privacy}",
+      "followers_url": "https://api.github.com/users/example-user-1/followers",
+      "following_url": "https://api.github.com/users/example-user-1/following{/other_user}",
+      "gists_url": "https://api.github.com/users/example-user-1/gists{/gist_id}",
+      "gravatar_id": "",
+      "html_url": "https://github.com/example-user-1",
+      "id": 900001,
+      "login": "example-user-1",
+      "node_id": "U_example1",
+      "organizations_url": "https://api.github.com/users/example-user-1/orgs",
+      "received_events_url": "https://api.github.com/users/example-user-1/received_events",
+      "repos_url": "https://api.github.com/users/example-user-1/repos",
+      "site_admin": false,
+      "starred_url": "https://api.github.com/users/example-user-1/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/example-user-1/subscriptions",
+      "type": "User",
+      "url": "https://api.github.com/users/example-user-1",
+      "user_view_type": "public"
+    },
+    "severity": "medium",
+    "state": "published",
+    "submission": null,
+    "summary": "Invented advisory 4: input handling flaw in widget-engine",
+    "updated_at": "2099-05-14T04:00:00Z",
+    "url": "https://api.github.com/repos/examplecorp/widget-engine/security-advisories/GHSA-chpv-258f-jqw3",
+    "vulnerabilities": [
+      {
+        "package": {
+          "ecosystem": "other",
+          "name": "examplecorp/widget-engine"
+        },
+        "patched_versions": "2099.8",
+        "vulnerable_functions": [],
+        "vulnerable_version_range": "<= 2099.7.1"
+      }
+    ],
+    "withdrawn_at": null
+  },
+  {
+    "author": null,
+    "closed_at": null,
+    "collaborating_teams": null,
+    "collaborating_users": null,
+    "comments": 1,
+    "created_at": null,
+    "credits": [
+      {
+        "login": "example-user-60",
+        "type": "reporter"
+      }
+    ],
+    "credits_detailed": [
+      {
+        "state": "accepted",
+        "type": "reporter",
+        "user": {
+          "avatar_url": "https://avatars.example.invalid/u/60",
+          "events_url": "https://api.github.com/users/example-user-60/events{/privacy}",
+          "followers_url": "https://api.github.com/users/example-user-60/followers",
+          "following_url": "https://api.github.com/users/example-user-60/following{/other_user}",
+          "gists_url": "https://api.github.com/users/example-user-60/gists{/gist_id}",
+          "gravatar_id": "",
+          "html_url": "https://github.com/example-user-60",
+          "id": 900060,
+          "login": "example-user-60",
+          "node_id": "U_example60",
+          "organizations_url": "https://api.github.com/users/example-user-60/orgs",
+          "received_events_url": "https://api.github.com/users/example-user-60/received_events",
+          "repos_url": "https://api.github.com/users/example-user-60/repos",
+          "site_admin": false,
+          "starred_url": "https://api.github.com/users/example-user-60/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/example-user-60/subscriptions",
+          "type": "User",
+          "url": "https://api.github.com/users/example-user-60",
+          "user_view_type": "public"
+        }
+      }
+    ],
+    "cve_id": null,
+    "cvss": {
+      "score": 3.8,
+      "vector_string": "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:L/I:L/A:N"
+    },
+    "cvss_severities": {
+      "cvss_v3": {
+        "score": 3.8,
+        "vector_string": "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:L/I:L/A:N"
+      },
+      "cvss_v4": {
+        "score": null,
+        "vector_string": null
+      }
+    },
+    "cwe_ids": [
+      "CWE-20"
+    ],
+    "cwes": [
+      {
+        "cwe_id": "CWE-20",
+        "name": "Improper Input Validation"
+      }
+    ],
+    "description": "Invented description 5. A request to the widget-engine admin API is handled unsafely.",
+    "ghsa_id": "GHSA-qw36-9gmr-x47c",
+    "html_url": "https://github.com/examplecorp/widget-engine/security/advisories/GHSA-qw36-9gmr-x47c",
+    "identifiers": [
+      {
+        "type": "GHSA",
+        "value": "GHSA-qw36-9gmr-x47c"
+      }
+    ],
+    "private_fork": null,
+    "published_at": "2099-06-15T05:00:00Z",
+    "publisher": {
+      "avatar_url": "https://avatars.example.invalid/u/1",
+      "events_url": "https://api.github.com/users/example-user-1/events{/privacy}",
+      "followers_url": "https://api.github.com/users/example-user-1/followers",
+      "following_url": "https://api.github.com/users/example-user-1/following{/other_user}",
+      "gists_url": "https://api.github.com/users/example-user-1/gists{/gist_id}",
+      "gravatar_id": "",
+      "html_url": "https://github.com/example-user-1",
+      "id": 900001,
+      "login": "example-user-1",
+      "node_id": "U_example1",
+      "organizations_url": "https://api.github.com/users/example-user-1/orgs",
+      "received_events_url": "https://api.github.com/users/example-user-1/received_events",
+      "repos_url": "https://api.github.com/users/example-user-1/repos",
+      "site_admin": false,
+      "starred_url": "https://api.github.com/users/example-user-1/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/example-user-1/subscriptions",
+      "type": "User",
+      "url": "https://api.github.com/users/example-user-1",
+      "user_view_type": "public"
+    },
+    "severity": "medium",
+    "state": "published",
+    "submission": null,
+    "summary": "Invented advisory 5: input handling flaw in widget-engine",
+    "updated_at": "2099-06-15T05:00:00Z",
+    "url": "https://api.github.com/repos/examplecorp/widget-engine/security-advisories/GHSA-qw36-9gmr-x47c",
+    "vulnerabilities": [
+      {
+        "package": {
+          "ecosystem": "other",
+          "name": "Widget Core"
+        },
+        "patched_versions": "2099.5",
+        "vulnerable_functions": [],
+        "vulnerable_version_range": "<= 2099.4.3"
+      },
+      {
+        "package": {
+          "ecosystem": "other",
+          "name": "Widget Engine"
+        },
+        "patched_versions": "2099.8",
+        "vulnerable_functions": [],
+        "vulnerable_version_range": "<= 2099.7.1"
+      }
+    ],
+    "withdrawn_at": null
+  }
+]

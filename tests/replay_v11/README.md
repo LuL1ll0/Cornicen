@@ -481,7 +481,9 @@ Only these recovery-dependent values are normalized:
   `stamp(instant(failure_tick) + timedelta(seconds=returned_wait))` exactly;
   the failure tick must be no later than the harness clock. Compare the failure
   tick in place of the jittered deadline. Subtract only retry increments that
-  survived rollback of the interrupted action from the attempt count; require
+  survived rollback of the interrupted action from the attempt count, bounded
+  by the calls for that source/resource that returned normally in that action
+  (otherwise fail with `unwitnessed retry increment`); require
   the remaining count to be positive and compare it exactly to the uninterrupted
   count. Source, resource and last error still compare exactly.
 - `epss_crossings`: at engine initialization and action boundaries, remember only complete row tuples
@@ -542,7 +544,6 @@ These paths are unreachable while no adapter is effective.
 - An orphaned shell can remain after a withdrawn staged acceptance.
 - `reconcile_facets` adds `facets: []`, `facet_next` (and `identity_history` after a withdrawal) to stored advisory JSON.
 - The M2 structural test skips the `_retry_records` local apply.
-- Crash comparison: the retry normalisation accepts any increase in a persisted attempt count at the crash boundary as an interrupted retry. It does not yet check the increase against the retry calls the harness witnessed, so corruption of the attempt count made during the crash window is not detected. Deadlines, staged files and crossing rows are compared exactly.
 - Harness limits: an `AssertionError` inside a callback is indistinguishable from a harness one; `validate_identities` ignores title strings; the `late_identity` restart row asserts nothing new; the generator hard-codes `stale`; 206 scenario reruns; the F1 guard's prior-membership map sees only seeds and earlier raw inputs.
 
 

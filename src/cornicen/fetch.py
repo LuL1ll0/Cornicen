@@ -1,4 +1,12 @@
-"""Bounded public-feed HTTP, with source policy enforced at every request hop."""
+# script-purpose: Fetch bounded public resources under per-source transport policies.
+# script-class: pipeline-tool
+# script-trigger: Public feed and adapter HTTP requests.
+# script-tests: tests/test_task1_b1.py
+"""Bounded public-feed HTTP, with source policy enforced at every request hop.
+
+Reads public HTTP responses and configuration; writes requested temporary downloads.
+Library API with no process exit codes; request failures raise exceptions.
+"""
 
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -21,6 +29,7 @@ from cornicen.config import SecretToken, download_budgets as _download_budgets
 MAX_BODY_BYTES = 64 * 1024 * 1024
 CHUNK_BYTES = 1024 * 1024
 SOURCE_HOSTS = {
+    'github_advisories': frozenset({'api.github.com'}),
     'cvelist': frozenset({'api.github.com', 'github.com', 'objects.githubusercontent.com',
                          'release-assets.githubusercontent.com'}),
     'kev': frozenset({'www.cisa.gov'}),
@@ -192,7 +201,7 @@ class Http:
             last_modified: str | None = None, to_file: bool = False, *,
             source: str | None = None, budget: str | None = None,
             max_bytes: int | None = None, deadline_seconds: int | None = None,
-            on_response=None) -> Response:
+            on_response=None, validate_hop=None) -> Response:
         _destination(url, source)
         budget = budget or ('cvelist_delta' if source == 'cvelist' else source)
         permitted = {'cvelist_snapshot', 'cvelist_delta'} if source == 'cvelist' else {source}
@@ -211,14 +220,14 @@ class Http:
                 # Ignore environment proxies: they would resolve/connect on our behalf.
                 opener = self.opener if self.opener is not None else build_opener(
                     ProxyHandler({}), _Redirects(), _HTTPSHandler(self.resolver, deadline))
-                result = self._get(url, etag, last_modified, to_file, source, max_bytes, deadline, opener, on_response)
+                result = self._get(url, etag, last_modified, to_file, source, max_bytes, deadline, opener, on_response, validate_hop)
             return result
         except BaseException:
             if result is not None and result.path is not None:
                 result.path.unlink(missing_ok=True)
             raise
 
-    def _get(self, url, etag, last_modified, to_file, source, max_bytes, deadline, opener, on_response):
+    def _get(self, url, etag, last_modified, to_file, source, max_bytes, deadline, opener, on_response, validate_hop):
         for _ in range(11):
             host = _destination(url, source)
             if self.opener is not None:
@@ -226,7 +235,12 @@ class Http:
                     raise ValueError('Injected source transport requires an explicit resolver')
                 # Fake transports cannot establish a socket; validate before dispatch.
                 _public_addresses(host, 443, self.resolver)
+            if validate_hop is not None:
+                validate_hop(url)
             headers = {'User-Agent': self.overrides.get(host, self.user_agent)}
+            if source == 'github_advisories':
+                headers.update({'Accept': 'application/vnd.github+json',
+                                'X-GitHub-Api-Version': '2022-11-28'})
             authorization = _authorization(source, host, self.github_token)
             if authorization:
                 headers['Authorization'] = authorization

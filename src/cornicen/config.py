@@ -1,4 +1,12 @@
-"""Shareable TOML settings with ntfy secrets supplied separately."""
+# script-purpose: Validate install settings and bounded download budgets.
+# script-class: pipeline-tool
+# script-trigger: Cornicen startup and configuration loading.
+# script-tests: tests/test_task1_b1.py
+"""Shareable TOML settings with ntfy secrets supplied separately.
+
+Reads configuration or request inputs; returns validated values without persistent writes.
+Library API with no process exit codes; invalid inputs raise exceptions.
+"""
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -17,6 +25,7 @@ from cornicen.diagnostics import FixedDiagnostic, file_error, toml_error, token_
 
 # Compressed transfer budgets, in bytes and total elapsed seconds.
 DOWNLOAD_BUDGETS = {
+    'github_advisories': {'max_bytes': 8 * 1024**2, 'deadline_seconds': 60},
     'cvelist_snapshot': {'max_bytes': 2 * 1024**3, 'deadline_seconds': 45 * 60},
     'cvelist_delta': {'max_bytes': 200 * 1024**2, 'deadline_seconds': 5 * 60},
     'kev': {'max_bytes': 20 * 1024**2, 'deadline_seconds': 5 * 60},

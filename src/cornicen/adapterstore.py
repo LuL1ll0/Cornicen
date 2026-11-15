@@ -1,7 +1,7 @@
 # script-purpose: Persist validated adapter records and reconcile staged resources.
 # script-class: pipeline-tool
 # script-trigger: The engine adapter dispatch and adapter rebaseline command.
-# script-tests: tests/test_f3b.py, tests/test_f2a.py, tests/test_f3a.py, tests/test_r11_shells.py
+# script-tests: tests/test_f3b.py, tests/test_f2a.py, tests/test_f3a.py, tests/test_r11_shells.py, tests/test_task1_a.py, tests/test_task1_b1.py, tests/test_task1_b2.py
 """Durable, offline adapter commits. No factories or network transports live here.
 
 Containers are newline-delimited canonical JSON under the data directory. A
@@ -13,12 +13,55 @@ This library has no process exit codes; the CLI uses 0 for success and 1 for err
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import json
+import math
+import re
 from pathlib import Path
 import random
 import sqlite3
 import uuid
 
 from cornicen import feedvalidate as v
+from cornicen.diagnostics import FixedDiagnostic
+
+
+_INTERNAL_REASONS = frozenset(('PARTIAL', 'FAILED', '304 without cached body',
+    'unreadable staged container', 'container digest mismatch', 'unenumerated'))
+
+
+def safe_detail(error):
+    """Return fixed diagnostic text without formatting adapter-controlled errors."""
+    name = type(error).__name__
+    if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]{0,63}', name):
+        name = 'Exception'
+    detail = (error.args[0] if error.args and type(error.args[0]) is FixedDiagnostic
+              else 'adapter error')
+    return name + ': ' + detail
+
+
+def bounded_wait(headers, now):
+    """Read HTTP wait headers; return the largest valid wait capped at six hours.
+
+    Return None when no valid server wait exists. No files are read or written.
+    """
+    from email.utils import parsedate_to_datetime
+    waits = []
+    for key, value in headers.items():
+        key = key.lower()
+        if key not in ('retry-after', 'x-ratelimit-reset', 'ratelimit-reset'):
+            continue
+        try:
+            if key == 'retry-after':
+                try:
+                    wait = float(value)
+                except (ValueError, TypeError):
+                    wait = (parsedate_to_datetime(value) - now).total_seconds()
+            else:
+                wait = (datetime.fromtimestamp(float(value), timezone.utc) - now).total_seconds()
+            if math.isfinite(wait) and wait >= 0:
+                waits.append(wait)
+        except (ValueError, TypeError, OverflowError, OSError):
+            continue
+    return min(max(waits), 21600) if waits else None
 
 
 def canonical(value):
@@ -45,6 +88,88 @@ class AdapterStore:
         self.db = store.connection
         self.directory = Path(data_dir) / 'adapter-staging'
         self.rng = rng if rng is not None else random.Random()
+
+    def _independent(self, source):
+        from cornicen.adapters import REGISTRY
+        entry = REGISTRY.get(source)
+        return bool((entry and entry.independent) or
+                    self.store.get_meta('required_since:' + source) is not None)
+
+    def required_resources(self, source):
+        """Read the reconciled required logical keys, or None for shared sources."""
+        if not self._independent(source):
+            return None
+        return set(json.loads(self.store.get_meta('required_since:' + source) or '{}'))
+
+    def reconcile_required(self, source, resources, tick):
+        """Persist the current required set before resume, polling or retry routing.
+
+        Resources are logical keys supplied by an independent adapter, never URLs.
+        Dropped histories remain; their retries and staged work are removed.
+        """
+        required = set(resources)
+        if '@dispatch' in required:
+            raise ValueError(FixedDiagnostic('invalid required resource'))
+        for resource in required:
+            v.safe_path(resource)
+        self.ensure(source, tick)
+        paths = []
+        with self.store.transaction():
+            previous = json.loads(self.store.get_meta('required_since:' + source) or '{}')
+            self.store.set_meta('required_since:' + source,
+                                canonical({r: previous.get(r, tick) for r in sorted(required)}))
+            if self.store.get_meta('baseline_resources:' + source) is None:
+                self.store.set_meta('baseline_resources:' + source, canonical(sorted(required)))
+            for table in ('adapter_retries', 'staged_containers'):
+                for row in self.db.execute(f'SELECT * FROM {table} WHERE source=?', (source,)).fetchall():
+                    if row['resource'] != '@dispatch' and row['resource'] not in required:
+                        if table == 'staged_containers':
+                            paths.append(Path(row['path']))
+                        self.db.execute(f'DELETE FROM {table} WHERE source=? AND resource=?',
+                                        (source, row['resource']))
+            row = self.db.execute("SELECT detail FROM source_health WHERE source=? AND dimension='fetch'", (source,)).fetchone()
+            if row:
+                try:
+                    transfers = json.loads(row[0])
+                    transfers = {r: ok for r, ok in transfers.items() if r in required}
+                except (ValueError, AttributeError):
+                    transfers = {}
+                self.dimension(source, 'fetch', 'healthy' if all(transfers.values()) else 'unhealthy', tick, canonical(transfers))
+        for path in paths:
+            path.unlink(missing_ok=True)
+            path.with_suffix('.index').unlink(missing_ok=True)
+
+    def known_members(self, source, resource):
+        """Return active manifest and accepted PARTIAL-run IDs for this resource."""
+        from cornicen.advisory import retracted
+        known = {row[0] for row in self.db.execute(
+            'SELECT source_id FROM manifest_members WHERE source=? AND resource=?', (source, resource))}
+        for row in self.db.execute("""SELECT source_id,json FROM advisories WHERE source=?
+                AND json_extract(json, '$.provenance.input_path') = ?""", (source, resource)):
+            data = json.loads(row['json'])
+            if retracted(data):
+                known.discard(row['source_id'])
+            else:
+                known.add(row['source_id'])
+        return known
+
+    def _independent_completeness(self, source, tick):
+        dispatch = self.db.execute("SELECT last_error FROM adapter_retries WHERE source=? AND resource='@dispatch'", (source,)).fetchone()
+        detail = dispatch[0] if dispatch else ''
+        anchors = json.loads(self.store.get_meta('required_since:' + source) or '{}')
+        if not detail:
+            for resource in anchors:
+                if self.db.execute('SELECT 1 FROM adapter_retries WHERE source=? AND resource=?', (source, resource)).fetchone():
+                    detail = 'retry pending'
+                    break
+        if not detail:
+            for resource, since in anchors.items():
+                accepted = self.db.execute("SELECT fetched_at FROM manifests WHERE source=? AND resource=? AND digest!=''", (source, resource)).fetchone()
+                if self._age_limit(tick, accepted[0] if accepted else since, 86400, inclusive=True):
+                    detail = 'rate budget backlog'
+                    break
+        self.dimension(source, 'completeness', 'unhealthy' if detail else 'healthy', tick, detail)
+        return not detail
 
     def ensure(self, source, tick):
         v.source_id(source)
@@ -158,7 +283,18 @@ class AdapterStore:
             try:
                 with self.store.transaction():
                     pinned=self.db.execute('SELECT baseline_members FROM adapter_state WHERE source=?',(source,)).fetchone()[0]
-                    if pinned is None:
+                    independent = self._independent(source)
+                    baseline_resources = set(json.loads(self.store.get_meta('baseline_resources:' + source) or '[]'))
+                    marker = f'baseline_pinned:{source}:{resource}'
+                    pin_resource = (independent and resource in baseline_resources
+                                    and resource in self.required_resources(source)
+                                    and self.store.get_meta(marker) is None)
+                    if pin_resource:
+                        self.db.execute("""INSERT OR IGNORE INTO baseline_members
+                            SELECT ?,id FROM adapter_index.members WHERE invalid=0 AND id NOT GLOB '@invalid:*'""", (source,))
+                        self.store.set_meta(marker, canonical([r[0] for r in index.execute(
+                            "SELECT id FROM members WHERE invalid=0 AND id NOT GLOB '@invalid:*' ORDER BY id")]))
+                    if not independent and pinned is None:
                         self.db.execute("""INSERT OR IGNORE INTO baseline_members
                             SELECT ?,id FROM adapter_index.members WHERE invalid=0 AND id NOT GLOB '@invalid:*'
                             UNION SELECT source,source_id FROM quarantine WHERE source=? AND source_id NOT GLOB '@invalid:*'""",(source,source))
@@ -184,10 +320,10 @@ class AdapterStore:
                     try:
                         data=(raw['validated'] if typed else v.validate_advisory(raw,source=source,observed_at=tick,input_path=resource).data)
                         if data['source']!=source:
-                            raise ValueError('advisory source mismatch')
+                            raise ValueError(FixedDiagnostic('advisory source mismatch'))
                     except (ValueError,TypeError,KeyError) as error:
                         classification='PARTIAL'
-                        self.quarantine(source,identity,str(error),tick)
+                        self.quarantine(source,identity,safe_detail(error),tick)
                         self._observe_unknown(raw, source, resource, tick, typed=typed)
                         continue
                     try:
@@ -195,12 +331,12 @@ class AdapterStore:
                             prior=self.db.execute('SELECT digest,revision FROM advisories WHERE source=? AND source_id=?',(source,identity)).fetchone()
                             baseline=bool(index.execute('SELECT 1 FROM baseline WHERE id=?',(identity,)).fetchone())
                             if prior is None or prior['digest']!=data['digest']:
-                                from cornicen.advisory import reconcile_facets
+                                from cornicen.advisory import reconcile_facets, retracted
                                 data = reconcile_facets(self.db, data)
                                 revision=str(int(prior['revision'])+1) if prior else '1'
                                 self.db.execute('INSERT OR REPLACE INTO advisories VALUES (?,?,?,?,?,?,?,?,?)',
                                     (source,identity,revision,data['digest'],canonical(data),data['observed_at'],data['published'],data['updated'],
-                                     'withdrawn' if data.get('withdrawn') else 'active'))
+                                     'withdrawn' if retracted(data) else 'active'))
                                 callback = on_record or self.on_record
                                 if callback:
                                     callback(data,baseline)
@@ -217,7 +353,7 @@ class AdapterStore:
                         if isinstance(error, TransactionAborted):
                             raise
                         classification='PARTIAL'
-                        self.quarantine(source,identity,str(error),tick)
+                        self.quarantine(source,identity,safe_detail(error),tick)
             index.commit()
             if finalize:
                 classification=self._finish_index(source,resource,tick,index,index_path,classification,checkpoint,accept=deferred is None,rebaseline=rebaseline)
@@ -249,7 +385,15 @@ class AdapterStore:
         try:
             missing=self.db.execute('''SELECT 1 FROM manifest_members m
                 WHERE source=? AND resource=? AND NOT EXISTS
-                (SELECT 1 FROM adapter_index.members WHERE id=m.source_id) LIMIT 1''',(source,resource)).fetchone()
+                (SELECT 1 FROM adapter_index.members WHERE id=m.source_id)
+                AND NOT EXISTS (SELECT 1 FROM advisories a WHERE a.source=m.source
+                    AND a.source_id=m.source_id AND a.state='withdrawn') LIMIT 1''',(source,resource)).fetchone()
+            if self._independent(source):
+                # A PARTIAL publication can commit members without a manifest.
+                # Recovery must preserve their unresolved coverage as well.
+                missing = missing or any(not self.db.execute(
+                    'SELECT 1 FROM adapter_index.members WHERE id=?', (identity,)).fetchone()
+                    for identity in self.known_members(source, resource))
             gap=self.db.execute('SELECT 1 FROM gap_ledger WHERE source=? AND acknowledged_at IS NULL',(source,)).fetchone()
             if (missing or gap) and not rebaseline: classification='PARTIAL'
             if classification=='COMPLETE' and accept:
@@ -257,8 +401,10 @@ class AdapterStore:
                 with self.store.transaction():
                     self._write_manifest(source,resource,md,tick,'adapter_index.members')
                     checkpoint('after_manifest')
-                    self._advance_cursor(source,tick)
                     self.db.execute('DELETE FROM adapter_retries WHERE source=? AND resource=?',(source,resource))
+                    if self._independent(source):
+                        self.db.execute('DELETE FROM staged_containers WHERE source=? AND resource=?', (source,resource))
+                    self._advance_cursor(source,tick)
                     self._complete_baseline(source,tick)
             return classification
         finally:
@@ -268,7 +414,9 @@ class AdapterStore:
         # table is an internal attached index name, never adapter input.
         self.db.execute("""INSERT INTO manifests VALUES (?,?,?,'[]',?,?)
             ON CONFLICT(source,resource) DO UPDATE SET digest=excluded.digest,
-            members='[]',fetched_at=excluded.fetched_at""",(source,resource,md,tick,tick))
+            members='[]',fetched_at=excluded.fetched_at,
+            audited_at=CASE WHEN ? THEN excluded.audited_at ELSE manifests.audited_at END""",
+            (source,resource,md,tick,tick,self._independent(source)))
         self.db.execute('DELETE FROM manifest_members WHERE source=? AND resource=?',(source,resource))
         query=f'INSERT INTO manifest_members SELECT ?,?,id,digest FROM {table}'
         params=(source,resource)
@@ -278,10 +426,20 @@ class AdapterStore:
         self.db.execute(query,params)
 
     def _advance_cursor(self,source,tick):
+        required = self.required_resources(source)
+        if required is not None:
+            if not self._independent_completeness(source,tick):
+                return
+            if any(not self.db.execute("SELECT 1 FROM manifests WHERE source=? AND resource=? AND digest!=''",
+                                       (source,r)).fetchone() for r in required):
+                return
         checksum=sha256(b'[')
         first=True
+        required_json = None if required is None else canonical(sorted(required))
         for row in self.db.execute("""SELECT DISTINCT source_id,digest FROM manifest_members
-                WHERE source=? ORDER BY source_id,digest""",(source,)):
+                WHERE source=? AND (? IS NULL OR resource IN
+                    (SELECT value FROM json_each(?))) ORDER BY source_id,digest""",
+                (source, required_json, required_json)):
             if not first: checksum.update(b',')
             checksum.update(canonical(dict(source_id=row[0],digest=row[1])).encode())
             first=False
@@ -328,7 +486,24 @@ class AdapterStore:
             batch_path.unlink(missing_ok=True)
 
     def _complete_baseline(self,source,tick):
-        blocked=self.db.execute('''SELECT 1 FROM baseline_members b
+        if self._independent(source):
+            baseline = set(json.loads(self.store.get_meta('baseline_resources:' + source) or '[]'))
+            if not baseline:
+                return
+            if any(self.store.get_meta(f'baseline_pinned:{source}:{r}') is None
+                   for r in baseline & self.required_resources(source)):
+                return
+            blocked = False
+            for resource in baseline & self.required_resources(source):
+                members = self.store.get_meta(f'baseline_pinned:{source}:{resource}')
+                if self.db.execute("""SELECT 1 FROM json_each(?) b
+                    WHERE NOT EXISTS(SELECT 1 FROM advisories a WHERE a.source=? AND a.source_id=b.value)
+                    AND NOT EXISTS(SELECT 1 FROM quarantine q WHERE q.source=? AND q.source_id=b.value)
+                    LIMIT 1""", (members,source,source)).fetchone():
+                    blocked = True
+                    break
+        else:
+            blocked=self.db.execute('''SELECT 1 FROM baseline_members b
             WHERE b.source=? AND (NOT EXISTS(SELECT 1 FROM advisories a WHERE a.source=b.source AND a.source_id=b.source_id)
             OR EXISTS(SELECT 1 FROM quarantine q WHERE q.source=b.source AND q.source_id=b.source_id)) LIMIT 1''',(source,)).fetchone()
         state=self.db.execute('SELECT baseline_complete FROM adapter_state WHERE source=?',(source,)).fetchone()
@@ -346,36 +521,68 @@ class AdapterStore:
             self.db.execute('DELETE FROM staged_containers WHERE source=? AND resource=?',(source,resource))
         path.unlink(missing_ok=True)
 
-    def resume(self,tick,*,source=None):
+    def resume(self,tick,*,source=None,independent=None):
         """Recover intact interrupted work, leaving scheduled retries in backoff."""
         sources=[source] if source is not None else [r[0] for r in self.db.execute('SELECT DISTINCT source FROM staged_containers')]
         for name in sources:
+            is_independent = self._independent(name) if independent is None else independent
             candidates=[]
             try:
                 rows=self.db.execute("""SELECT resource FROM staged_containers s
                     WHERE source=? AND integrity='intact' AND NOT EXISTS
                     (SELECT 1 FROM adapter_retries r WHERE r.source=s.source AND r.resource=s.resource)""",(name,)).fetchall()
                 for row in rows:
+                    required = self.required_resources(name)
+                    if required is not None and row[0] not in required:
+                        continue
                     self.commit_staged(name,row[0],tick,deferred=candidates)
                 ready={r[0] for r in candidates}
                 unresolved=any(r[0] not in ready for r in self.db.execute(
                     "SELECT resource FROM staged_containers WHERE source=? UNION SELECT resource FROM adapter_retries WHERE source=? AND resource!='@dispatch'",(name,name)))
-                if candidates and not unresolved:
+                if is_independent:
+                    for candidate in candidates:
+                        # Restore the logical enumeration, including retractions.
+                        with candidate[1].open('rb') as stream:
+                            members = [json.loads(line.decode('utf-8')) for line in stream]
+                        self.process(name, [dict(path=candidate[0], status=200,
+                            body=canonical(dict(advisories=members)))], tick)
+                elif candidates and not unresolved:
                     self._accept_batch(name,tick,candidates)
             finally:
                 for resource,path,index_path in candidates:
                     index_path.unlink(missing_ok=True)
 
-    def retry(self,source,resource,tick,error,*,retry_after=None,rate_reset=None):
+    def retry(self,source,resource,tick,error,*,retry_after=None,rate_reset=None,rate_limited=False):
         now=instant(tick)
         with self.store.transaction():
             row=self.db.execute('SELECT attempts FROM adapter_retries WHERE source=? AND resource=?',(source,resource)).fetchone()
             attempts=(row[0] if row else 0)+1
             wait=min(60*2**min(attempts-1,20),21600)*self.rng.uniform(.8,1.2)
-            header=max(float(retry_after or 0),(rate_reset-now).total_seconds() if rate_reset else 0)
-            if header>wait: wait=header
+            waits = [wait]
+            try:
+                after = float(retry_after)
+                if math.isfinite(after) and after >= 0:
+                    waits.append(after)
+            except (ValueError, TypeError, OverflowError, OSError):
+                pass
+            try:
+                reset = (rate_reset-now).total_seconds()
+                if math.isfinite(reset) and reset >= 0:
+                    waits.append(reset)
+            except (ValueError, TypeError, OverflowError, OSError):
+                pass
+            wait = min(max(waits),21600)
+            try:
+                deadline = now+timedelta(seconds=wait)
+            except OverflowError:
+                deadline = datetime.max.replace(tzinfo=timezone.utc)
+            detail = (safe_detail(error) if isinstance(error,BaseException) else
+                      error if type(error) is str and error in _INTERNAL_REASONS else
+                      'str: adapter error')
             self.db.execute('INSERT OR REPLACE INTO adapter_retries VALUES (?,?,?,?,?)',
-                            (source,resource,attempts,stamp(now+timedelta(seconds=wait)),str(error)))
+                            (source,resource,attempts,stamp(deadline),detail))
+            if rate_limited:
+                self.store.set_meta(source + ':rate_hold_until', canonical(stamp(deadline)))
         return wait
 
     def gap(self,source,tick,reason):
@@ -427,15 +634,17 @@ class AdapterStore:
 
     def audits_due(self,source,tick):
         """Return resources due for an unconditional request at seven days."""
+        required = self.required_resources(source)
         return [r['resource'] for r in self.db.execute(
             'SELECT * FROM manifests WHERE source=? ORDER BY resource',(source,))
-            if self._age_limit(tick,r['audited_at'] or r['fetched_at'],7*86400,inclusive=True)]
+            if (required is None or r['resource'] in required)
+            and self._age_limit(tick,r['audited_at'] or r['fetched_at'],7*86400,inclusive=True)]
 
     def _audit_observation(self,source,resource,tick):
         # Even an unsuccessful first request starts this resource's audit clock.
         successful=(resource['status']==200 and resource.get('transfer_complete',True)
                     and resource.get('integrity','intact')=='intact'
-                    and not resource.get('conditional',False))
+                    and not resource.get('conditional',False) and not self._independent(source))
         with self.store.transaction():
             self.db.execute("""INSERT INTO manifests VALUES (?,?,'','[]',?,?)
                 ON CONFLICT(source,resource) DO UPDATE SET
@@ -513,12 +722,18 @@ class AdapterStore:
 
         Called only for effective adapters. The dispatch gate enforces R1/R7.
         """
+        if self._independent(source):
+            self._independent_completeness(source,tick)
+            with self.store.transaction():
+                self._complete_baseline(source,tick)
         rows=dict(self.db.execute('SELECT dimension,state FROM source_health WHERE source=?',(source,)))
         if not rows: return
         # Leave pre-existing sparse R7 state intact until a real observation.
         if 'audit' in rows:
+            required = self.required_resources(source)
             overdue=[r['resource'] for r in self.db.execute('SELECT * FROM manifests WHERE source=?',(source,))
-                     if self._age_limit(tick,r['audited_at'] or r['fetched_at'],7*86400)]
+                     if (required is None or r['resource'] in required)
+                     and self._age_limit(tick,r['audited_at'] or r['fetched_at'],7*86400, inclusive=self._independent(source))]
             self.dimension(source,'audit','unhealthy' if overdue else 'healthy',tick,canonical(overdue))
         if export:
             self._publication_dimension(source,self._publication_clocks(source),tick)
@@ -559,10 +774,19 @@ class AdapterStore:
             options=dict(export=getattr(entry,'export',False),
                          last_modified_validated=getattr(entry,'last_modified_validated',False))
             try:
-                self.resume(tick,source=source)
-                adapter=factories[source]()
+                if getattr(entry,'independent',False):
+                    adapter=factories[source]()
+                    self.reconcile_required(source,adapter.required_resources(),tick)
+                    self.resume(tick,source=source,independent=entry.independent)
+                else:
+                    self.resume(tick,source=source)
+                    adapter=factories[source]()
                 state=self.db.execute('SELECT cutoff FROM adapter_state WHERE source=?',(source,)).fetchone()
                 resources=adapter.poll(cutoff=state[0] if state else None)
+                if getattr(entry,'independent',False):
+                    resources=list(resources)
+                    with self.store.transaction():
+                        self.db.execute("DELETE FROM adapter_retries WHERE source=? AND resource='@dispatch'",(source,))
                 outcomes[source]=self.process(source,resources,tick,**options)
                 with self.store.transaction():
                     self.db.execute("DELETE FROM adapter_retries WHERE source=? AND resource='@dispatch'",(source,))
@@ -571,12 +795,15 @@ class AdapterStore:
                     if waiting and instant(waiting[0])>instant(tick): continue
                     self.process(source,adapter.audit(resource),tick,**options)
                 for row in self.db.execute('SELECT * FROM adapter_retries WHERE source=?',(source,)).fetchall():
+                    if row['resource']=='@dispatch': continue
+                    required=self.required_resources(source)
+                    if required is not None and row['resource'] not in required: continue
                     if instant(row['next_attempt_at'])<=instant(tick):
                         self.process(source,adapter.retry(row['resource']),tick,**options)
             except Exception as error:
-                detail=f'{type(error).__name__}: {error}'
+                detail=safe_detail(error)
                 self.ensure(source,tick)
-                self.retry(source,'@dispatch',tick,detail)
+                self.retry(source,'@dispatch',tick,error)
                 self.dimension(source,'fetch','unhealthy',tick,detail)
                 self.dimension(source,'completeness','unhealthy',tick,detail)
                 self._defaults(source,tick,options['export'])
@@ -592,24 +819,11 @@ class AdapterStore:
                                 (source,dimension,state,tick,''))
 
     def _retry_headers(self,resource,tick):
-        from email.utils import parsedate_to_datetime
-        headers={key.lower():value for key,value in resource.get('headers',{}).items()}
-        after=headers.get('retry-after')
-        try:
-            after=float(after) if after is not None else None
-        except (ValueError,TypeError):
-            try:
-                after=(parsedate_to_datetime(after)-instant(tick)).total_seconds()
-            except (ValueError,TypeError,OverflowError):
-                after=None
-        reset=headers.get('x-ratelimit-reset',headers.get('ratelimit-reset'))
-        try:
-            reset=datetime.fromtimestamp(float(reset),timezone.utc) if reset is not None else None
-        except (ValueError,TypeError,OverflowError,OSError):
-            reset=None
-        return dict(retry_after=after,rate_reset=reset)
+        wait = bounded_wait(resource.get('headers',{}),instant(tick))
+        return dict(rate_limited=resource.get('rate_limited', False),
+                    **(dict(retry_after=wait) if wait is not None else {}))
 
-    def process(self,source,resources,tick,*,export=False,last_modified_validated=False):
+    def process(self,source,resources,tick,*,export=False,last_modified_validated=False,required_resources=None):
         """Accept raw fixture/adapter resource outcomes through the real validator.
 
         Resources are independently publishable; the cycle cursor is advanced
@@ -619,8 +833,13 @@ class AdapterStore:
         or metadata responses that carry no export revision.
         """
         self.ensure(source,tick)
+        if required_resources is not None:
+            self.reconcile_required(source,required_resources,tick)
         candidates=[]
         resources=list(resources)
+        required=self.required_resources(source)
+        if required is not None:
+            resources=[r for r in resources if r['path'] in required]
         try:
             state=self._process_resources(source,resources,tick,candidates)
             if resources:
@@ -633,11 +852,18 @@ class AdapterStore:
                     transfers={}
                 transfers.pop('@dispatch',None)
                 for r in resources:
-                    transfers[r['path']]=((200<=r['status']<300 or r['status']==304)
-                        and r.get('transfer_complete',True) and r.get('integrity','intact')=='intact')
+                    transfers[r['path']]=(r.get('unenumerated') is True or
+                        ((200<=r['status']<300 or (r['status']==304 and not r.get('unconditional',False)))
+                         and not (r.get('transport_error') or r.get('invalid_status'))
+                         and r.get('transfer_complete',True) and r.get('integrity','intact')=='intact'))
                 self.dimension(source,'fetch','healthy' if all(transfers.values()) else 'unhealthy',tick,canonical(transfers))
-                self.dimension(source,'completeness','healthy' if state=='COMPLETE' else 'unhealthy',tick)
+                if required is None:
+                    self.dimension(source,'completeness','healthy' if state=='COMPLETE' else 'unhealthy',tick)
                 self._publication(source,resources,tick,export=export,last_modified_validated=last_modified_validated,classification=state)
+            if required is not None:
+                self._independent_completeness(source,tick)
+                with self.store.transaction():
+                    self._complete_baseline(source,tick)
             return state
         finally:
             for resource,path,index_path in candidates:
@@ -649,13 +875,17 @@ class AdapterStore:
         for resource in resources:
             resource=dict(resource)
             path=resource['path']
+            if resource.get('unenumerated') is True:
+                self.retry(source,path,tick,'unenumerated')
+                states.append('PARTIAL')
+                continue
             self._audit_observation(source,resource,tick)
-            conditional = resource['status']==304
+            conditional = resource['status']==304 and not resource.get('unconditional', False)
             if conditional:
                 cached=self.db.execute('SELECT * FROM resource_cache WHERE source=? AND url=?',(source,path)).fetchone()
                 if not cached:
                     self.retry(source,path,tick,'304 without cached body');states.append('FAILED');continue
-                if self.db.execute("SELECT 1 FROM staged_containers WHERE source=? UNION ALL SELECT 1 FROM adapter_retries WHERE source=? AND resource!='@dispatch'",(source,source)).fetchone():
+                if self.db.execute("SELECT 1 FROM staged_containers WHERE source=? AND (? IS NULL OR resource=?) UNION ALL SELECT 1 FROM adapter_retries WHERE source=? AND resource!='@dispatch' AND (? IS NULL OR resource=?)",(source,path if self._independent(source) else None,path,source,path if self._independent(source) else None,path)).fetchone():
                     # A conditional response cannot clear staged work. It can
                     # expose identities as unknown through a validated shell.
                     try:
@@ -704,7 +934,13 @@ class AdapterStore:
         candidate_names={r[0] for r in candidates}
         pending=any(r[0] not in candidate_names for r in self.db.execute(
             "SELECT resource FROM staged_containers WHERE source=? UNION SELECT resource FROM adapter_retries WHERE source=? AND resource!='@dispatch'",(source,source)))
-        if pending and classification=='COMPLETE': classification='PARTIAL'
-        if classification=='COMPLETE' and candidates:
+        if pending and classification=='COMPLETE' and not self._independent(source): classification='PARTIAL'
+        if self._independent(source):
+            # All outcomes are classified before accepting resources, so a
+            # later failure cannot let the cursor use its older manifest.
+            # Each COMPLETE resource still gets its own acceptance transaction.
+            for candidate in candidates:
+                self._accept_batch(source,tick,[candidate])
+        elif classification=='COMPLETE' and candidates:
             self._accept_batch(source,tick,candidates)
         return classification

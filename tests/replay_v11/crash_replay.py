@@ -1,7 +1,7 @@
 # script-purpose: Interrupt replay transaction boundaries and reopen durable stores.
 # script-class: harness
 # script-trigger: tests/test_f4.py through the foundation harness.
-# script-tests: tests/test_f4.py, tests/replay_v11/test-crash-replay.py
+# script-tests: tests/test_f4.py, tests/replay_v11/test-crash-replay.py, tests/test_task1_a.py, tests/test_task1_b2.py
 """Read foundation timelines; write temporary SQLite stores and staging files.
 
 Library helper for unittest (exit 0 success, 1 failure). No production hooks.
@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from hashlib import sha256
 from pathlib import Path
+import json
 import sys
 from unittest.mock import patch
 
@@ -32,16 +33,25 @@ class CrashRun:
     durable: dict
     points: list
     crashed: bool
+    accounting: dict = None
+    interrupted_accounting: list = None
+    deliveries: list = None
 
 
 def run(name, crash_index=None):
     from tests.replay_v11 import harness as h
+    from tests.replay_v11.github_backend import GitHubBackend, is_github
+    from cornicen.sources.github_advisories import GitHubState
+    github = is_github(name)
     points, durable = [], {}
+    accounting, journal, accounting_writes, interrupted_accounting = {}, [], [], []
+    deliveries = []
     active = False
     crashed = False
     transaction, queue = Store.transaction, Store.queue
     retry = AdapterStore.retry
     failures = {}
+    witnessed = {}
 
     def record_retry(adapter, source, resource, tick, error, **kwargs):
         # Use the production backoff (including its actual jitter and headers),
@@ -51,6 +61,8 @@ def run(name, crash_index=None):
             (source, resource)).fetchone()
         attempts = (old[0] if old else 0) + 1
         wait = retry(adapter, source, resource, tick, error, **kwargs)
+        key = source, resource
+        witnessed[key] = witnessed.get(key, 0) + 1
         failures[adapter.directory, source, resource] = (
             attempts, stamp(instant(tick) + timedelta(seconds=wait)), tick)
         return wait
@@ -74,11 +86,23 @@ def run(name, crash_index=None):
         kind = ('ack' if file == 'outbox.py' and function == 'deliver' else
                 'alias' if file == 'advisoryidentity.py' else
                 'record' if function in ('commit_advisory', 'commit_staged', '_isolated', 'observe_unknown_advisory')
-                else 'state')
+                else ('github_' + function if github and file == 'github_advisories.py' and function != 'set_hold' else 'state'))
         if kind != 'ack':
             hit(kind, site, 'before')
         with transaction(store) as db:
             yield db
+        if github and file == 'github_advisories.py':
+            values = frame.f_locals
+            if function == 'charge':
+                tick = values['tick']
+                journal[:] = [t for t in journal if (instant(tick)-instant(t)).total_seconds() < 3600]
+                journal.append(tick)
+                if values['first']:
+                    accounting_writes.append((values['repository'], 'first', tick))
+            elif function == 'check_detail':
+                accounting_writes.append((values['repository'], 'detail', (values['identity'], values['tick'])))
+            elif function == 'set_pages':
+                accounting_writes.append((values['repository'], 'pages', values['expected_pages']))
         hit(kind, site, 'after')
 
     def enqueue(store, *args, **kwargs):
@@ -89,9 +113,11 @@ def run(name, crash_index=None):
         hit('enqueue', site, 'after')
         return result
 
-    class Backend(ValidationBackend):
+    class Backend(GitHubBackend if github else ValidationBackend):
         def __init__(self, registry):
             super().__init__(registry)
+            if github:
+                journal.clear()
             self.interrupted_retries = {}
             self.inert_crossings = set()
             self.closed = False
@@ -126,15 +152,18 @@ def run(name, crash_index=None):
             active = 'cycle' in row or 'command' in row
             pending, ingests = deepcopy(self.pending), list(self.ingests)
             before = self.retry_counts()
+            accounting_before = len(accounting_writes)
+            witnessed.clear()
             try:
                 super().action(row)
             except Crash:
                 active = False
+                interrupted_accounting.extend(accounting_writes[accounting_before:])
                 # Only retry increments that survived the interrupted action's
                 # rollback can explain a higher count after replaying that action.
                 for key, count in self.retry_counts().items():
                     extra = count - before.get(key, 0)
-                    assert extra >= 0
+                    assert 0 <= extra <= witnessed.get(key, 0), 'unwitnessed retry increment'
                     self.interrupted_retries[key] = self.interrupted_retries.get(key, 0) + extra
                 # Exception unwinding rolls back every open savepoint. Reopen the
                 # same file, recreate the engine, then retry interrupted inputs.
@@ -170,6 +199,16 @@ def run(name, crash_index=None):
                 checksum = sha256(path.read_bytes()).hexdigest()
                 assert checksum == row[columns.index('digest')], 'staged content digest'
                 row[columns.index('path')] = checksum
+            if github:
+                state = GitHubState(self.store)
+                assert state.meta('requests', []) == journal, 'unwitnessed GitHub charge'
+                schedule = state.meta('schedule', {})
+                for repository, checks in state.meta('detail_checks', {}).items():
+                    schedule[repository]['detail_checks'] = checks
+                accounting[len(accounting)] = schedule
+                meta = dump['meta']
+                column = meta['columns'].index('k')
+                meta['rows'] = [r for r in meta['rows'] if r[column] not in ('github:requests', 'github:schedule', 'github:detail_checks')]
             retries = dump['adapter_retries']
             for row in retries['rows']:
                 values = dict(zip(retries['columns'], row))
@@ -188,11 +227,21 @@ def run(name, crash_index=None):
                                  if tuple(row) not in self.inert_crossings]
             durable[len(durable)] = dump
 
+    from tests.replay.harness import RecordingNotifier
+    send = RecordingNotifier.send
+    def record_send(notifier, notification):
+        accepted = send(notifier, notification)
+        if accepted and notification.watch_id:
+            deliveries.append((notification.watch_id, notification.record_id,
+                               tuple(notification.reasons), notification.body.get('episode', 1)))
+        return accepted
+
     previous = h.register_backend(Backend)
     try:
         with patch.object(Store, 'transaction', boundary), patch.object(Store, 'queue', enqueue), \
-                patch.object(AdapterStore, 'retry', record_retry):
+                patch.object(AdapterStore, 'retry', record_retry), \
+                patch.object(RecordingNotifier, 'send', record_send):
             result = h.run_scenario(name)
     finally:
         h.register_backend(previous)
-    return CrashRun(result, durable, points, crashed)
+    return CrashRun(result, durable, points, crashed, accounting, interrupted_accounting, deliveries)
