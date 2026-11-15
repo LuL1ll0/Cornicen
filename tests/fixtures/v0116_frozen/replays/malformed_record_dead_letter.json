@@ -1,0 +1,430 @@
+{
+  "database": {
+    "meta_keys": [
+      "alias_map_version",
+      "applied_aliases_hash",
+      "applied_matching_revision",
+      "applied_watches",
+      "applied_watches_hash",
+      "baseline_complete",
+      "bootstrap_started_at",
+      "committed_cve:snapshot:cve_2026-11-03_0600Z",
+      "complete:cvelist",
+      "complete:epss",
+      "complete:kev",
+      "cvelist_release_position",
+      "cvelist_snapshot_complete",
+      "cvelist_snapshot_cutoff",
+      "cvelist_snapshot_release",
+      "health_episode:cvelist",
+      "kev_baseline:CVE-2026-118527",
+      "kev_initialized",
+      "last_epss_row_count",
+      "last_error:cvelist",
+      "pending_ingest:cvelist",
+      "record_baseline:@invalid:0e6ac9857533c19bb36aff255bade287fac2442a4fef6c23a9b38201b73ac380",
+      "record_projection_version",
+      "schema_version"
+    ],
+    "tables": {
+      "cursors": {
+        "columns": [
+          "source",
+          "value",
+          "content_time"
+        ],
+        "rows": [
+          [
+            "cvelist",
+            null,
+            "2026-11-03T07:00:00+00:00"
+          ],
+          [
+            "epss",
+            "2026-11-03",
+            "2026-11-03T07:00:00+00:00"
+          ],
+          [
+            "kev",
+            "2026.11.03",
+            "2026-11-03T07:00:00+00:00"
+          ]
+        ]
+      },
+      "dead_letters": {
+        "columns": [
+          "source",
+          "record_id",
+          "attempts",
+          "next_attempt_at",
+          "last_error",
+          "version"
+        ],
+        "rows": [
+          [
+            "cvelist",
+            "@invalid:0e6ac9857533c19bb36aff255bade287fac2442a4fef6c23a9b38201b73ac380",
+            5,
+            "2026-11-04T07:15:00+00:00",
+            "ValueError: cveMetadata must be an object",
+            "0.1.16"
+          ]
+        ]
+      },
+      "epss": {
+        "columns": [
+          "cve",
+          "score",
+          "pct",
+          "date"
+        ],
+        "rows": [
+          [
+            "CVE-2025-54831",
+            0.04753,
+            0.91894,
+            "2026-11-03"
+          ]
+        ]
+      },
+      "epss_crossing_scores": {
+        "columns": [
+          "cve",
+          "score",
+          "pct",
+          "date"
+        ],
+        "rows": [
+          [
+            "CVE-2025-54831",
+            0.04753,
+            0.91894,
+            "2026-11-03"
+          ]
+        ]
+      },
+      "epss_crossings": {
+        "columns": [
+          "watch_id",
+          "record_id",
+          "episode",
+          "fired",
+          "crossing",
+          "threshold",
+          "rearm_ratio"
+        ],
+        "rows": []
+      },
+      "events": {
+        "columns": [
+          "key",
+          "watch_id",
+          "record_id",
+          "type",
+          "episode",
+          "created_at"
+        ],
+        "rows": [
+          [
+            "|baseline|baseline|1",
+            "",
+            "baseline",
+            "baseline",
+            1,
+            "2026-11-03T07:00:00+00:00"
+          ],
+          [
+            "|cvelist|unhealthy|1",
+            "",
+            "cvelist",
+            "unhealthy",
+            1,
+            "2026-11-03T07:11:00+00:00"
+          ]
+        ]
+      },
+      "health": {
+        "columns": [
+          "source",
+          "state",
+          "since",
+          "detail"
+        ],
+        "rows": [
+          [
+            "cvelist",
+            "unhealthy",
+            "2026-11-03T07:11:00+00:00",
+            "Exception details withheld (record payload)"
+          ],
+          [
+            "epss",
+            "healthy",
+            "2026-11-03T07:00:00+00:00",
+            "Complete ingest"
+          ],
+          [
+            "kev",
+            "healthy",
+            "2026-11-03T07:00:00+00:00",
+            "Complete ingest"
+          ]
+        ]
+      },
+      "http_cache": {
+        "columns": [
+          "url",
+          "etag",
+          "link",
+          "body",
+          "used_at"
+        ],
+        "rows": []
+      },
+      "invalid_revisions": {
+        "columns": [
+          "record_id",
+          "json"
+        ],
+        "rows": [
+          [
+            "@invalid:0e6ac9857533c19bb36aff255bade287fac2442a4fef6c23a9b38201b73ac380",
+            {
+              "$blob": "789cab564a2e4bf54d2d494c492c4954b252888ead050044b606ae"
+            }
+          ]
+        ]
+      },
+      "kev": {
+        "columns": [
+          "cve",
+          "json"
+        ],
+        "rows": [
+          [
+            "CVE-2026-118527",
+            "{\"cveID\": \"CVE-2026-118527\", \"dateAdded\": \"2026-10-30\", \"dueDate\": \"2026-11-13\", \"knownRansomwareCampaignUse\": \"Unknown\", \"vendorProject\": \"examplecorp\", \"product\": \"example_gateway\"}"
+          ]
+        ]
+      },
+      "kev_seen": {
+        "columns": [
+          "cve"
+        ],
+        "rows": []
+      },
+      "meta": {
+        "columns": [
+          "k",
+          "v"
+        ],
+        "rows": [
+          [
+            "alias_map_version",
+            "none"
+          ],
+          [
+            "applied_aliases_hash",
+            "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          ],
+          [
+            "applied_matching_revision",
+            "2"
+          ],
+          [
+            "applied_watches",
+            "[{\"eol\":false,\"id\":\"service\",\"match\":[[\"examplecorp\",\"example_service\"]],\"name\":\"Example service\",\"product_only\":[],\"scheme\":\"semver\",\"version\":\"3.0.3\"}]"
+          ],
+          [
+            "applied_watches_hash",
+            "471de2e565969982a29159b69f3e799bdee86044da0a230a0c5ca908a7dfd28c"
+          ],
+          [
+            "baseline_complete",
+            "1"
+          ],
+          [
+            "bootstrap_started_at",
+            "2026-11-03T07:00:00+00:00"
+          ],
+          [
+            "committed_cve:snapshot:cve_2026-11-03_0600Z",
+            "1"
+          ],
+          [
+            "complete:cvelist",
+            "1"
+          ],
+          [
+            "complete:epss",
+            "1"
+          ],
+          [
+            "complete:kev",
+            "1"
+          ],
+          [
+            "cvelist_release_position",
+            "2026-11-03T00:00:00+00:00"
+          ],
+          [
+            "cvelist_snapshot_complete",
+            "1"
+          ],
+          [
+            "cvelist_snapshot_cutoff",
+            "2026-11-03T07:00:00+00:00"
+          ],
+          [
+            "cvelist_snapshot_release",
+            "cve_2026-11-03_0600Z"
+          ],
+          [
+            "health_episode:cvelist",
+            "1"
+          ],
+          [
+            "kev_baseline:CVE-2026-118527",
+            "1"
+          ],
+          [
+            "kev_initialized",
+            "1"
+          ],
+          [
+            "last_epss_row_count",
+            "1"
+          ],
+          [
+            "last_error:cvelist",
+            "ValueError: cveMetadata must be an object"
+          ],
+          [
+            "pending_ingest:cvelist",
+            "{\"cursor\": \"later\", \"content_time\": \"2026-11-03T07:20:00+00:00\", \"release_identity\": null, \"release_position\": null, \"snapshot\": false}"
+          ],
+          [
+            "record_baseline:@invalid:0e6ac9857533c19bb36aff255bade287fac2442a4fef6c23a9b38201b73ac380",
+            ""
+          ],
+          [
+            "record_projection_version",
+            "1"
+          ],
+          [
+            "schema_version",
+            "1"
+          ]
+        ]
+      },
+      "outbox": {
+        "columns": [
+          "id",
+          "pair_key",
+          "urgency",
+          "reasons_json",
+          "body_json",
+          "due_at",
+          "attempts",
+          "next_attempt_at",
+          "sent_at",
+          "enqueued_at",
+          "dirty"
+        ],
+        "rows": [
+          [
+            1,
+            "|baseline",
+            "normal",
+            "[\"baseline\"]",
+            "{\"record_id\": \"baseline\", \"detail\": \"baseline: 0 historical matches, 0 exploited \\u2014 run `cornicen report`\"}",
+            "2026-11-03T07:00:00+00:00",
+            1,
+            null,
+            "2026-11-03T07:00:00+00:00",
+            "2026-11-03T07:00:00+00:00",
+            0
+          ],
+          [
+            2,
+            "|cvelist|health|1",
+            "health",
+            "[\"unhealthy\"]",
+            "{\"record_id\": \"cvelist\", \"state\": \"unhealthy\", \"detail\": \"CVE List ingest failed\", \"reason\": \"incomplete\", \"since\": \"2026-11-03T07:11Z\"}",
+            "2026-11-03T07:11:00+00:00",
+            1,
+            null,
+            "2026-11-03T07:11:00+00:00",
+            "2026-11-03T07:11:00+00:00",
+            0
+          ]
+        ]
+      },
+      "pairs": {
+        "columns": [
+          "watch_id",
+          "record_id",
+          "state",
+          "episode",
+          "baseline",
+          "exploited",
+          "notified",
+          "evidence",
+          "confidence",
+          "alias_map_version"
+        ],
+        "rows": []
+      },
+      "records": {
+        "columns": [
+          "id",
+          "json",
+          "ingested_at"
+        ],
+        "rows": []
+      },
+      "retry_queue": {
+        "columns": [
+          "source",
+          "record_id",
+          "attempts",
+          "next_attempt_at",
+          "last_error"
+        ],
+        "rows": []
+      },
+      "sqlite_sequence": {
+        "columns": [
+          "name",
+          "seq"
+        ],
+        "rows": [
+          [
+            "outbox",
+            2
+          ]
+        ]
+      }
+    }
+  },
+  "notifications": [
+    {
+      "reasons": [
+        "baseline"
+      ],
+      "record": "baseline",
+      "t": "2026-11-03T07:00:00Z",
+      "urgency": "normal",
+      "watch": ""
+    },
+    {
+      "reasons": [
+        "unhealthy"
+      ],
+      "record": "cvelist",
+      "t": "2026-11-03T07:11:00Z",
+      "urgency": "health",
+      "watch": ""
+    }
+  ]
+}

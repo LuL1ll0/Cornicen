@@ -1,0 +1,29 @@
+{"#": "Spec §8 boundary; exact remapped oracle; invented mutation."}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"classification": {"fixture_a": "FAILED"}}, "lifted_by": "F1"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"cursor": {"fixture_a": {"tick": "2099-11-03T00:00:00Z", "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"}}}, "lifted_by": "F2a"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"retries": [{"source": "fixture_a", "resource": "listing.json"}], "advisories": {}}, "lifted_by": "F2a"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"retries": [{"source": "fixture_a", "resource": "listing.json"}]}, "lifted_by": "F2a", "snapshot": "after_restart"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"dimensions": {"fixture_a": {"fetch": "healthy", "completeness": "unhealthy", "freshness": "n/a", "audit": "healthy"}}}, "lifted_by": "F2b"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "watch": "", "record": "fixture_a", "reasons": ["unhealthy"], "urgency": "health", "lifted_by": "F2b"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"notification_count": {"advisory": 0, "total": 1}}, "lifted_by": "F3a"}
+{"t": "2099-11-13T01:00:00Z", "case": "blank", "state": {"classification": {"fixture_a": "FAILED"}}, "lifted_by": "F1"}
+{"t": "2099-11-13T01:00:00Z", "case": "blank", "state": {"cursor": {"fixture_a": {"tick": "2099-11-03T00:00:00Z", "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"}}}, "lifted_by": "F2a"}
+{"t": "2099-11-13T01:00:00Z", "case": "blank", "state": {"retries": [{"source": "fixture_a", "resource": "listing.json"}], "advisories": {}}, "lifted_by": "F2a"}
+{"t": "2099-11-13T01:00:00Z", "case": "blank", "state": {"retries": [{"source": "fixture_a", "resource": "listing.json"}]}, "lifted_by": "F2a", "snapshot": "after_restart"}
+{"t": "2099-11-13T01:00:00Z", "case": "blank", "state": {"dimensions": {"fixture_a": {"fetch": "healthy", "completeness": "unhealthy", "freshness": "n/a", "audit": "healthy"}}}, "lifted_by": "F2b"}
+{"t": "2099-11-13T01:00:00Z", "case": "blank", "watch": "", "record": "fixture_a", "reasons": ["unhealthy"], "urgency": "health", "lifted_by": "F2b"}
+{"t": "2099-11-13T01:00:00Z", "case": "blank", "state": {"notification_count": {"advisory": 0, "total": 1}}, "lifted_by": "F3a"}
+{"t": "2099-11-23T01:00:00Z", "case": "malformed_root", "state": {"classification": {"fixture_a": "FAILED"}}, "lifted_by": "F1"}
+{"t": "2099-11-23T01:00:00Z", "case": "malformed_root", "state": {"cursor": {"fixture_a": {"tick": "2099-11-03T00:00:00Z", "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"}}}, "lifted_by": "F2a"}
+{"t": "2099-11-23T01:00:00Z", "case": "malformed_root", "state": {"retries": [{"source": "fixture_a", "resource": "listing.json"}], "advisories": {}}, "lifted_by": "F2a"}
+{"t": "2099-11-23T01:00:00Z", "case": "malformed_root", "state": {"retries": [{"source": "fixture_a", "resource": "listing.json"}]}, "lifted_by": "F2a", "snapshot": "after_restart"}
+{"t": "2099-11-23T01:00:00Z", "case": "malformed_root", "state": {"dimensions": {"fixture_a": {"fetch": "healthy", "completeness": "unhealthy", "freshness": "n/a", "audit": "healthy"}}}, "lifted_by": "F2b"}
+{"t": "2099-11-23T01:00:00Z", "case": "malformed_root", "watch": "", "record": "fixture_a", "reasons": ["unhealthy"], "urgency": "health", "lifted_by": "F2b"}
+{"t": "2099-11-23T01:00:00Z", "case": "malformed_root", "state": {"notification_count": {"advisory": 0, "total": 1}}, "lifted_by": "F3a"}
+{"t": "2099-12-03T01:00:00Z", "case": "truncated", "state": {"classification": {"fixture_a": "PARTIAL"}}, "lifted_by": "F1"}
+{"t": "2099-12-03T01:00:00Z", "case": "truncated", "state": {"cursor": {"fixture_a": {"tick": "2099-11-03T00:00:00Z", "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"}}}, "lifted_by": "F2a"}
+{"t": "2099-12-03T01:00:00Z", "case": "truncated", "state": {"retries": [{"source": "fixture_a", "resource": "listing.json"}], "advisories": {}}, "lifted_by": "F2a"}
+{"t": "2099-12-03T01:00:00Z", "case": "truncated", "state": {"retries": [{"source": "fixture_a", "resource": "listing.json"}]}, "lifted_by": "F2a", "snapshot": "after_restart"}
+{"t": "2099-12-03T01:00:00Z", "case": "truncated", "state": {"dimensions": {"fixture_a": {"fetch": "unhealthy", "completeness": "unhealthy", "freshness": "n/a", "audit": "healthy"}}}, "lifted_by": "F2b"}
+{"t": "2099-12-03T01:00:00Z", "case": "truncated", "watch": "", "record": "fixture_a", "reasons": ["unhealthy"], "urgency": "health", "lifted_by": "F2b"}
+{"t": "2099-12-03T01:00:00Z", "case": "truncated", "state": {"notification_count": {"advisory": 0, "total": 1}}, "lifted_by": "F3a"}

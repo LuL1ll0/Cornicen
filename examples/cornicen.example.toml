@@ -25,3 +25,13 @@ retention_days = 365
 # Optional, per-host User-Agent:
 # [user_agent_overrides]
 # "www.cisa.gov" = "Cornicen/0.1.0"
+
+# Adapter installation settings; release gates keep every adapter disabled in 0.2.0.
+# These are the defaults. Setting enabled=true cannot bypass an unmet gate.
+# [adapters]
+# synology = { enabled = false }
+# debian = { enabled = false }
+# ubuntu = { enabled = false }
+# msrc = { enabled = false }
+# cisco = { enabled = false }
+# github = { enabled = true }

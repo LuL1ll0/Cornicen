@@ -1,0 +1,262 @@
+{
+  "database": {
+    "meta_keys": [
+      "alias_map_version",
+      "applied_aliases_hash",
+      "applied_matching_revision",
+      "applied_watches",
+      "applied_watches_hash",
+      "bootstrap_started_at",
+      "health_episode:cvelist",
+      "record_projection_version",
+      "schema_version"
+    ],
+    "tables": {
+      "cursors": {
+        "columns": [
+          "source",
+          "value",
+          "content_time"
+        ],
+        "rows": []
+      },
+      "dead_letters": {
+        "columns": [
+          "source",
+          "record_id",
+          "attempts",
+          "next_attempt_at",
+          "last_error",
+          "version"
+        ],
+        "rows": []
+      },
+      "epss": {
+        "columns": [
+          "cve",
+          "score",
+          "pct",
+          "date"
+        ],
+        "rows": []
+      },
+      "epss_crossing_scores": {
+        "columns": [
+          "cve",
+          "score",
+          "pct",
+          "date"
+        ],
+        "rows": []
+      },
+      "epss_crossings": {
+        "columns": [
+          "watch_id",
+          "record_id",
+          "episode",
+          "fired",
+          "crossing",
+          "threshold",
+          "rearm_ratio"
+        ],
+        "rows": []
+      },
+      "events": {
+        "columns": [
+          "key",
+          "watch_id",
+          "record_id",
+          "type",
+          "episode",
+          "created_at"
+        ],
+        "rows": [
+          [
+            "|cvelist|unhealthy|1",
+            "",
+            "cvelist",
+            "unhealthy",
+            1,
+            "2026-11-03T02:00:01+00:00"
+          ]
+        ]
+      },
+      "health": {
+        "columns": [
+          "source",
+          "state",
+          "since",
+          "detail"
+        ],
+        "rows": [
+          [
+            "cvelist",
+            "unhealthy",
+            "2026-11-03T02:00:01+00:00",
+            "No completed fetch; bootstrap grace period expired"
+          ]
+        ]
+      },
+      "http_cache": {
+        "columns": [
+          "url",
+          "etag",
+          "link",
+          "body",
+          "used_at"
+        ],
+        "rows": []
+      },
+      "invalid_revisions": {
+        "columns": [
+          "record_id",
+          "json"
+        ],
+        "rows": []
+      },
+      "kev": {
+        "columns": [
+          "cve",
+          "json"
+        ],
+        "rows": []
+      },
+      "kev_seen": {
+        "columns": [
+          "cve"
+        ],
+        "rows": []
+      },
+      "meta": {
+        "columns": [
+          "k",
+          "v"
+        ],
+        "rows": [
+          [
+            "alias_map_version",
+            "none"
+          ],
+          [
+            "applied_aliases_hash",
+            "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          ],
+          [
+            "applied_matching_revision",
+            "2"
+          ],
+          [
+            "applied_watches",
+            "[{\"eol\":false,\"id\":\"service\",\"match\":[[\"examplecorp\",\"example_service\"]],\"name\":\"Example service\",\"product_only\":[],\"scheme\":\"semver\",\"version\":\"3.0.3\"}]"
+          ],
+          [
+            "applied_watches_hash",
+            "471de2e565969982a29159b69f3e799bdee86044da0a230a0c5ca908a7dfd28c"
+          ],
+          [
+            "bootstrap_started_at",
+            "2026-11-03T00:00:00+00:00"
+          ],
+          [
+            "health_episode:cvelist",
+            "1"
+          ],
+          [
+            "record_projection_version",
+            "1"
+          ],
+          [
+            "schema_version",
+            "1"
+          ]
+        ]
+      },
+      "outbox": {
+        "columns": [
+          "id",
+          "pair_key",
+          "urgency",
+          "reasons_json",
+          "body_json",
+          "due_at",
+          "attempts",
+          "next_attempt_at",
+          "sent_at",
+          "enqueued_at",
+          "dirty"
+        ],
+        "rows": [
+          [
+            1,
+            "|cvelist|health|1",
+            "health",
+            "[\"unhealthy\"]",
+            "{\"record_id\": \"cvelist\", \"state\": \"unhealthy\", \"detail\": \"CVE List ingest failed\", \"reason\": \"incomplete\", \"since\": \"2026-11-03T02:00Z\"}",
+            "2026-11-03T02:00:01+00:00",
+            1,
+            null,
+            "2026-11-03T02:00:01+00:00",
+            "2026-11-03T02:00:01+00:00",
+            0
+          ]
+        ]
+      },
+      "pairs": {
+        "columns": [
+          "watch_id",
+          "record_id",
+          "state",
+          "episode",
+          "baseline",
+          "exploited",
+          "notified",
+          "evidence",
+          "confidence",
+          "alias_map_version"
+        ],
+        "rows": []
+      },
+      "records": {
+        "columns": [
+          "id",
+          "json",
+          "ingested_at"
+        ],
+        "rows": []
+      },
+      "retry_queue": {
+        "columns": [
+          "source",
+          "record_id",
+          "attempts",
+          "next_attempt_at",
+          "last_error"
+        ],
+        "rows": []
+      },
+      "sqlite_sequence": {
+        "columns": [
+          "name",
+          "seq"
+        ],
+        "rows": [
+          [
+            "outbox",
+            1
+          ]
+        ]
+      }
+    }
+  },
+  "notifications": [
+    {
+      "reasons": [
+        "unhealthy"
+      ],
+      "record": "cvelist",
+      "t": "2026-11-03T02:00:01Z",
+      "urgency": "health",
+      "watch": ""
+    }
+  ]
+}

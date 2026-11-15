@@ -1,4 +1,8 @@
-"""Plain notification text shared by the engine and delivery adapters."""
+# script-purpose: Render plain notification text for delivery adapters.
+# script-class: pipeline-tool
+# script-trigger: Notification delivery and digest rendering.
+# script-tests: tests/test_render_urgency.py, tests/test_f3a.py
+"""Read notifications; return text without writing files. Library API, no exit codes."""
 
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -133,7 +137,12 @@ def render(n: Notification) -> tuple[str, str, int, list[str]]:
     lines.append(f'Match: {body.get("evidence", "evidence unknown")} — {state}')
     if body.get('fix'):
         lines.append('Fix: ' + body['fix'])
-    lines.append('https://www.cve.org/CVERecord?id=' + n.record_id)
+    if n.record_id.startswith('advisory:'):
+        url = body.get('advisory_url') or body.get('url')
+        if url:
+            lines.append(url)
+    else:
+        lines.append('https://www.cve.org/CVERecord?id=' + n.record_id)
     cve_title = body.get('cve_title')
     if isinstance(cve_title, str):
         cve_title = ' '.join(''.join(

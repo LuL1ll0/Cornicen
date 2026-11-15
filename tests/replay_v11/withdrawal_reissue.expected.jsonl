@@ -1,0 +1,21 @@
+{"#": "Spec §8 S-W withdrawal and same-identity reissue; exact remapped oracle; invented mutation."}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"notification_count": {"advisory": 0, "total": 0}}, "lifted_by": "F4"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"classification": {"fixture_a": "COMPLETE"}}, "lifted_by": "F1"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"cursor": {"fixture_a": {"tick": "2099-11-03T01:00:00Z", "digest": "50c177334ace05c19e37c7170e12a1016fdd88d591ece689e27162579feb61a2"}}, "manifests": {"fixture_a": [{"source_id": "FIX-2099-0001", "digest": "cb367303c0be894790effe6a84590a711794e6ad4adde878449acda7fb8b25ed"}]}}, "lifted_by": "F2a"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"dimensions": {"fixture_a": {"fetch": "healthy", "completeness": "healthy", "audit": "healthy", "freshness": "n/a"}}}, "lifted_by": "F2b"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"notification_count": {"advisory": 0, "total": 0}}, "lifted_by": "F4"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"classification": {"fixture_a": "COMPLETE"}}, "lifted_by": "F1"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"cursor": {"fixture_a": {"tick": "2099-11-03T02:00:00Z", "digest": "0bfb84fa13a24110afa81f247a14fb18dff1a2f506a4adf01b13d54d1247d382"}}, "manifests": {"fixture_a": [{"source_id": "FIX-2099-0001", "digest": "df0a9495b5be361045cb49a0cff87ab803118796e8d779fb17012485643dd886"}]}}, "lifted_by": "F2a"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"dimensions": {"fixture_a": {"fetch": "healthy", "completeness": "healthy", "audit": "healthy", "freshness": "n/a"}}}, "lifted_by": "F2b"}
+{"t": "2099-11-13T01:00:00Z", "case": "reissued", "state": {"notification_count": {"advisory": 0, "total": 0}}, "lifted_by": "F4"}
+{"t": "2099-11-13T01:00:00Z", "case": "reissued", "state": {"classification": {"fixture_a": "COMPLETE"}}, "lifted_by": "F1"}
+{"t": "2099-11-13T01:00:00Z", "case": "reissued", "state": {"cursor": {"fixture_a": {"tick": "2099-11-13T01:00:00Z", "digest": "6e2c0cdef8cd6e03f8d69cbd29a84f2b8b96963f5b1de65fa0741eaf10d7a8fb"}}, "manifests": {"fixture_a": [{"source_id": "FIX-2099-0001", "digest": "4d37c0678f54775fadf04914bfba1b47e6e8febbbd04097cd67f67583b8b3a60"}]}}, "lifted_by": "F2a"}
+{"t": "2099-11-13T01:00:00Z", "case": "reissued", "state": {"dimensions": {"fixture_a": {"fetch": "healthy", "completeness": "healthy", "audit": "healthy", "freshness": "n/a"}}}, "lifted_by": "F2b"}
+{"t": "2099-11-13T02:00:00Z", "case": "reissued", "state": {"notification_count": {"advisory": 0, "total": 0}}, "lifted_by": "F4"}
+{"t": "2099-11-13T02:00:00Z", "case": "reissued", "state": {"classification": {"fixture_a": "COMPLETE"}}, "lifted_by": "F1"}
+{"t": "2099-11-13T02:00:00Z", "case": "reissued", "state": {"cursor": {"fixture_a": {"tick": "2099-11-13T02:00:00Z", "digest": "9aaf1279a3d5a2a42bb201028728c0f37408f8c5fad6773533c8b0e1a55d4ed4"}}, "manifests": {"fixture_a": [{"source_id": "FIX-2099-0001", "digest": "77107578b72d9ea8de9d4a972806a3a17ddbec8a2c71b4b2e9af53dab4f351c8"}]}}, "lifted_by": "F2a"}
+{"t": "2099-11-13T02:00:00Z", "case": "reissued", "state": {"dimensions": {"fixture_a": {"fetch": "healthy", "completeness": "healthy", "audit": "healthy", "freshness": "n/a"}}}, "lifted_by": "F2b"}
+{"t": "2099-11-13T03:00:00Z", "case": "reissued", "state": {"notification_count": {"advisory": 0, "total": 0}}, "lifted_by": "F4"}
+{"t": "2099-11-13T03:00:00Z", "case": "reissued", "state": {"classification": {"fixture_a": "COMPLETE"}}, "lifted_by": "F1"}
+{"t": "2099-11-13T03:00:00Z", "case": "reissued", "state": {"cursor": {"fixture_a": {"tick": "2099-11-13T03:00:00Z", "digest": "bf25e93451583bc9eb396371ba6c18ec5ab02a5c35349028e14cae5daa1c78e4"}}, "manifests": {"fixture_a": [{"source_id": "FIX-2099-0001", "digest": "cc4d9ad39da168392e1b690b4e6cad09e1f9f20b2dc6b109e1b1ae9904303d08"}]}}, "lifted_by": "F2a"}
+{"t": "2099-11-13T03:00:00Z", "case": "reissued", "state": {"dimensions": {"fixture_a": {"fetch": "healthy", "completeness": "healthy", "audit": "healthy", "freshness": "n/a"}}}, "lifted_by": "F2b"}

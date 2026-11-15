@@ -1,0 +1,168 @@
+{
+  "cohort": [
+    "service"
+  ],
+  "identities": [],
+  "snapshots": [
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [],
+      "health": [],
+      "index": 0,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        }
+      ],
+      "notifications": [],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [],
+      "routes": [],
+      "t": "2026-11-03T00:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [],
+      "health": [],
+      "index": 1,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        }
+      ],
+      "notifications": [],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [],
+      "routes": [],
+      "t": "2026-11-03T00:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [],
+      "health": [],
+      "index": 2,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        }
+      ],
+      "notifications": [],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [],
+      "routes": [],
+      "t": "2026-11-03T02:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [
+        {
+          "created_at": "2026-11-03T02:00:01+00:00",
+          "episode": 1,
+          "key": "|cvelist|unhealthy|1",
+          "record_id": "cvelist",
+          "type": "unhealthy",
+          "watch_id": ""
+        }
+      ],
+      "health": [
+        {
+          "detail": "No completed fetch; bootstrap grace period expired",
+          "since": "2026-11-03T02:00:01+00:00",
+          "source": "cvelist",
+          "state": "unhealthy"
+        }
+      ],
+      "index": 3,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        }
+      ],
+      "notifications": [
+        {
+          "body": {
+            "detail": "CVE List ingest failed",
+            "reason": "incomplete",
+            "record_id": "cvelist",
+            "since": "2026-11-03T02:00Z",
+            "state": "unhealthy"
+          },
+          "reasons": [
+            "unhealthy"
+          ],
+          "record_id": "cvelist",
+          "rendered": [
+            "Cornicen: cvelist unhealthy",
+            "cvelist: unhealthy \u2014 incomplete since 2026-11-03T02:00Z",
+            5,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T02:00:01+00:00",
+          "urgency": "health",
+          "watch_id": ""
+        }
+      ],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [
+        {
+          "notification": {
+            "body": {
+              "detail": "CVE List ingest failed",
+              "reason": "incomplete",
+              "record_id": "cvelist",
+              "since": "2026-11-03T02:00Z",
+              "state": "unhealthy"
+            },
+            "reasons": [
+              "unhealthy"
+            ],
+            "record_id": "cvelist",
+            "urgency": "health",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: cvelist unhealthy",
+            "cvelist: unhealthy \u2014 incomplete since 2026-11-03T02:00Z",
+            5,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T02:00:01+00:00"
+        }
+      ],
+      "routes": [],
+      "t": "2026-11-03T02:00:01Z"
+    }
+  ]
+}

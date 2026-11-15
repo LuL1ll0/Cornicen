@@ -1,4 +1,12 @@
-"""Operator commands. Inventory diagnostics stay local and use stored records."""
+# script-purpose: Run Cornicen and expose its local state and maintenance commands.
+# script-class: pipeline-tool
+# script-trigger: The cornicen command entry point.
+# script-tests: tests/test_cli.py, tests/test_f2a.py, tests/test_f3a.py, tests/test_r11_differential.py
+"""Operator commands; read configuration, watches and the local database.
+
+Run and maintenance commands write database state; diagnostics read stored state.
+Exit 0 on success, 1 on operational failure; argparse exits 2 for usage errors.
+"""
 
 import argparse
 from datetime import datetime, timedelta, timezone
@@ -166,6 +174,11 @@ def replay(store, watches, aliases, path):
     return 0 if success else 1
 
 
+def _adapter_schema_present(store):
+    """The migration marker is authoritative for read-only adapter diagnostics."""
+    return store is not None and store.get_meta('adapter_schema_version') is not None
+
+
 def explain(store, watches, aliases, cve, watch_id):
     watch = next((watch for watch in watches if watch.id == watch_id), None)
     if watch is None:
@@ -176,6 +189,14 @@ def explain(store, watches, aliases, cve, watch_id):
     pair = store.connection.execute(
         'SELECT * FROM pairs WHERE watch_id=? AND record_id=?', (watch_id, cve)).fetchone()
     print('Stored pair state: ' + (json.dumps(dict(pair), sort_keys=True) if pair else 'none'))
+    from cornicen import advisory
+    if _adapter_schema_present(store) and advisory.route(store.connection, cve, watch, aliases) == 'advisory':
+        result = advisory.resolve(store.connection, cve, watch, aliases,
+                                  record=_record(store.connection.execute('SELECT json FROM records WHERE id=?', (cve,)).fetchone())
+                                  if store.connection.execute('SELECT 1 FROM records WHERE id=?', (cve,)).fetchone() else None)
+        print(f'Current decision: applicability={result.state.value}; confidence={result.confidence}')
+        print('Evidence: ' + result.evidence)
+        return 0
     row = store.connection.execute('SELECT json FROM records WHERE id=?', (cve,)).fetchone()
     if row is None:
         print('Current decision: retained record unavailable; applicability unknown')
@@ -301,9 +322,12 @@ def release_check_count(config, store=None):
 
 
 def status_json(store, now, config):
+    from cornicen.adapters import status
     result = dict(schema_version=1, available=False, container_healthy=False,
-                  sources={}, baseline_complete=False, reconcile_at=None, github=github_status(store),
+                  sources={}, adapters=status(config.adapters if config else None), baseline_complete=False, reconcile_at=None, github=github_status(store),
                   release_checks=release_check_count(config, store))
+    if store is not None and not _adapter_schema_present(store):
+        result.pop('adapters')
     eol_ids = _eol_ids(config) if config else []
     if eol_ids:
         result['eol_coverage_limited'] = eol_ids
@@ -428,6 +452,8 @@ def _parser():
     report_parser.add_argument('--watch', action='append')
     report_parser.add_argument('--group', choices=REPORT_GROUPS, action='append')
     report_parser.add_argument('--format', choices=('text', 'jsonl'), default='text')
+    adapter = commands.add_parser('adapter').add_subparsers(dest='adapter_command', required=True)
+    adapter.add_parser('rebaseline').add_argument('name')
     db = commands.add_parser('db').add_subparsers(dest='db_command', required=True)
     db.add_parser('backup').add_argument('--output', type=Path, required=True)
     version = commands.add_parser('version').add_subparsers(dest='version_command', required=True)
@@ -533,13 +559,21 @@ def main(argv=None):
             _coverage_notice(eol_ids, file=notice_file)
             return 1
         try:
-            store = Store(config.db_path, read_only=args.command != 'run')
+            store = Store(config.db_path, read_only=args.command not in ('run', 'adapter'))
         except (OSError, sqlite3.Error):
             if args.command == 'db':
                 raise ValueError(file_error('database', PermissionError())) from None
             raise
         if args.command == 'run':
             store.migrate()
+        if args.command == 'adapter':
+            from cornicen.adapters import REGISTRY
+            from cornicen.adapterstore import AdapterStore
+            if args.name not in REGISTRY:
+                raise ValueError('unknown adapter')
+            AdapterStore(store, Path(config.db_path).parent).rebaseline(args.name, now().isoformat().replace('+00:00', 'Z'))
+            print('Adapter rebaselined; permanent gap history retained')
+            return 0
         if args.command == 'healthcheck':
             healthy = container_healthy(store, now(), config)
             print('healthy' if healthy else 'unhealthy')
@@ -554,7 +588,16 @@ def main(argv=None):
                 detail = safe_message(RuntimeError(detail), config.ntfy_token, config.github_token, config.deadman_url, config.webhook_url, config.webhook_secret)
                 print(f'{source}: {state}; {detail}')
             print('release checks: ' + str(release_check_count(config, store)))
-            print(github_status_line(store))
+            if _adapter_schema_present(store):
+                from cornicen.adapters import status_lines
+                adapter_lines = status_lines(config.adapters)
+                github_adapter = next(line for line in adapter_lines if line.startswith('github: '))
+                print(github_status_line(store) + '; advisory adapter: ' + github_adapter.split(': ', 1)[1])
+                for line in adapter_lines:
+                    if not line.startswith('github: '):
+                        print(line)
+            else:
+                print(github_status_line(store))
             print('container: ' + ('healthy' if container_healthy(store, now(), config) else 'unhealthy'))
             print('reconcile: ' + (store.get_meta('reconcile_at') or 'none'))
             try:

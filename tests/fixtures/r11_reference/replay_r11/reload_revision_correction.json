@@ -1,0 +1,2569 @@
+{
+  "cohort": [
+    "w"
+  ],
+  "identities": [
+    "CVE-2099-1100",
+    "CVE-2099-1199"
+  ],
+  "snapshots": [
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [],
+      "health": [],
+      "index": 0,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        }
+      ],
+      "notifications": [],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [],
+      "routes": [],
+      "t": "2026-11-03T07:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [],
+      "health": [],
+      "index": 1,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        }
+      ],
+      "notifications": [],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [],
+      "routes": [],
+      "t": "2026-11-03T07:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [],
+      "health": [],
+      "index": 2,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        }
+      ],
+      "notifications": [],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [],
+      "routes": [],
+      "t": "2026-11-03T07:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [],
+      "health": [],
+      "index": 3,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        }
+      ],
+      "notifications": [],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [],
+      "routes": [],
+      "t": "2026-11-03T07:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [
+        {
+          "created_at": "2026-11-03T07:00:00+00:00",
+          "episode": 1,
+          "key": "|baseline|baseline|1",
+          "record_id": "baseline",
+          "type": "baseline",
+          "watch_id": ""
+        }
+      ],
+      "health": [
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "cvelist",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "epss",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "kev",
+          "state": "healthy"
+        }
+      ],
+      "index": 4,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        },
+        {
+          "k": "baseline_complete",
+          "v": "1"
+        },
+        {
+          "k": "committed_cve:snapshot:2026-11-03T07:00:00+00:00",
+          "v": "1"
+        },
+        {
+          "k": "kev_baseline:CVE-2099-1199",
+          "v": "1"
+        }
+      ],
+      "notifications": [
+        {
+          "body": {
+            "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            "record_id": "baseline"
+          },
+          "reasons": [
+            "baseline"
+          ],
+          "record_id": "baseline",
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": ""
+        }
+      ],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [
+        {
+          "notification": {
+            "body": {
+              "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+              "record_id": "baseline"
+            },
+            "reasons": [
+              "baseline"
+            ],
+            "record_id": "baseline",
+            "urgency": "normal",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00"
+        }
+      ],
+      "routes": [],
+      "t": "2026-11-03T07:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [
+        {
+          "created_at": "2026-11-03T07:00:00+00:00",
+          "episode": 1,
+          "key": "|baseline|baseline|1",
+          "record_id": "baseline",
+          "type": "baseline",
+          "watch_id": ""
+        }
+      ],
+      "health": [
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "cvelist",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "epss",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "kev",
+          "state": "healthy"
+        }
+      ],
+      "index": 5,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        },
+        {
+          "k": "baseline_complete",
+          "v": "1"
+        },
+        {
+          "k": "committed_cve:snapshot:2026-11-03T07:00:00+00:00",
+          "v": "1"
+        },
+        {
+          "k": "kev_baseline:CVE-2099-1199",
+          "v": "1"
+        }
+      ],
+      "notifications": [
+        {
+          "body": {
+            "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            "record_id": "baseline"
+          },
+          "reasons": [
+            "baseline"
+          ],
+          "record_id": "baseline",
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": ""
+        }
+      ],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [
+        {
+          "notification": {
+            "body": {
+              "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+              "record_id": "baseline"
+            },
+            "reasons": [
+              "baseline"
+            ],
+            "record_id": "baseline",
+            "urgency": "normal",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00"
+        }
+      ],
+      "routes": [],
+      "t": "2026-11-03T07:10:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [
+        {
+          "crossing": 0,
+          "episode": 1,
+          "fired": 0,
+          "rearm_ratio": 0.8,
+          "record_id": "CVE-2099-1100",
+          "threshold": 0.1,
+          "watch_id": "w"
+        }
+      ],
+      "events": [
+        {
+          "created_at": "2026-11-03T07:11:00+00:00",
+          "episode": 1,
+          "key": "w|CVE-2099-1100|new match|1",
+          "record_id": "CVE-2099-1100",
+          "type": "new match",
+          "watch_id": "w"
+        },
+        {
+          "created_at": "2026-11-03T07:00:00+00:00",
+          "episode": 1,
+          "key": "|baseline|baseline|1",
+          "record_id": "baseline",
+          "type": "baseline",
+          "watch_id": ""
+        }
+      ],
+      "health": [
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "cvelist",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "epss",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "kev",
+          "state": "healthy"
+        }
+      ],
+      "index": 6,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        },
+        {
+          "k": "baseline_complete",
+          "v": "1"
+        },
+        {
+          "k": "committed_cve:snapshot:2026-11-03T07:00:00+00:00",
+          "v": "1"
+        },
+        {
+          "k": "kev_baseline:CVE-2099-1199",
+          "v": "1"
+        },
+        {
+          "k": "record_baseline:CVE-2099-1100",
+          "v": ""
+        }
+      ],
+      "notifications": [
+        {
+          "body": {
+            "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            "record_id": "baseline"
+          },
+          "reasons": [
+            "baseline"
+          ],
+          "record_id": "baseline",
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": ""
+        }
+      ],
+      "outbox": [
+        {
+          "attempts": 0,
+          "body_json": {
+            "cna_cvss_score": null,
+            "confidence": "high",
+            "cve_title": "CNA widget title",
+            "eol": false,
+            "episode": 1,
+            "epss": {
+              "date": "2026-11-03",
+              "pct": 0.2,
+              "score": 0.01
+            },
+            "epss_threshold": 0.1,
+            "evidence": "CNA affected widget: 1.0.0; versionType semver",
+            "kev": null,
+            "name": "Widget",
+            "product": "widget",
+            "record_id": "CVE-2099-1100",
+            "severity": 0,
+            "ssvc": {},
+            "state": "affected",
+            "version": "1.0.0",
+            "watch_id": "w"
+          },
+          "dirty": 0,
+          "due_at": "2026-11-03T08:00:00+00:00",
+          "enqueued_at": "2026-11-03T07:11:00+00:00",
+          "id": 2,
+          "next_attempt_at": null,
+          "pair_key": "w|CVE-2099-1100",
+          "reasons_json": [
+            "new match"
+          ],
+          "sent_at": null,
+          "urgency": "normal"
+        }
+      ],
+      "pairs": [
+        {
+          "alias_map_version": "none",
+          "baseline": 0,
+          "confidence": "high",
+          "episode": 1,
+          "evidence": "CNA affected widget: 1.0.0; versionType semver",
+          "exploited": 0,
+          "notified": 0,
+          "record_id": "CVE-2099-1100",
+          "state": "affected",
+          "watch_id": "w"
+        }
+      ],
+      "rendered": [
+        {
+          "notification": {
+            "body": {
+              "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+              "record_id": "baseline"
+            },
+            "reasons": [
+              "baseline"
+            ],
+            "record_id": "baseline",
+            "urgency": "normal",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00"
+        }
+      ],
+      "routes": [],
+      "t": "2026-11-03T07:11:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [
+        {
+          "crossing": 0,
+          "episode": 1,
+          "fired": 0,
+          "rearm_ratio": 0.8,
+          "record_id": "CVE-2099-1100",
+          "threshold": 0.1,
+          "watch_id": "w"
+        }
+      ],
+      "events": [
+        {
+          "created_at": "2026-11-03T07:11:00+00:00",
+          "episode": 1,
+          "key": "w|CVE-2099-1100|new match|1",
+          "record_id": "CVE-2099-1100",
+          "type": "new match",
+          "watch_id": "w"
+        },
+        {
+          "created_at": "2026-11-03T07:00:00+00:00",
+          "episode": 1,
+          "key": "|baseline|baseline|1",
+          "record_id": "baseline",
+          "type": "baseline",
+          "watch_id": ""
+        }
+      ],
+      "health": [
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "cvelist",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "epss",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "kev",
+          "state": "healthy"
+        }
+      ],
+      "index": 7,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        },
+        {
+          "k": "baseline_complete",
+          "v": "1"
+        },
+        {
+          "k": "committed_cve:snapshot:2026-11-03T07:00:00+00:00",
+          "v": "1"
+        },
+        {
+          "k": "kev_baseline:CVE-2099-1199",
+          "v": "1"
+        },
+        {
+          "k": "record_baseline:CVE-2099-1100",
+          "v": ""
+        }
+      ],
+      "notifications": [
+        {
+          "body": {
+            "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            "record_id": "baseline"
+          },
+          "reasons": [
+            "baseline"
+          ],
+          "record_id": "baseline",
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": ""
+        },
+        {
+          "body": {
+            "cna_cvss_score": null,
+            "confidence": "high",
+            "cve_title": "CNA widget title",
+            "eol": false,
+            "episode": 1,
+            "epss": {
+              "date": "2026-11-03",
+              "pct": 0.2,
+              "score": 0.01
+            },
+            "epss_threshold": 0.1,
+            "evidence": "CNA affected widget: 1.0.0; versionType semver",
+            "kev": null,
+            "name": "Widget",
+            "product": "widget",
+            "record_id": "CVE-2099-1100",
+            "severity": 0,
+            "ssvc": {},
+            "state": "affected",
+            "version": "1.0.0",
+            "watch_id": "w"
+          },
+          "reasons": [
+            "new match"
+          ],
+          "record_id": "CVE-2099-1100",
+          "rendered": [
+            "Cornicen: CVE-2099-1100 \u2014 Widget (widget 1.0.0)",
+            "Why: new match\nKEV: not listed\nSSVC: not assessed\nEPSS 1.0% (20th pct, 2026-11-03)\nMatch: CNA affected widget: 1.0.0; versionType semver \u2014 affected\nhttps://www.cve.org/CVERecord?id=CVE-2099-1100\nCVE title: CNA widget title\nCNA CVSS score: unknown",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T08:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": "w"
+        }
+      ],
+      "outbox": [],
+      "pairs": [
+        {
+          "alias_map_version": "none",
+          "baseline": 0,
+          "confidence": "high",
+          "episode": 1,
+          "evidence": "CNA affected widget: 1.0.0; versionType semver",
+          "exploited": 0,
+          "notified": 1,
+          "record_id": "CVE-2099-1100",
+          "state": "affected",
+          "watch_id": "w"
+        }
+      ],
+      "rendered": [
+        {
+          "notification": {
+            "body": {
+              "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+              "record_id": "baseline"
+            },
+            "reasons": [
+              "baseline"
+            ],
+            "record_id": "baseline",
+            "urgency": "normal",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00"
+        },
+        {
+          "notification": {
+            "body": {
+              "items": [
+                {
+                  "body": {
+                    "cna_cvss_score": null,
+                    "confidence": "high",
+                    "cve_title": "CNA widget title",
+                    "eol": false,
+                    "episode": 1,
+                    "epss": {
+                      "date": "2026-11-03",
+                      "pct": 0.2,
+                      "score": 0.01
+                    },
+                    "epss_threshold": 0.1,
+                    "evidence": "CNA affected widget: 1.0.0; versionType semver",
+                    "kev": null,
+                    "name": "Widget",
+                    "product": "widget",
+                    "record_id": "CVE-2099-1100",
+                    "severity": 0,
+                    "ssvc": {},
+                    "state": "affected",
+                    "version": "1.0.0",
+                    "watch_id": "w"
+                  },
+                  "key": "2",
+                  "reasons": [
+                    "new match"
+                  ],
+                  "record_id": "CVE-2099-1100",
+                  "urgency": "normal",
+                  "watch_id": "w"
+                }
+              ]
+            },
+            "reasons": [
+              "new match"
+            ],
+            "record_id": "CVE-2099-1100",
+            "urgency": "normal",
+            "watch_id": "w"
+          },
+          "rendered": [
+            "Cornicen digest: 1 items",
+            "Cornicen: CVE-2099-1100 \u2014 Widget (widget 1.0.0)\nWhy: new match\nKEV: not listed\nSSVC: not assessed\nEPSS 1.0% (20th pct, 2026-11-03)\nMatch: CNA affected widget: 1.0.0; versionType semver \u2014 affected\nhttps://www.cve.org/CVERecord?id=CVE-2099-1100\nCVE title: CNA widget title\nCNA CVSS score: unknown",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T08:00:00+00:00"
+        }
+      ],
+      "routes": [],
+      "t": "2026-11-03T08:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [
+        {
+          "crossing": 0,
+          "episode": 1,
+          "fired": 0,
+          "rearm_ratio": 0.8,
+          "record_id": "CVE-2099-1100",
+          "threshold": 0.1,
+          "watch_id": "w"
+        }
+      ],
+      "events": [
+        {
+          "created_at": "2026-11-03T07:11:00+00:00",
+          "episode": 1,
+          "key": "w|CVE-2099-1100|new match|1",
+          "record_id": "CVE-2099-1100",
+          "type": "new match",
+          "watch_id": "w"
+        },
+        {
+          "created_at": "2026-11-03T07:00:00+00:00",
+          "episode": 1,
+          "key": "|baseline|baseline|1",
+          "record_id": "baseline",
+          "type": "baseline",
+          "watch_id": ""
+        }
+      ],
+      "health": [
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "cvelist",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "epss",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "kev",
+          "state": "healthy"
+        }
+      ],
+      "index": 8,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        },
+        {
+          "k": "baseline_complete",
+          "v": "1"
+        },
+        {
+          "k": "committed_cve:snapshot:2026-11-03T07:00:00+00:00",
+          "v": "1"
+        },
+        {
+          "k": "kev_baseline:CVE-2099-1199",
+          "v": "1"
+        },
+        {
+          "k": "record_baseline:CVE-2099-1100",
+          "v": ""
+        }
+      ],
+      "notifications": [
+        {
+          "body": {
+            "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            "record_id": "baseline"
+          },
+          "reasons": [
+            "baseline"
+          ],
+          "record_id": "baseline",
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": ""
+        },
+        {
+          "body": {
+            "cna_cvss_score": null,
+            "confidence": "high",
+            "cve_title": "CNA widget title",
+            "eol": false,
+            "episode": 1,
+            "epss": {
+              "date": "2026-11-03",
+              "pct": 0.2,
+              "score": 0.01
+            },
+            "epss_threshold": 0.1,
+            "evidence": "CNA affected widget: 1.0.0; versionType semver",
+            "kev": null,
+            "name": "Widget",
+            "product": "widget",
+            "record_id": "CVE-2099-1100",
+            "severity": 0,
+            "ssvc": {},
+            "state": "affected",
+            "version": "1.0.0",
+            "watch_id": "w"
+          },
+          "reasons": [
+            "new match"
+          ],
+          "record_id": "CVE-2099-1100",
+          "rendered": [
+            "Cornicen: CVE-2099-1100 \u2014 Widget (widget 1.0.0)",
+            "Why: new match\nKEV: not listed\nSSVC: not assessed\nEPSS 1.0% (20th pct, 2026-11-03)\nMatch: CNA affected widget: 1.0.0; versionType semver \u2014 affected\nhttps://www.cve.org/CVERecord?id=CVE-2099-1100\nCVE title: CNA widget title\nCNA CVSS score: unknown",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T08:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": "w"
+        }
+      ],
+      "outbox": [],
+      "pairs": [
+        {
+          "alias_map_version": "none",
+          "baseline": 0,
+          "confidence": "high",
+          "episode": 1,
+          "evidence": "CNA affected widget: 1.0.0; versionType semver",
+          "exploited": 0,
+          "notified": 1,
+          "record_id": "CVE-2099-1100",
+          "state": "affected",
+          "watch_id": "w"
+        }
+      ],
+      "rendered": [
+        {
+          "notification": {
+            "body": {
+              "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+              "record_id": "baseline"
+            },
+            "reasons": [
+              "baseline"
+            ],
+            "record_id": "baseline",
+            "urgency": "normal",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00"
+        },
+        {
+          "notification": {
+            "body": {
+              "items": [
+                {
+                  "body": {
+                    "cna_cvss_score": null,
+                    "confidence": "high",
+                    "cve_title": "CNA widget title",
+                    "eol": false,
+                    "episode": 1,
+                    "epss": {
+                      "date": "2026-11-03",
+                      "pct": 0.2,
+                      "score": 0.01
+                    },
+                    "epss_threshold": 0.1,
+                    "evidence": "CNA affected widget: 1.0.0; versionType semver",
+                    "kev": null,
+                    "name": "Widget",
+                    "product": "widget",
+                    "record_id": "CVE-2099-1100",
+                    "severity": 0,
+                    "ssvc": {},
+                    "state": "affected",
+                    "version": "1.0.0",
+                    "watch_id": "w"
+                  },
+                  "key": "2",
+                  "reasons": [
+                    "new match"
+                  ],
+                  "record_id": "CVE-2099-1100",
+                  "urgency": "normal",
+                  "watch_id": "w"
+                }
+              ]
+            },
+            "reasons": [
+              "new match"
+            ],
+            "record_id": "CVE-2099-1100",
+            "urgency": "normal",
+            "watch_id": "w"
+          },
+          "rendered": [
+            "Cornicen digest: 1 items",
+            "Cornicen: CVE-2099-1100 \u2014 Widget (widget 1.0.0)\nWhy: new match\nKEV: not listed\nSSVC: not assessed\nEPSS 1.0% (20th pct, 2026-11-03)\nMatch: CNA affected widget: 1.0.0; versionType semver \u2014 affected\nhttps://www.cve.org/CVERecord?id=CVE-2099-1100\nCVE title: CNA widget title\nCNA CVSS score: unknown",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T08:00:00+00:00"
+        }
+      ],
+      "routes": [],
+      "t": "2026-11-03T09:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [
+        {
+          "crossing": 0,
+          "episode": 1,
+          "fired": 0,
+          "rearm_ratio": 0.8,
+          "record_id": "CVE-2099-1100",
+          "threshold": 0.1,
+          "watch_id": "w"
+        }
+      ],
+      "events": [
+        {
+          "created_at": "2026-11-03T07:11:00+00:00",
+          "episode": 1,
+          "key": "w|CVE-2099-1100|new match|1",
+          "record_id": "CVE-2099-1100",
+          "type": "new match",
+          "watch_id": "w"
+        },
+        {
+          "created_at": "2026-11-03T07:00:00+00:00",
+          "episode": 1,
+          "key": "|baseline|baseline|1",
+          "record_id": "baseline",
+          "type": "baseline",
+          "watch_id": ""
+        }
+      ],
+      "health": [
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "cvelist",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "epss",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "kev",
+          "state": "healthy"
+        }
+      ],
+      "index": 9,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        },
+        {
+          "k": "baseline_complete",
+          "v": "1"
+        },
+        {
+          "k": "committed_cve:snapshot:2026-11-03T07:00:00+00:00",
+          "v": "1"
+        },
+        {
+          "k": "kev_baseline:CVE-2099-1199",
+          "v": "1"
+        },
+        {
+          "k": "record_baseline:CVE-2099-1100",
+          "v": ""
+        }
+      ],
+      "notifications": [
+        {
+          "body": {
+            "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            "record_id": "baseline"
+          },
+          "reasons": [
+            "baseline"
+          ],
+          "record_id": "baseline",
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": ""
+        },
+        {
+          "body": {
+            "cna_cvss_score": null,
+            "confidence": "high",
+            "cve_title": "CNA widget title",
+            "eol": false,
+            "episode": 1,
+            "epss": {
+              "date": "2026-11-03",
+              "pct": 0.2,
+              "score": 0.01
+            },
+            "epss_threshold": 0.1,
+            "evidence": "CNA affected widget: 1.0.0; versionType semver",
+            "kev": null,
+            "name": "Widget",
+            "product": "widget",
+            "record_id": "CVE-2099-1100",
+            "severity": 0,
+            "ssvc": {},
+            "state": "affected",
+            "version": "1.0.0",
+            "watch_id": "w"
+          },
+          "reasons": [
+            "new match"
+          ],
+          "record_id": "CVE-2099-1100",
+          "rendered": [
+            "Cornicen: CVE-2099-1100 \u2014 Widget (widget 1.0.0)",
+            "Why: new match\nKEV: not listed\nSSVC: not assessed\nEPSS 1.0% (20th pct, 2026-11-03)\nMatch: CNA affected widget: 1.0.0; versionType semver \u2014 affected\nhttps://www.cve.org/CVERecord?id=CVE-2099-1100\nCVE title: CNA widget title\nCNA CVSS score: unknown",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T08:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": "w"
+        }
+      ],
+      "outbox": [],
+      "pairs": [
+        {
+          "alias_map_version": "none",
+          "baseline": 0,
+          "confidence": "high",
+          "episode": 1,
+          "evidence": "CNA affected widget: 1.0.0; versionType semver",
+          "exploited": 0,
+          "notified": 1,
+          "record_id": "CVE-2099-1100",
+          "state": "affected",
+          "watch_id": "w"
+        }
+      ],
+      "rendered": [
+        {
+          "notification": {
+            "body": {
+              "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+              "record_id": "baseline"
+            },
+            "reasons": [
+              "baseline"
+            ],
+            "record_id": "baseline",
+            "urgency": "normal",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00"
+        },
+        {
+          "notification": {
+            "body": {
+              "items": [
+                {
+                  "body": {
+                    "cna_cvss_score": null,
+                    "confidence": "high",
+                    "cve_title": "CNA widget title",
+                    "eol": false,
+                    "episode": 1,
+                    "epss": {
+                      "date": "2026-11-03",
+                      "pct": 0.2,
+                      "score": 0.01
+                    },
+                    "epss_threshold": 0.1,
+                    "evidence": "CNA affected widget: 1.0.0; versionType semver",
+                    "kev": null,
+                    "name": "Widget",
+                    "product": "widget",
+                    "record_id": "CVE-2099-1100",
+                    "severity": 0,
+                    "ssvc": {},
+                    "state": "affected",
+                    "version": "1.0.0",
+                    "watch_id": "w"
+                  },
+                  "key": "2",
+                  "reasons": [
+                    "new match"
+                  ],
+                  "record_id": "CVE-2099-1100",
+                  "urgency": "normal",
+                  "watch_id": "w"
+                }
+              ]
+            },
+            "reasons": [
+              "new match"
+            ],
+            "record_id": "CVE-2099-1100",
+            "urgency": "normal",
+            "watch_id": "w"
+          },
+          "rendered": [
+            "Cornicen digest: 1 items",
+            "Cornicen: CVE-2099-1100 \u2014 Widget (widget 1.0.0)\nWhy: new match\nKEV: not listed\nSSVC: not assessed\nEPSS 1.0% (20th pct, 2026-11-03)\nMatch: CNA affected widget: 1.0.0; versionType semver \u2014 affected\nhttps://www.cve.org/CVERecord?id=CVE-2099-1100\nCVE title: CNA widget title\nCNA CVSS score: unknown",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T08:00:00+00:00"
+        }
+      ],
+      "routes": [],
+      "t": "2026-11-03T09:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [
+        {
+          "crossing": 0,
+          "episode": 1,
+          "fired": 0,
+          "rearm_ratio": 0.8,
+          "record_id": "CVE-2099-1100",
+          "threshold": 0.1,
+          "watch_id": "w"
+        }
+      ],
+      "events": [
+        {
+          "created_at": "2026-11-03T07:11:00+00:00",
+          "episode": 1,
+          "key": "w|CVE-2099-1100|new match|1",
+          "record_id": "CVE-2099-1100",
+          "type": "new match",
+          "watch_id": "w"
+        },
+        {
+          "created_at": "2026-11-03T07:00:00+00:00",
+          "episode": 1,
+          "key": "|baseline|baseline|1",
+          "record_id": "baseline",
+          "type": "baseline",
+          "watch_id": ""
+        },
+        {
+          "created_at": "2026-11-03T09:00:00+00:00",
+          "episode": 1,
+          "key": "|cvelist|unhealthy|1",
+          "record_id": "cvelist",
+          "type": "unhealthy",
+          "watch_id": ""
+        }
+      ],
+      "health": [
+        {
+          "detail": "Incomplete ingest; retry pending; last error: ValueError: replay evaluation failure",
+          "since": "2026-11-03T09:00:00+00:00",
+          "source": "cvelist",
+          "state": "unhealthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "epss",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "kev",
+          "state": "healthy"
+        }
+      ],
+      "index": 10,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        },
+        {
+          "k": "baseline_complete",
+          "v": "1"
+        },
+        {
+          "k": "committed_cve:snapshot:2026-11-03T07:00:00+00:00",
+          "v": "1"
+        },
+        {
+          "k": "kev_baseline:CVE-2099-1199",
+          "v": "1"
+        },
+        {
+          "k": "record_baseline:CVE-2099-1100",
+          "v": ""
+        }
+      ],
+      "notifications": [
+        {
+          "body": {
+            "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            "record_id": "baseline"
+          },
+          "reasons": [
+            "baseline"
+          ],
+          "record_id": "baseline",
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": ""
+        },
+        {
+          "body": {
+            "cna_cvss_score": null,
+            "confidence": "high",
+            "cve_title": "CNA widget title",
+            "eol": false,
+            "episode": 1,
+            "epss": {
+              "date": "2026-11-03",
+              "pct": 0.2,
+              "score": 0.01
+            },
+            "epss_threshold": 0.1,
+            "evidence": "CNA affected widget: 1.0.0; versionType semver",
+            "kev": null,
+            "name": "Widget",
+            "product": "widget",
+            "record_id": "CVE-2099-1100",
+            "severity": 0,
+            "ssvc": {},
+            "state": "affected",
+            "version": "1.0.0",
+            "watch_id": "w"
+          },
+          "reasons": [
+            "new match"
+          ],
+          "record_id": "CVE-2099-1100",
+          "rendered": [
+            "Cornicen: CVE-2099-1100 \u2014 Widget (widget 1.0.0)",
+            "Why: new match\nKEV: not listed\nSSVC: not assessed\nEPSS 1.0% (20th pct, 2026-11-03)\nMatch: CNA affected widget: 1.0.0; versionType semver \u2014 affected\nhttps://www.cve.org/CVERecord?id=CVE-2099-1100\nCVE title: CNA widget title\nCNA CVSS score: unknown",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T08:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": "w"
+        },
+        {
+          "body": {
+            "detail": "CVE List ingest failed",
+            "reason": "incomplete",
+            "record_id": "cvelist",
+            "since": "2026-11-03T09:00Z",
+            "state": "unhealthy"
+          },
+          "reasons": [
+            "unhealthy"
+          ],
+          "record_id": "cvelist",
+          "rendered": [
+            "Cornicen: cvelist unhealthy",
+            "cvelist: unhealthy \u2014 incomplete since 2026-11-03T09:00Z",
+            5,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T09:00:00+00:00",
+          "urgency": "health",
+          "watch_id": ""
+        }
+      ],
+      "outbox": [],
+      "pairs": [
+        {
+          "alias_map_version": "none",
+          "baseline": 0,
+          "confidence": "high",
+          "episode": 1,
+          "evidence": "CNA affected widget: 1.0.0; versionType semver",
+          "exploited": 0,
+          "notified": 1,
+          "record_id": "CVE-2099-1100",
+          "state": "affected",
+          "watch_id": "w"
+        }
+      ],
+      "rendered": [
+        {
+          "notification": {
+            "body": {
+              "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+              "record_id": "baseline"
+            },
+            "reasons": [
+              "baseline"
+            ],
+            "record_id": "baseline",
+            "urgency": "normal",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00"
+        },
+        {
+          "notification": {
+            "body": {
+              "items": [
+                {
+                  "body": {
+                    "cna_cvss_score": null,
+                    "confidence": "high",
+                    "cve_title": "CNA widget title",
+                    "eol": false,
+                    "episode": 1,
+                    "epss": {
+                      "date": "2026-11-03",
+                      "pct": 0.2,
+                      "score": 0.01
+                    },
+                    "epss_threshold": 0.1,
+                    "evidence": "CNA affected widget: 1.0.0; versionType semver",
+                    "kev": null,
+                    "name": "Widget",
+                    "product": "widget",
+                    "record_id": "CVE-2099-1100",
+                    "severity": 0,
+                    "ssvc": {},
+                    "state": "affected",
+                    "version": "1.0.0",
+                    "watch_id": "w"
+                  },
+                  "key": "2",
+                  "reasons": [
+                    "new match"
+                  ],
+                  "record_id": "CVE-2099-1100",
+                  "urgency": "normal",
+                  "watch_id": "w"
+                }
+              ]
+            },
+            "reasons": [
+              "new match"
+            ],
+            "record_id": "CVE-2099-1100",
+            "urgency": "normal",
+            "watch_id": "w"
+          },
+          "rendered": [
+            "Cornicen digest: 1 items",
+            "Cornicen: CVE-2099-1100 \u2014 Widget (widget 1.0.0)\nWhy: new match\nKEV: not listed\nSSVC: not assessed\nEPSS 1.0% (20th pct, 2026-11-03)\nMatch: CNA affected widget: 1.0.0; versionType semver \u2014 affected\nhttps://www.cve.org/CVERecord?id=CVE-2099-1100\nCVE title: CNA widget title\nCNA CVSS score: unknown",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T08:00:00+00:00"
+        },
+        {
+          "notification": {
+            "body": {
+              "detail": "CVE List ingest failed",
+              "reason": "incomplete",
+              "record_id": "cvelist",
+              "since": "2026-11-03T09:00Z",
+              "state": "unhealthy"
+            },
+            "reasons": [
+              "unhealthy"
+            ],
+            "record_id": "cvelist",
+            "urgency": "health",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: cvelist unhealthy",
+            "cvelist: unhealthy \u2014 incomplete since 2026-11-03T09:00Z",
+            5,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T09:00:00+00:00"
+        }
+      ],
+      "routes": [],
+      "t": "2026-11-03T09:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [
+        {
+          "crossing": 0,
+          "episode": 1,
+          "fired": 0,
+          "rearm_ratio": 0.8,
+          "record_id": "CVE-2099-1100",
+          "threshold": 0.1,
+          "watch_id": "w"
+        }
+      ],
+      "events": [
+        {
+          "created_at": "2026-11-03T07:11:00+00:00",
+          "episode": 1,
+          "key": "w|CVE-2099-1100|new match|1",
+          "record_id": "CVE-2099-1100",
+          "type": "new match",
+          "watch_id": "w"
+        },
+        {
+          "created_at": "2026-11-03T07:00:00+00:00",
+          "episode": 1,
+          "key": "|baseline|baseline|1",
+          "record_id": "baseline",
+          "type": "baseline",
+          "watch_id": ""
+        },
+        {
+          "created_at": "2026-11-03T09:00:00+00:00",
+          "episode": 1,
+          "key": "|cvelist|unhealthy|1",
+          "record_id": "cvelist",
+          "type": "unhealthy",
+          "watch_id": ""
+        }
+      ],
+      "health": [
+        {
+          "detail": "Incomplete ingest; retry pending; last error: ValueError: replay evaluation failure",
+          "since": "2026-11-03T09:00:00+00:00",
+          "source": "cvelist",
+          "state": "unhealthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "epss",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "kev",
+          "state": "healthy"
+        }
+      ],
+      "index": 11,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        },
+        {
+          "k": "baseline_complete",
+          "v": "1"
+        },
+        {
+          "k": "committed_cve:snapshot:2026-11-03T07:00:00+00:00",
+          "v": "1"
+        },
+        {
+          "k": "kev_baseline:CVE-2099-1199",
+          "v": "1"
+        },
+        {
+          "k": "record_baseline:CVE-2099-1100",
+          "v": ""
+        }
+      ],
+      "notifications": [
+        {
+          "body": {
+            "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            "record_id": "baseline"
+          },
+          "reasons": [
+            "baseline"
+          ],
+          "record_id": "baseline",
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": ""
+        },
+        {
+          "body": {
+            "cna_cvss_score": null,
+            "confidence": "high",
+            "cve_title": "CNA widget title",
+            "eol": false,
+            "episode": 1,
+            "epss": {
+              "date": "2026-11-03",
+              "pct": 0.2,
+              "score": 0.01
+            },
+            "epss_threshold": 0.1,
+            "evidence": "CNA affected widget: 1.0.0; versionType semver",
+            "kev": null,
+            "name": "Widget",
+            "product": "widget",
+            "record_id": "CVE-2099-1100",
+            "severity": 0,
+            "ssvc": {},
+            "state": "affected",
+            "version": "1.0.0",
+            "watch_id": "w"
+          },
+          "reasons": [
+            "new match"
+          ],
+          "record_id": "CVE-2099-1100",
+          "rendered": [
+            "Cornicen: CVE-2099-1100 \u2014 Widget (widget 1.0.0)",
+            "Why: new match\nKEV: not listed\nSSVC: not assessed\nEPSS 1.0% (20th pct, 2026-11-03)\nMatch: CNA affected widget: 1.0.0; versionType semver \u2014 affected\nhttps://www.cve.org/CVERecord?id=CVE-2099-1100\nCVE title: CNA widget title\nCNA CVSS score: unknown",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T08:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": "w"
+        },
+        {
+          "body": {
+            "detail": "CVE List ingest failed",
+            "reason": "incomplete",
+            "record_id": "cvelist",
+            "since": "2026-11-03T09:00Z",
+            "state": "unhealthy"
+          },
+          "reasons": [
+            "unhealthy"
+          ],
+          "record_id": "cvelist",
+          "rendered": [
+            "Cornicen: cvelist unhealthy",
+            "cvelist: unhealthy \u2014 incomplete since 2026-11-03T09:00Z",
+            5,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T09:00:00+00:00",
+          "urgency": "health",
+          "watch_id": ""
+        }
+      ],
+      "outbox": [],
+      "pairs": [
+        {
+          "alias_map_version": "none",
+          "baseline": 0,
+          "confidence": "high",
+          "episode": 1,
+          "evidence": "CNA affected widget: 1.0.0; versionType semver",
+          "exploited": 0,
+          "notified": 1,
+          "record_id": "CVE-2099-1100",
+          "state": "affected",
+          "watch_id": "w"
+        }
+      ],
+      "rendered": [
+        {
+          "notification": {
+            "body": {
+              "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+              "record_id": "baseline"
+            },
+            "reasons": [
+              "baseline"
+            ],
+            "record_id": "baseline",
+            "urgency": "normal",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00"
+        },
+        {
+          "notification": {
+            "body": {
+              "items": [
+                {
+                  "body": {
+                    "cna_cvss_score": null,
+                    "confidence": "high",
+                    "cve_title": "CNA widget title",
+                    "eol": false,
+                    "episode": 1,
+                    "epss": {
+                      "date": "2026-11-03",
+                      "pct": 0.2,
+                      "score": 0.01
+                    },
+                    "epss_threshold": 0.1,
+                    "evidence": "CNA affected widget: 1.0.0; versionType semver",
+                    "kev": null,
+                    "name": "Widget",
+                    "product": "widget",
+                    "record_id": "CVE-2099-1100",
+                    "severity": 0,
+                    "ssvc": {},
+                    "state": "affected",
+                    "version": "1.0.0",
+                    "watch_id": "w"
+                  },
+                  "key": "2",
+                  "reasons": [
+                    "new match"
+                  ],
+                  "record_id": "CVE-2099-1100",
+                  "urgency": "normal",
+                  "watch_id": "w"
+                }
+              ]
+            },
+            "reasons": [
+              "new match"
+            ],
+            "record_id": "CVE-2099-1100",
+            "urgency": "normal",
+            "watch_id": "w"
+          },
+          "rendered": [
+            "Cornicen digest: 1 items",
+            "Cornicen: CVE-2099-1100 \u2014 Widget (widget 1.0.0)\nWhy: new match\nKEV: not listed\nSSVC: not assessed\nEPSS 1.0% (20th pct, 2026-11-03)\nMatch: CNA affected widget: 1.0.0; versionType semver \u2014 affected\nhttps://www.cve.org/CVERecord?id=CVE-2099-1100\nCVE title: CNA widget title\nCNA CVSS score: unknown",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T08:00:00+00:00"
+        },
+        {
+          "notification": {
+            "body": {
+              "detail": "CVE List ingest failed",
+              "reason": "incomplete",
+              "record_id": "cvelist",
+              "since": "2026-11-03T09:00Z",
+              "state": "unhealthy"
+            },
+            "reasons": [
+              "unhealthy"
+            ],
+            "record_id": "cvelist",
+            "urgency": "health",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: cvelist unhealthy",
+            "cvelist: unhealthy \u2014 incomplete since 2026-11-03T09:00Z",
+            5,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T09:00:00+00:00"
+        }
+      ],
+      "routes": [],
+      "t": "2026-11-03T09:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [
+        {
+          "crossing": 0,
+          "episode": 2,
+          "fired": 0,
+          "rearm_ratio": 0.8,
+          "record_id": "CVE-2099-1100",
+          "threshold": 0.1,
+          "watch_id": "w"
+        }
+      ],
+      "events": [
+        {
+          "created_at": "2026-11-03T10:00:00+00:00",
+          "episode": 1,
+          "key": "w|CVE-2099-1100|correction|1",
+          "record_id": "CVE-2099-1100",
+          "type": "correction",
+          "watch_id": "w"
+        },
+        {
+          "created_at": "2026-11-03T07:11:00+00:00",
+          "episode": 1,
+          "key": "w|CVE-2099-1100|new match|1",
+          "record_id": "CVE-2099-1100",
+          "type": "new match",
+          "watch_id": "w"
+        },
+        {
+          "created_at": "2026-11-03T07:00:00+00:00",
+          "episode": 1,
+          "key": "|baseline|baseline|1",
+          "record_id": "baseline",
+          "type": "baseline",
+          "watch_id": ""
+        },
+        {
+          "created_at": "2026-11-03T09:00:00+00:00",
+          "episode": 1,
+          "key": "|cvelist|unhealthy|1",
+          "record_id": "cvelist",
+          "type": "unhealthy",
+          "watch_id": ""
+        }
+      ],
+      "health": [
+        {
+          "detail": "Incomplete ingest; retry pending; last error: ValueError: replay evaluation failure",
+          "since": "2026-11-03T09:00:00+00:00",
+          "source": "cvelist",
+          "state": "unhealthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "epss",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "kev",
+          "state": "healthy"
+        },
+        {
+          "detail": "Watchlist re-match complete",
+          "since": "2026-11-03T10:00:00+00:00",
+          "source": "watchlist",
+          "state": "healthy"
+        }
+      ],
+      "index": 12,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        },
+        {
+          "k": "baseline_complete",
+          "v": "1"
+        },
+        {
+          "k": "committed_cve:snapshot:2026-11-03T07:00:00+00:00",
+          "v": "1"
+        },
+        {
+          "k": "kev_baseline:CVE-2099-1199",
+          "v": "1"
+        },
+        {
+          "k": "record_baseline:CVE-2099-1100",
+          "v": ""
+        }
+      ],
+      "notifications": [
+        {
+          "body": {
+            "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            "record_id": "baseline"
+          },
+          "reasons": [
+            "baseline"
+          ],
+          "record_id": "baseline",
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": ""
+        },
+        {
+          "body": {
+            "cna_cvss_score": null,
+            "confidence": "high",
+            "cve_title": "CNA widget title",
+            "eol": false,
+            "episode": 1,
+            "epss": {
+              "date": "2026-11-03",
+              "pct": 0.2,
+              "score": 0.01
+            },
+            "epss_threshold": 0.1,
+            "evidence": "CNA affected widget: 1.0.0; versionType semver",
+            "kev": null,
+            "name": "Widget",
+            "product": "widget",
+            "record_id": "CVE-2099-1100",
+            "severity": 0,
+            "ssvc": {},
+            "state": "affected",
+            "version": "1.0.0",
+            "watch_id": "w"
+          },
+          "reasons": [
+            "new match"
+          ],
+          "record_id": "CVE-2099-1100",
+          "rendered": [
+            "Cornicen: CVE-2099-1100 \u2014 Widget (widget 1.0.0)",
+            "Why: new match\nKEV: not listed\nSSVC: not assessed\nEPSS 1.0% (20th pct, 2026-11-03)\nMatch: CNA affected widget: 1.0.0; versionType semver \u2014 affected\nhttps://www.cve.org/CVERecord?id=CVE-2099-1100\nCVE title: CNA widget title\nCNA CVSS score: unknown",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T08:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": "w"
+        },
+        {
+          "body": {
+            "detail": "CVE List ingest failed",
+            "reason": "incomplete",
+            "record_id": "cvelist",
+            "since": "2026-11-03T09:00Z",
+            "state": "unhealthy"
+          },
+          "reasons": [
+            "unhealthy"
+          ],
+          "record_id": "cvelist",
+          "rendered": [
+            "Cornicen: cvelist unhealthy",
+            "cvelist: unhealthy \u2014 incomplete since 2026-11-03T09:00Z",
+            5,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T09:00:00+00:00",
+          "urgency": "health",
+          "watch_id": ""
+        }
+      ],
+      "outbox": [
+        {
+          "attempts": 0,
+          "body_json": {
+            "cna_cvss_score": null,
+            "confidence": "high",
+            "cve_title": "CNA widget title",
+            "eol": false,
+            "episode": 2,
+            "epss": {
+              "date": "2026-11-03",
+              "pct": 0.2,
+              "score": 0.01
+            },
+            "epss_threshold": 0.1,
+            "evidence": "CNA unaffected widget: 1.0.0; versionType semver",
+            "kev": null,
+            "name": "Widget",
+            "product": "widget",
+            "record_id": "CVE-2099-1100",
+            "severity": 0,
+            "ssvc": {},
+            "state": "not_affected",
+            "version": "1.0.0",
+            "watch_id": "w"
+          },
+          "dirty": 1,
+          "due_at": "2026-11-04T08:00:00+00:00",
+          "enqueued_at": "2026-11-03T10:00:00+00:00",
+          "id": 4,
+          "next_attempt_at": null,
+          "pair_key": "w|CVE-2099-1100|correction",
+          "reasons_json": [
+            "correction"
+          ],
+          "sent_at": null,
+          "urgency": "normal"
+        }
+      ],
+      "pairs": [
+        {
+          "alias_map_version": "none",
+          "baseline": 0,
+          "confidence": "high",
+          "episode": 2,
+          "evidence": "CNA unaffected widget: 1.0.0; versionType semver",
+          "exploited": 0,
+          "notified": 0,
+          "record_id": "CVE-2099-1100",
+          "state": "not_affected",
+          "watch_id": "w"
+        }
+      ],
+      "rendered": [
+        {
+          "notification": {
+            "body": {
+              "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+              "record_id": "baseline"
+            },
+            "reasons": [
+              "baseline"
+            ],
+            "record_id": "baseline",
+            "urgency": "normal",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00"
+        },
+        {
+          "notification": {
+            "body": {
+              "items": [
+                {
+                  "body": {
+                    "cna_cvss_score": null,
+                    "confidence": "high",
+                    "cve_title": "CNA widget title",
+                    "eol": false,
+                    "episode": 1,
+                    "epss": {
+                      "date": "2026-11-03",
+                      "pct": 0.2,
+                      "score": 0.01
+                    },
+                    "epss_threshold": 0.1,
+                    "evidence": "CNA affected widget: 1.0.0; versionType semver",
+                    "kev": null,
+                    "name": "Widget",
+                    "product": "widget",
+                    "record_id": "CVE-2099-1100",
+                    "severity": 0,
+                    "ssvc": {},
+                    "state": "affected",
+                    "version": "1.0.0",
+                    "watch_id": "w"
+                  },
+                  "key": "2",
+                  "reasons": [
+                    "new match"
+                  ],
+                  "record_id": "CVE-2099-1100",
+                  "urgency": "normal",
+                  "watch_id": "w"
+                }
+              ]
+            },
+            "reasons": [
+              "new match"
+            ],
+            "record_id": "CVE-2099-1100",
+            "urgency": "normal",
+            "watch_id": "w"
+          },
+          "rendered": [
+            "Cornicen digest: 1 items",
+            "Cornicen: CVE-2099-1100 \u2014 Widget (widget 1.0.0)\nWhy: new match\nKEV: not listed\nSSVC: not assessed\nEPSS 1.0% (20th pct, 2026-11-03)\nMatch: CNA affected widget: 1.0.0; versionType semver \u2014 affected\nhttps://www.cve.org/CVERecord?id=CVE-2099-1100\nCVE title: CNA widget title\nCNA CVSS score: unknown",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T08:00:00+00:00"
+        },
+        {
+          "notification": {
+            "body": {
+              "detail": "CVE List ingest failed",
+              "reason": "incomplete",
+              "record_id": "cvelist",
+              "since": "2026-11-03T09:00Z",
+              "state": "unhealthy"
+            },
+            "reasons": [
+              "unhealthy"
+            ],
+            "record_id": "cvelist",
+            "urgency": "health",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: cvelist unhealthy",
+            "cvelist: unhealthy \u2014 incomplete since 2026-11-03T09:00Z",
+            5,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T09:00:00+00:00"
+        }
+      ],
+      "routes": [],
+      "t": "2026-11-03T10:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [
+        {
+          "crossing": 0,
+          "episode": 2,
+          "fired": 0,
+          "rearm_ratio": 0.8,
+          "record_id": "CVE-2099-1100",
+          "threshold": 0.1,
+          "watch_id": "w"
+        }
+      ],
+      "events": [
+        {
+          "created_at": "2026-11-03T10:00:00+00:00",
+          "episode": 1,
+          "key": "w|CVE-2099-1100|correction|1",
+          "record_id": "CVE-2099-1100",
+          "type": "correction",
+          "watch_id": "w"
+        },
+        {
+          "created_at": "2026-11-03T07:11:00+00:00",
+          "episode": 1,
+          "key": "w|CVE-2099-1100|new match|1",
+          "record_id": "CVE-2099-1100",
+          "type": "new match",
+          "watch_id": "w"
+        },
+        {
+          "created_at": "2026-11-03T07:00:00+00:00",
+          "episode": 1,
+          "key": "|baseline|baseline|1",
+          "record_id": "baseline",
+          "type": "baseline",
+          "watch_id": ""
+        },
+        {
+          "created_at": "2026-11-03T09:00:00+00:00",
+          "episode": 1,
+          "key": "|cvelist|unhealthy|1",
+          "record_id": "cvelist",
+          "type": "unhealthy",
+          "watch_id": ""
+        }
+      ],
+      "health": [
+        {
+          "detail": "Source content is stale; last error: ValueError: replay evaluation failure",
+          "since": "2026-11-03T09:00:00+00:00",
+          "source": "cvelist",
+          "state": "unhealthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "epss",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "kev",
+          "state": "healthy"
+        },
+        {
+          "detail": "Watchlist re-match complete",
+          "since": "2026-11-03T10:00:00+00:00",
+          "source": "watchlist",
+          "state": "healthy"
+        }
+      ],
+      "index": 13,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        },
+        {
+          "k": "baseline_complete",
+          "v": "1"
+        },
+        {
+          "k": "committed_cve:snapshot:2026-11-03T07:00:00+00:00",
+          "v": "1"
+        },
+        {
+          "k": "kev_baseline:CVE-2099-1199",
+          "v": "1"
+        },
+        {
+          "k": "record_baseline:CVE-2099-1100",
+          "v": ""
+        }
+      ],
+      "notifications": [
+        {
+          "body": {
+            "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            "record_id": "baseline"
+          },
+          "reasons": [
+            "baseline"
+          ],
+          "record_id": "baseline",
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": ""
+        },
+        {
+          "body": {
+            "cna_cvss_score": null,
+            "confidence": "high",
+            "cve_title": "CNA widget title",
+            "eol": false,
+            "episode": 1,
+            "epss": {
+              "date": "2026-11-03",
+              "pct": 0.2,
+              "score": 0.01
+            },
+            "epss_threshold": 0.1,
+            "evidence": "CNA affected widget: 1.0.0; versionType semver",
+            "kev": null,
+            "name": "Widget",
+            "product": "widget",
+            "record_id": "CVE-2099-1100",
+            "severity": 0,
+            "ssvc": {},
+            "state": "affected",
+            "version": "1.0.0",
+            "watch_id": "w"
+          },
+          "reasons": [
+            "new match"
+          ],
+          "record_id": "CVE-2099-1100",
+          "rendered": [
+            "Cornicen: CVE-2099-1100 \u2014 Widget (widget 1.0.0)",
+            "Why: new match\nKEV: not listed\nSSVC: not assessed\nEPSS 1.0% (20th pct, 2026-11-03)\nMatch: CNA affected widget: 1.0.0; versionType semver \u2014 affected\nhttps://www.cve.org/CVERecord?id=CVE-2099-1100\nCVE title: CNA widget title\nCNA CVSS score: unknown",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T08:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": "w"
+        },
+        {
+          "body": {
+            "detail": "CVE List ingest failed",
+            "reason": "incomplete",
+            "record_id": "cvelist",
+            "since": "2026-11-03T09:00Z",
+            "state": "unhealthy"
+          },
+          "reasons": [
+            "unhealthy"
+          ],
+          "record_id": "cvelist",
+          "rendered": [
+            "Cornicen: cvelist unhealthy",
+            "cvelist: unhealthy \u2014 incomplete since 2026-11-03T09:00Z",
+            5,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T09:00:00+00:00",
+          "urgency": "health",
+          "watch_id": ""
+        },
+        {
+          "body": {
+            "cna_cvss_score": null,
+            "confidence": "high",
+            "cve_title": "CNA widget title",
+            "eol": false,
+            "episode": 2,
+            "epss": {
+              "date": "2026-11-03",
+              "pct": 0.2,
+              "score": 0.01
+            },
+            "epss_threshold": 0.1,
+            "evidence": "CNA unaffected widget: 1.0.0; versionType semver",
+            "kev": null,
+            "name": "Widget",
+            "product": "widget",
+            "record_id": "CVE-2099-1100",
+            "severity": 0,
+            "ssvc": {},
+            "state": "not_affected",
+            "version": "1.0.0",
+            "watch_id": "w"
+          },
+          "reasons": [
+            "correction"
+          ],
+          "record_id": "CVE-2099-1100",
+          "rendered": [
+            "Cornicen: CVE-2099-1100 \u2014 Widget (widget 1.0.0)",
+            "Why: correction\nKEV: not listed\nSSVC: not assessed\nEPSS 1.0% (20th pct, 2026-11-03)\nMatch: CNA unaffected widget: 1.0.0; versionType semver \u2014 not affected\nhttps://www.cve.org/CVERecord?id=CVE-2099-1100\nCVE title: CNA widget title\nCNA CVSS score: unknown",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-04T08:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": "w"
+        }
+      ],
+      "outbox": [],
+      "pairs": [
+        {
+          "alias_map_version": "none",
+          "baseline": 0,
+          "confidence": "high",
+          "episode": 2,
+          "evidence": "CNA unaffected widget: 1.0.0; versionType semver",
+          "exploited": 0,
+          "notified": 0,
+          "record_id": "CVE-2099-1100",
+          "state": "not_affected",
+          "watch_id": "w"
+        }
+      ],
+      "rendered": [
+        {
+          "notification": {
+            "body": {
+              "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+              "record_id": "baseline"
+            },
+            "reasons": [
+              "baseline"
+            ],
+            "record_id": "baseline",
+            "urgency": "normal",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00"
+        },
+        {
+          "notification": {
+            "body": {
+              "items": [
+                {
+                  "body": {
+                    "cna_cvss_score": null,
+                    "confidence": "high",
+                    "cve_title": "CNA widget title",
+                    "eol": false,
+                    "episode": 1,
+                    "epss": {
+                      "date": "2026-11-03",
+                      "pct": 0.2,
+                      "score": 0.01
+                    },
+                    "epss_threshold": 0.1,
+                    "evidence": "CNA affected widget: 1.0.0; versionType semver",
+                    "kev": null,
+                    "name": "Widget",
+                    "product": "widget",
+                    "record_id": "CVE-2099-1100",
+                    "severity": 0,
+                    "ssvc": {},
+                    "state": "affected",
+                    "version": "1.0.0",
+                    "watch_id": "w"
+                  },
+                  "key": "2",
+                  "reasons": [
+                    "new match"
+                  ],
+                  "record_id": "CVE-2099-1100",
+                  "urgency": "normal",
+                  "watch_id": "w"
+                }
+              ]
+            },
+            "reasons": [
+              "new match"
+            ],
+            "record_id": "CVE-2099-1100",
+            "urgency": "normal",
+            "watch_id": "w"
+          },
+          "rendered": [
+            "Cornicen digest: 1 items",
+            "Cornicen: CVE-2099-1100 \u2014 Widget (widget 1.0.0)\nWhy: new match\nKEV: not listed\nSSVC: not assessed\nEPSS 1.0% (20th pct, 2026-11-03)\nMatch: CNA affected widget: 1.0.0; versionType semver \u2014 affected\nhttps://www.cve.org/CVERecord?id=CVE-2099-1100\nCVE title: CNA widget title\nCNA CVSS score: unknown",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T08:00:00+00:00"
+        },
+        {
+          "notification": {
+            "body": {
+              "detail": "CVE List ingest failed",
+              "reason": "incomplete",
+              "record_id": "cvelist",
+              "since": "2026-11-03T09:00Z",
+              "state": "unhealthy"
+            },
+            "reasons": [
+              "unhealthy"
+            ],
+            "record_id": "cvelist",
+            "urgency": "health",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: cvelist unhealthy",
+            "cvelist: unhealthy \u2014 incomplete since 2026-11-03T09:00Z",
+            5,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T09:00:00+00:00"
+        },
+        {
+          "notification": {
+            "body": {
+              "items": [
+                {
+                  "body": {
+                    "cna_cvss_score": null,
+                    "confidence": "high",
+                    "cve_title": "CNA widget title",
+                    "eol": false,
+                    "episode": 2,
+                    "epss": {
+                      "date": "2026-11-03",
+                      "pct": 0.2,
+                      "score": 0.01
+                    },
+                    "epss_threshold": 0.1,
+                    "evidence": "CNA unaffected widget: 1.0.0; versionType semver",
+                    "kev": null,
+                    "name": "Widget",
+                    "product": "widget",
+                    "record_id": "CVE-2099-1100",
+                    "severity": 0,
+                    "ssvc": {},
+                    "state": "not_affected",
+                    "version": "1.0.0",
+                    "watch_id": "w"
+                  },
+                  "key": "4",
+                  "reasons": [
+                    "correction"
+                  ],
+                  "record_id": "CVE-2099-1100",
+                  "urgency": "normal",
+                  "watch_id": "w"
+                }
+              ]
+            },
+            "reasons": [
+              "correction"
+            ],
+            "record_id": "CVE-2099-1100",
+            "urgency": "normal",
+            "watch_id": "w"
+          },
+          "rendered": [
+            "Cornicen digest: 1 items",
+            "Cornicen: CVE-2099-1100 \u2014 Widget (widget 1.0.0)\nWhy: correction\nKEV: not listed\nSSVC: not assessed\nEPSS 1.0% (20th pct, 2026-11-03)\nMatch: CNA unaffected widget: 1.0.0; versionType semver \u2014 not affected\nhttps://www.cve.org/CVERecord?id=CVE-2099-1100\nCVE title: CNA widget title\nCNA CVSS score: unknown",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-04T08:00:00+00:00"
+        }
+      ],
+      "routes": [],
+      "t": "2026-11-04T08:00:00Z"
+    }
+  ]
+}

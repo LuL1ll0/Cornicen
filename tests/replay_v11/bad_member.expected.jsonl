@@ -1,0 +1,17 @@
+{"#": "Spec §8 bad_member; exact remapped oracle; invented mutation."}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "watch": "w", "record": "CVE-2099-0001", "reasons": ["new match"], "urgency": "normal", "lifted_by": "F3a"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"pairs": [{"watch": "w", "id": "CVE-2099-0001", "state": "affected", "episode": 1, "affected_latch": true, "notified": true}, {"watch": "w", "id": "advisory:fixture_a:FIX-2099-0003:main", "state": "unknown", "episode": 1, "affected_latch": false, "notified": false}]}, "lifted_by": "F3a"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"classification": {"fixture_a": "PARTIAL"}}, "lifted_by": "F1"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"quarantine": ["FIX-2099-0003"]}, "lifted_by": "F1"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"cursor": {"fixture_a": {"tick": "2099-11-03T00:00:00Z", "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"}}}, "lifted_by": "F2a"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"advisories": {"FIX-2099-0001": {"digest": "55b7900e9fb3fcffc5b89e72b6fe22b63f4910de9771d098fda25ec2f290edde"}, "FIX-2099-0003": null}, "retries": [{"source": "fixture_a", "resource": "listing.json"}]}, "lifted_by": "F2a"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"dimensions": {"fixture_a": {"fetch": "healthy", "completeness": "unhealthy", "freshness": "n/a", "audit": "healthy"}}}, "lifted_by": "F2b"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "watch": "", "record": "fixture_a", "reasons": ["unhealthy"], "urgency": "health", "lifted_by": "F2b"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"notification_count": {"advisory": 1, "total": 2}}, "lifted_by": "F3a"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"classification": {"fixture_a": "COMPLETE"}}, "lifted_by": "F1"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"cursor": {"fixture_a": {"tick": "2099-11-03T02:00:00Z", "digest": "0b16772e9b3848e6c50a0f667d5f1cf7e04b8b113d1a3231f2ee4160817183cc"}}, "manifests": {"fixture_a": [{"source_id": "FIX-2099-0001", "digest": "55b7900e9fb3fcffc5b89e72b6fe22b63f4910de9771d098fda25ec2f290edde"}, {"source_id": "FIX-2099-0003", "digest": "86a562015c44cfc0f0694e6f7f201673cea6108c04b986301d3431836f07ed1c"}]}}, "lifted_by": "F2a"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"quarantine": []}, "lifted_by": "F2a"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"advisories": {"FIX-2099-0001": {"digest": "55b7900e9fb3fcffc5b89e72b6fe22b63f4910de9771d098fda25ec2f290edde"}, "FIX-2099-0003": {"digest": "86a562015c44cfc0f0694e6f7f201673cea6108c04b986301d3431836f07ed1c"}}}, "lifted_by": "F2a"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "watch": "", "record": "fixture_a", "reasons": ["healthy"], "urgency": "health", "lifted_by": "F2b"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"notification_count": {"advisory": 1, "total": 3}}, "lifted_by": "F3a"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"dimensions": {"fixture_a": {"fetch": "healthy", "completeness": "healthy", "audit": "healthy", "freshness": "n/a"}}}, "lifted_by": "F2b"}

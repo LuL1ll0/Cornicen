@@ -191,7 +191,8 @@ class GoalFeaturesATests(unittest.TestCase):
 
     def assert_status_schema(self, result):
         self.assertEqual(set(result), {'schema_version', 'available', 'container_healthy',
-                                      'sources', 'baseline_complete', 'reconcile_at', 'accepted', 'github', 'release_checks'})
+                                      'sources', 'baseline_complete', 'reconcile_at', 'accepted', 'github', 'release_checks',
+                                      'adapters'})
         self.assertEqual(result['accepted'], [])
         self.assertIs(type(result['schema_version']), int)
         self.assertEqual(result['schema_version'], 1)
@@ -265,7 +266,11 @@ class GoalFeaturesATests(unittest.TestCase):
                         sources={}, baseline_complete=False, reconcile_at=None, accepted=[], release_checks=0,
                         github=dict(auth='unknown', problem=None, rate_limit=None))
         code, text = self.invoke('status', '--json')
-        self.assertEqual((code, json.loads(text)), (1, expected))
+        result = json.loads(text)
+        adapters = result.pop('adapters')
+        self.assertEqual((code, result), (1, expected))
+        self.assertEqual(set(adapters), {'synology', 'debian', 'ubuntu', 'msrc', 'cisco', 'github'})
+        self.assertTrue(all(entry['effective'] is False for entry in adapters.values()))
         self.assert_status_schema(json.loads(text))
         self.assertFalse(self.db.exists())
         self.assertEqual(self.invoke('status'), (1, 'unhealthy: database unavailable\n'))
@@ -274,7 +279,9 @@ class GoalFeaturesATests(unittest.TestCase):
         before = self.db.read_bytes()
         with contextlib.redirect_stdout(output):
             code = main(['--config', str(self.config), 'status', '--json'])
-        self.assertEqual((code, json.loads(output.getvalue())), (1, expected))
+        unreadable = json.loads(output.getvalue())
+        self.assertEqual(set(unreadable.pop('adapters')), set(adapters))
+        self.assertEqual((code, unreadable), (1, expected))
         self.assertEqual(self.db.read_bytes(), before)
 
     def test_f07_draft_alias_collision_strict_and_default(self):

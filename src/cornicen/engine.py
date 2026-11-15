@@ -1,5 +1,11 @@
-"""Local source-ordered state transitions and durable end-of-cycle delivery."""
+# script-purpose: Evaluate local feed evidence and deliver durable notifications.
+# script-class: pipeline-tool
+# script-trigger: Cornicen scheduler cycles and local command paths.
+# script-tests: tests/test_engine.py, tests/test_f3a.py, tests/test_f3b.py, tests/test_r11_differential.py, tests/test_r11_shells.py, tests/test_r11_integration.py
+"""Read feed results and stored evidence; write SQLite state and notification outbox.
 
+Library API with no process exit codes; callers report operational failures.
+"""
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -10,8 +16,8 @@ from hashlib import sha256
 from zoneinfo import ZoneInfo
 
 import cornicen
-from cornicen import applicability, validate
-from cornicen import accept
+from cornicen import applicability, cnascope, validate
+from cornicen import accept, advisory
 from cornicen.applicability import Result, State
 from cornicen.config import Config
 from cornicen.identity import AliasMap
@@ -25,6 +31,10 @@ from cornicen.watchlist import Watch
 from cornicen.versions import Scheme
 
 
+class AdvisoryEvaluationFailed(Exception):
+    """Advisory work rolled back; completed v1 work must remain committed."""
+
+
 @dataclass
 class CycleReport:
     events: list[str] = field(default_factory=list)
@@ -33,6 +43,46 @@ class CycleReport:
 
 
 class Engine:
+    def validate_adapter_result(self, result, *, source=None, resource='records.jsonl', tick=None,
+                                data_dir=None):
+        """Spool the one-shot typed stream and commit through the disk index."""
+        from pathlib import Path
+        from cornicen.feedvalidate import AdapterResult
+        from cornicen.adapterstore import AdapterStore
+        if not isinstance(result, AdapterResult):
+            raise TypeError('expected AdapterResult')
+        # A source is required for valid commits. Check untrusted streams first
+        # so the boundary always rejects a plain dict with zero database writes.
+        if source is None:
+            for record in result.checked_records():
+                raise ValueError('adapter source and tick required')
+            return result
+        # The typed boundary also supports store-only validation before an
+        # evaluator is initialized; initialized engines match accepted records.
+        persistence = AdapterStore(self.store, data_dir or Path(self.config.db_path).parent,
+                                   on_record=self.commit_advisory if hasattr(self, 'watches') else None,
+                                   on_unknown=self.observe_unknown_advisory if hasattr(self, 'watches') else None)
+        persistence.stage_members(source, resource, result.checked_records(), tick, typed=True)
+        for identity in result.quarantine:
+            persistence.quarantine(source, identity, result.quarantine_reasons.get(identity, 'invalid record'), tick)
+        state = persistence.commit_staged(source, resource, tick, typed=True,
+                                          initial_classification=result.classification)
+        if result.classification == 'COMPLETE':
+            result.classification = state
+        return result
+
+    def dispatch_adapters(self, *, registry=None, factories=None):
+        """Run the effective adapter gate before every dispatch route."""
+        from pathlib import Path
+        from cornicen.adapters import REGISTRY
+        from cornicen.adapterstore import AdapterStore
+        registry = REGISTRY if registry is None else registry
+        factories = {} if factories is None else factories
+        persistence = AdapterStore(self.store, Path(self.config.db_path).parent, on_record=self.commit_advisory,
+                                   on_unknown=self.observe_unknown_advisory)
+        return persistence.dispatch(registry, self.config.adapters, factories,
+                                    self._now().isoformat().replace('+00:00', 'Z'), on_health=self._health)
+
     def __init__(self, store: Store, watches: tuple[Watch, ...], aliases: AliasMap,
                  config: Config, clock: Callable[[], datetime], notifier: Notifier, accepts=(), release_checker=None):
         self.release_checker = release_checker
@@ -198,7 +248,7 @@ class Engine:
                     'containers': {'cna': {'affected': []}}}
         return record
 
-    def _body(self, watch, record_id, result):
+    def _body(self, watch, record_id, result, *, route=None):
         epss = self.db.execute('SELECT score,pct,date FROM epss WHERE cve=?', (record_id,)).fetchone()
         record = self._record(record_id) or {}
         containers = record.get('containers')
@@ -208,7 +258,7 @@ class Engine:
             for key, value in metric.items() if key.startswith('cvss') and isinstance(value, dict)
             and type(value.get('baseScore')) in (float, int)), default=None) if isinstance(metrics, list) else None
         severity = score if score is not None else 0
-        return {'severity': severity, 'watch_id': watch.id, 'record_id': record_id, 'name': watch.name,
+        body = {'severity': severity, 'watch_id': watch.id, 'record_id': record_id, 'name': watch.name,
                 'product': watch.match[0][1] if watch.match else watch.product_only[0],
                 'version': watch.version, 'eol': watch.eol, 'state': result.state.value,
                 'evidence': result.evidence, 'confidence': result.confidence,
@@ -217,6 +267,117 @@ class Engine:
                 'epss': dict(epss) if epss else None, 'epss_threshold': self.config.epss_threshold,
                 'cve_title': cna.get('title') if isinstance(cna, dict) else None,
                 'cna_cvss_score': score}
+
+        if (route or self.route(record_id, watch)) == 'advisory':
+            data = advisory.metadata(self.db, record_id, watch, self.aliases,
+                getattr(self, 'evidence_scopes', {}).get(watch.id),
+                getattr(self, 'scope_equivalences', ()))
+            if data:
+                fix = self.advisory_fix(watch, record_id)
+                body.update(cve_title=data['title'], advisory_url=data['url'],
+                            advisory_title=data['title'],
+                            fix='available; version not stated' if fix == 'available' else fix)
+                if record_id.startswith('advisory:') and len(data['cves']) > 1:
+                    body['label'] = 'advisory — which listed CVE affects you is not stated'
+                    body['evidence'] = body['label'] + '; ' + body['evidence']
+        known = [r[0] for r in self.db.execute('SELECT old_id FROM identity_redirects WHERE new_id=? ORDER BY old_id', (record_id,))]
+        if known and (route or self.route(record_id, watch)) == 'advisory':
+            body['also_known_as'] = known
+        return body
+
+    def route(self, identity, watch):
+        return advisory.route(self.db, identity, watch, getattr(self, 'aliases', None),
+            getattr(self, 'evidence_scopes', {}).get(watch.id),
+            getattr(self, 'scope_equivalences', ()))
+
+    def _advisory_matches(self, identity, watch):
+        return advisory.matching_rows(self.db, identity, watch, self.aliases,
+            getattr(self, 'evidence_scopes', {}).get(watch.id),
+            getattr(self, 'scope_equivalences', ()))
+
+    def advisory_result(self, watch, record_id, *, record=None, scope=None):
+        return advisory.resolve(self.db, record_id, watch, self.aliases,
+            record=self._record(record_id) if record is None else record,
+            kev=self._json_row('kev', 'cve', record_id),
+            scope=scope if scope is not None else getattr(self, 'evidence_scopes', {}).get(watch.id),
+            equivalents=getattr(self, 'scope_equivalences', ()))
+
+    def advisory_fix(self, watch, record_id, *, scope=None):
+        return advisory.fix_for(self.db, record_id, watch, self.aliases,
+            scope if scope is not None else getattr(self, 'evidence_scopes', {}).get(watch.id),
+            getattr(self, 'scope_equivalences', ()))
+
+    def observe_unknown_advisory(self, data):
+        """Expose a validated identity shell without accepting quarantined evidence."""
+        with self.store.transaction():
+            for watch in self.watches:
+                if not any(applicability._identity_match(*p['name'].split(':', 1), watch, self.aliases)
+                           for p in data['products'] if ':' in p['name']):
+                    continue
+                for identity in advisory.identities(data):
+                    self.db.execute('INSERT OR IGNORE INTO advisory_shells VALUES (?,?,?)',
+                                    (data['source'], data['source_id'], identity))
+                    advisory.remember(self.db, identity, watch, [(data['source'], data['source_id'])])
+                    self.db.execute('INSERT OR IGNORE INTO pairs VALUES (?,?,?,?,?,?,?,?,?,?)',
+                        (watch.id, identity, 'unknown', 1, 0, 0, 0,
+                         'Quarantined advisory; applicability unknown', 'medium', self.aliases.version))
+
+    def commit_advisory(self, data, baseline=False):
+        """Commit evidence and matching together; callback runs inside adapter savepoint."""
+        from cornicen.adapterstore import canonical
+        with self.store.transaction():
+            data = advisory.reconcile_facets(self.db, data)
+            self.db.execute('INSERT OR REPLACE INTO advisories VALUES (?,?,?,?,?,?,?,?,?)',
+                (data['source'], data['source_id'],
+                 (self.db.execute('SELECT revision FROM advisories WHERE source=? AND source_id=?',
+                                  (data['source'], data['source_id'])).fetchone() or ['1'])[0],
+                 data['digest'], canonical(data),
+                 data['observed_at'], data['published'], data['updated'],
+                 'withdrawn' if data.get('withdrawn') else 'active'))
+            previous = {r[0] for r in self.db.execute(
+                'SELECT identity FROM advisory_evidence WHERE source=? AND source_id=?',
+                (data['source'], data['source_id']))}
+            advisory.write_evidence(self.db, data, baseline)
+            parent = advisory.parent_id(data)
+            for facet in advisory.facet_records(data):
+                if len(facet['cves']) == 1 and not data.get('withdrawn'):
+                    provisional = advisory.parent_id(facet)
+                    target = facet['cves'][0]['value']
+                    # A sole-CVE revision can replace membership without
+                    # equating distinct CVEs or reassigning a permanent redirect.
+                    if advisory.canonical_id(self.db, provisional) in (provisional, target):
+                        advisory.link(self, provisional, target, data['observed_at'])
+            for association in data.get('associations', []):
+                child = association['cve']
+                for watch in self.watches:
+                    old_parent = self.db.execute(
+                        'SELECT * FROM pairs WHERE watch_id=? AND record_id=? AND notified=1',
+                        (watch.id, parent)).fetchone()
+                    associated_rows = [r for r in advisory.rows_for(self.db, child)
+                        if r['source'] == data['source'] and r['source_id'] == data['source_id']
+                        and json.loads(r['provenance']).get('product_id') == association['product_id']
+                        and advisory.scope_matches(r, getattr(self, 'evidence_scopes', {}).get(watch.id, {}),
+                                                   getattr(self, 'scope_equivalences', ()))
+                        and advisory.evaluate_row(r, watch, self.aliases) == State.AFFECTED]
+                    if (old_parent and associated_rows and advisory.covered(self.db, watch.id, parent, 'new match', old_parent['episode'])
+                            and self.route(child, watch) == 'advisory'
+                            and self.advisory_result(watch, child).state == State.AFFECTED):
+                        child_pair = self.db.execute('SELECT episode FROM pairs WHERE watch_id=? AND record_id=?',
+                                                     (watch.id, child)).fetchone()
+                        self.db.execute('INSERT OR IGNORE INTO coverage_inheritance VALUES (?,?,?,?,?)',
+                                        (child, parent, watch.id, 'new match', child_pair[0] if child_pair else 1))
+            for identity in sorted({advisory.canonical_id(self.db, i) for i in previous | set(advisory.identities(data))}):
+                self._evaluate(self._record(identity), identity, baseline=baseline,
+                               advisory_only=True)
+
+    def _evaluate_advisory(self, record_id, *, record=None, **flags):
+        # The caller has already partitioned watches. Use the same lifecycle
+        # and policy machinery, with scoped aggregation and the affected latch.
+        if 'watches' not in flags:
+            flags['watches'] = tuple(w for w in self.watches if self.route(record_id, w) == 'advisory')
+        if record is None:
+            record = self._record(record_id)
+        self._evaluate_pairs(record, record_id, advisory_path=True, **flags)
 
     def _urgent(self, body, reasons):
         if 'epss_crossed' in reasons:
@@ -228,6 +389,12 @@ class Engine:
             (body.get('epss') and body['epss']['score'] >= self.config.epss_threshold))))
 
     def _event(self, watch_id, record_id, kind, episode, body, immediate=False, resolution=False, occurrence=None):
+        canonical = advisory.canonical_id(self.db, record_id)
+        if canonical != record_id:
+            record_id = canonical
+            body = dict(body, record_id=canonical)
+        if occurrence is None and not resolution and self.db.execute('SELECT 1 FROM identity_redirects WHERE new_id=?', (record_id,)).fetchone() and advisory.covered(self.db, watch_id, record_id, kind, episode):
+            return
         key = f'{watch_id}|{record_id}|{kind}|{episode}'
         if occurrence is not None:
             key += f'|{occurrence}'
@@ -265,14 +432,69 @@ class Engine:
 
     def _evaluate(self, record, record_id, baseline=False, kev_added=False,
                   kev_baseline=False, reload=False, watches=None, resolving_kev_only=False,
-                  revision_corrections=False):
-        if record is None:
+                  revision_corrections=False, advisory_only=False):
+        record_id = advisory.canonical_id(self.db, record_id)
+        selected = tuple(self.watches if watches is None else watches)
+        has_adapters = advisory.has_routing_data(self.db, record_id)
+        routes = {watch.id: self.route(record_id, watch) if has_adapters else 'v1'
+                  for watch in selected}
+        if advisory_only:
+            selected = tuple(w for w in selected if routes[w.id] == 'advisory')
+            if not selected:
+                return
+        flags = dict(baseline=baseline, kev_added=kev_added, kev_baseline=kev_baseline,
+                     reload=reload, resolving_kev_only=resolving_kev_only,
+                     revision_corrections=revision_corrections)
+        if record is not None:
+            problems = validate.record(record)
+            if problems:
+                raise ValueError('; '.join(problems))
+            if not advisory_only:
+                self.store.dirty_record(record_id)
+        if advisory_only:
+            # Adapter evidence changes only this route, including identities
+            # without a CNA record. Preserve v1 pending rows and retry state.
+            self.db.executemany("""UPDATE outbox SET dirty=1 WHERE sent_at IS NULL
+                AND CAST(json_extract(body_json,'$.record_id') AS TEXT)=?
+                AND CAST(json_extract(body_json,'$.watch_id') AS TEXT)=?""",
+                ((record_id, watch.id) for watch in selected))
+        v1 = tuple(w for w in selected if routes[w.id] == 'v1')
+        advised = tuple(w for w in selected if routes[w.id] == 'advisory')
+        if v1 and record is None and has_adapters:
+            # Reload enumerates adapter-only identities too. Only a retained
+            # v1 pair establishes that this identity should have a CNA record;
+            # include unchanged watches when deciding missing-record health.
+            owners = {r[0] for r in self.db.execute(
+                'SELECT watch_id FROM pairs WHERE record_id=?', (record_id,))}
+            if not any(w.id in owners and (routes[w.id] if w.id in routes
+                           else self.route(record_id, w)) == 'v1'
+                       for w in self.watches):
+                v1 = ()
+        if v1:
+            self._evaluate_pairs(record, record_id, watches=v1, **flags)
+        if advised:
+            event_count = len(self.report.events)
+            try:
+                with self.store.transaction():
+                    self._evaluate_advisory(record_id, record=record, watches=advised, **flags)
+            except TransactionAborted:
+                raise
+            except Exception as error:
+                del self.report.events[event_count:]
+                if advisory_only:
+                    # AdapterStore owns adapter retries; do not use CNA retries.
+                    raise
+                raise AdvisoryEvaluationFailed(f'{type(error).__name__}: {error}') from error
+        if not advisory_only and (watches is None or {w.id for w in selected} == {w.id for w in self.watches}):
+            # Only a full CNA evaluation completes matching-revision work.
+            self.db.execute('DELETE FROM meta WHERE k=?', ('matching_revision_retry:' + record_id,))
+
+    def _evaluate_pairs(self, record, record_id, baseline=False, kev_added=False,
+                        kev_baseline=False, reload=False, watches=None, resolving_kev_only=False,
+                        revision_corrections=False, advisory_path=False):
+        if record is None and not advisory_path:
             self._health('records', 'unhealthy', 'Missing stored record: ' + record_id)
             return
-        problems = validate.record(record)
-        if problems:
-            raise ValueError('; '.join(problems))
-        self.store.dirty_record(record_id)
         kev = self._json_row('kev', 'cve', record_id)
         if self._identity_version != (self.aliases, self.aliases.version):
             self._cache_watch_identities()
@@ -281,7 +503,18 @@ class Engine:
             'SELECT * FROM pairs WHERE record_id=?', (record_id,))}
         for watch in self.watches if watches is None else watches:
             old = pairs.get(watch.id)
-            if applicability.rejected(record) and old:
+            sibling_only = False
+            inherited = False
+            latched = False
+            if advisory_path:
+                matching = self._advisory_matches(record_id, watch)
+                advisory.remember(self.db, record_id, watch,
+                    [(r['source'], r['source_id']) for r in matching])
+                result = self.advisory_result(watch, record_id, record=record)
+                cna = cnascope.scoped_verdicts(record, watch, self.aliases)
+                sibling_only = (bool(matching) and not cna
+                                and not any(r['identity'] == record_id for r in matching))
+            elif applicability.rejected(record) and old:
                 result = Result(State.NOT_AFFECTED, bool(kev), 'CNA record rejected', 'high')
             else:
                 result = applicability.resolve(record, kev, watch, self.aliases,
@@ -290,7 +523,7 @@ class Engine:
                 if old is None:
                     continue
                 result = Result(State.NOT_AFFECTED, False, 'Identity no longer matches watch', 'high')
-            active = self._active(result.state.value, result.exploited)
+            active = self._active(result.state.value, result.exploited) and not sibling_only
             was_active = old and self._active(old['state'], old['exploited'])
             if old:
                 episode = old['episode']
@@ -300,7 +533,12 @@ class Engine:
                     'SELECT coalesce(max(episode),0) FROM events WHERE watch_id=? AND record_id=?',
                     (watch.id, record_id)).fetchone()[0]
             notified = old['notified'] if old else 0
-            clearing = (was_active or notified) and result.state == State.NOT_AFFECTED
+            if advisory_path:
+                latched = advisory.logical_latch(self.db, old)
+                inherited = self.db.execute("SELECT 1 FROM coverage_inheritance WHERE child_id=? AND watch_id=? AND reason='new match' AND episode=?",
+                                            (record_id, watch.id, episode)).fetchone()
+                notified = bool(notified or inherited)
+            clearing = (latched if advisory_path else (was_active or notified)) and result.state == State.NOT_AFFECTED
             if clearing:
                 episode += 1
             historical = old['baseline'] if old else int(baseline or kev_baseline)
@@ -310,6 +548,9 @@ class Engine:
                 confidence=excluded.confidence, notified=excluded.notified, alias_map_version=excluded.alias_map_version''',
                 (watch.id, record_id, result.state.value, episode, historical,
                  int(result.exploited), 0 if clearing else notified, result.evidence, result.confidence, self.aliases.version))
+            if advisory_path and (result.state == State.AFFECTED or (latched and not clearing)):
+                self.db.execute('INSERT OR REPLACE INTO affected_latches VALUES (?,?,?,1)',
+                                (watch.id, record_id, episode))
             if clearing:
                 self.db.execute('DELETE FROM epss_crossings WHERE watch_id=? AND record_id=?',
                                 (watch.id, record_id))
@@ -317,31 +558,24 @@ class Engine:
             if clearing or (old and active and old['state'] == 'not_affected'):
                 self.db.execute('UPDATE epss_crossings SET fired=0 WHERE watch_id=? AND record_id=?',
                                 (watch.id, record_id))
-            body = self._body(watch, record_id, result)
+            body = self._body(watch, record_id, result, route='advisory' if advisory_path else 'v1')
             body['episode'] = episode
             # Evaluate rendering within the record savepoint, before creating events.
             render(Notification('', watch.id, record_id, (), 'normal', body))
             if clearing:
                 self._drop_activation(watch.id, record_id)
                 if notified and (not reload or revision_corrections):
-                    self._event(watch.id, record_id, 'correction', episode - 1, body)
+                    self._event(watch.id, record_id, 'correction', episode - 1,
+                                dict(body, episode=episode - 1) if advisory_path else body)
             elif resolving_kev_only and old and notified and old['state'] != result.state.value:
                 self._event(watch.id, record_id, 'correction', episode, body, resolution=True)
-            if active and not was_active:
+            if active and not was_active and not advisory_path:
                 self.db.execute('DELETE FROM outbox WHERE pair_key=? AND sent_at IS NULL',
                                 (f'{watch.id}|{record_id}|correction',))
-            if active and not was_active and not baseline and not (kev_baseline and historical):
+            if active and (not notified if advisory_path else not was_active) and not baseline and not inherited and not (kev_baseline and historical):
                 self._event(watch.id, record_id, 'new match', episode, body)
             if active and kev_added and not kev_baseline:
                 self._event(watch.id, record_id, 'KEV added', episode, body)
-        if watches is None or {watch.id for watch in watches} == {watch.id for watch in self.watches}:
-            # Complete revision work in the same savepoint as a successful full
-            # evaluation, whether it came from ingestion, reload, or retry.
-            # Leave watchlist retry rows for ordinary retry processing so it
-            # records health recovery after the revision marker is cleared.
-            retry_key = 'matching_revision_retry:' + record_id
-            if self.store.get_meta(retry_key):
-                self.db.execute('DELETE FROM meta WHERE k=?', (retry_key,))
 
     @staticmethod
     def _retry_identity(record):
@@ -368,12 +602,19 @@ class Engine:
             self.db.execute('INSERT OR REPLACE INTO retry_queue VALUES (?,?,?,?,?)',
                 (source, record_id, attempts, self._now().isoformat(), detail))
 
-    def _isolated(self, source, record, action):
+    def _isolated(self, source, record, action, *, key=None):
         count = len(self.report.events)
-        _, key = self._retry_identity(record)
+        key = key or self._retry_identity(record)[1]
         try:
             with self.store.transaction():
-                action()
+                try:
+                    action()
+                except AdvisoryEvaluationFailed as error:
+                    # Catch inside the savepoint so completed v1 pairs/events
+                    # survive. Leave completion markers for the full retry.
+                    self._attempted_records.add((source, key))
+                    self._retry(source, key, str(error))
+                    return False
                 for table in ('retry_queue', 'dead_letters'):
                     self.db.execute(f'DELETE FROM {table} WHERE source=? AND record_id=?', (source, key))
             return True
@@ -449,7 +690,7 @@ class Engine:
                 continue
             invalid = self.db.execute('SELECT json FROM invalid_revisions WHERE record_id=?', (record_id,)).fetchone() if source == 'cvelist' else None
             record = json.loads(zlib.decompress(invalid[0])) if invalid else self._record(record_id)
-            if record is None:
+            if record is None and not advisory.has_routing_data(self.db, record_id):
                 self._health('records', 'unhealthy', 'Missing stored record: ' + record_id)
                 continue
             def apply():
@@ -460,7 +701,7 @@ class Engine:
                 else:
                     self._rematch_record(record, record_id)
             with self.store.transaction():
-                self._isolated(source, record, apply)
+                self._isolated(source, record, apply, key=record_id)
                 pending = self.db.execute('SELECT 1 FROM retry_queue WHERE source=? UNION ALL SELECT 1 FROM dead_letters WHERE source=?', (source, source)).fetchone()
                 if not pending:
                     saved = self.store.get_meta('pending_ingest:' + source)
@@ -601,12 +842,12 @@ class Engine:
                             self.store.set_meta('kev_baseline:' + record_id, '1')
                         self.store.set_meta('kev_only:' + record_id, '1')
                         record = self._record(record_id)
-                    if record is None:
+                    if record is None and not any(self.route(record_id, w) == 'advisory' for w in self.watches):
                         if self.db.execute('SELECT 1 FROM pairs WHERE record_id=?', (record_id,)).fetchone():
-                            self._evaluate(None, record_id)
+                            self._isolated(source, None, lambda: self._evaluate(None, record_id), key=record_id)
                         continue
                     if not self._isolated(source, record,
-                            lambda record=record, record_id=record_id: self._evaluate_kev(record, record_id)):
+                            lambda record=record, record_id=record_id: self._evaluate_kev(record, record_id), key=record_id):
                         complete = False
             elif source == 'epss' and payload is not None:
                 self._initialize_epss_crossings()
@@ -687,22 +928,20 @@ class Engine:
                 # eligible KEV-only rows have a synthetic evaluation context.
                 ids = self.db.execute("""SELECT id FROM records
                     UNION SELECT record_id FROM pairs
+                    UNION SELECT identity FROM advisory_evidence
                     UNION SELECT cve FROM kev WHERE EXISTS (
                         SELECT 1 FROM meta WHERE k='kev_only:' || kev.cve)
                     """).fetchall() if changed else ()
                 for row in ids:
                     record_id = row[0]
                     record = self._record(record_id)
-                    if record is None:
-                        self._evaluate(None, record_id)
-                        continue
                     if force_all:
                         # Outside the record savepoint: failures keep correction policy
                         # for watchlist retries, including across process restarts.
                         self.store.set_meta('matching_revision_retry:' + record_id, '1')
                     self._isolated('watchlist', record,
                         lambda record=record, record_id=record_id: self._rematch_record(
-                            record, record_id, watches=changed, revision_corrections=force_all))
+                            record, record_id, watches=changed, revision_corrections=force_all), key=record_id)
                 pending = self.db.execute("SELECT 1 FROM retry_queue WHERE source='watchlist' UNION ALL SELECT 1 FROM dead_letters WHERE source='watchlist' LIMIT 1").fetchone()
                 self._health('watchlist', 'unhealthy' if pending else 'healthy',
                              'Re-match failed; retry pending' if pending else 'Watchlist re-match complete',
@@ -711,7 +950,10 @@ class Engine:
                 for watch_id in previous_ids - active_ids:
                     for pair in self.db.execute('SELECT record_id FROM pairs WHERE watch_id=?', (watch_id,)).fetchall():
                         self._drop_activation(watch_id, pair['record_id'])
+                        key = 'advisory_history:' + json.dumps([watch_id, pair['record_id']], separators=(',', ':'))
+                        self.db.execute('DELETE FROM meta WHERE k=?', (key,))
                     self.db.execute('DELETE FROM pairs WHERE watch_id=?', (watch_id,))
+                    self.db.execute('DELETE FROM affected_latches WHERE watch_id=?', (watch_id,))
                     self.db.execute('DELETE FROM epss_crossings WHERE watch_id=?', (watch_id,))
                 for row in self.db.execute('SELECT * FROM outbox WHERE sent_at IS NULL').fetchall():
                     body = json.loads(row['body_json'])
@@ -810,26 +1052,43 @@ class Engine:
                 self.db.execute('UPDATE outbox SET body_json=? WHERE id=?',
                                 (json.dumps(body), row['id']))
             return dict(row, body_json=json.dumps(body), urgency='normal')
-        if self._record(body['record_id']) is None:
-            if persist:
-                self._health('records', 'unhealthy', 'Missing stored record: ' + body['record_id'])
-            return None
         watch = next((w for w in self.watches if w.id == body['watch_id']), None)
+        route = self.route(body['record_id'], watch) if watch else 'v1'
         pair = self.db.execute('SELECT * FROM pairs WHERE watch_id=? AND record_id=?',
                                (body['watch_id'], body['record_id'])).fetchone()
         reasons = json.loads(row['reasons_json'])
-        if not watch or not pair or ('correction' not in reasons and not self._active(pair['state'], pair['exploited'])):
-            if persist:
-                self._drop_activation(body['watch_id'], body['record_id'])
-                self.db.execute('DELETE FROM outbox WHERE id=?', (row['id'],))
-            return None
-        result = Result(State(pair['state']), bool(pair['exploited']), pair['evidence'], pair['confidence'])
+        if route == 'advisory':
+            result = self.advisory_result(watch, body['record_id'])
+            matching = self._advisory_matches(body['record_id'], watch)
+            cna = cnascope.scoped_verdicts(self._record(body['record_id']), watch, self.aliases)
+            sibling_only = (bool(matching) and not cna
+                            and not any(r['identity'] == body['record_id'] for r in matching))
+            valid = pair and (result.state == State.NOT_AFFECTED if reasons == ['correction']
+                              else self._active(result.state.value, result.exploited) and not sibling_only)
+            if not valid:
+                if persist:
+                    if not pair or not pair['notified']:
+                        self._drop_activation(body['watch_id'], body['record_id'])
+                    self.db.execute('DELETE FROM outbox WHERE id=?', (row['id'],))
+                return None
+            pair = dict(pair, state=result.state.value, exploited=int(result.exploited))
+        else:
+            if self._record(body['record_id']) is None:
+                if persist:
+                    self._health('records', 'unhealthy', 'Missing stored record: ' + body['record_id'])
+                return None
+            if not watch or not pair or ('correction' not in reasons and not self._active(pair['state'], pair['exploited'])):
+                if persist:
+                    self._drop_activation(body['watch_id'], body['record_id'])
+                    self.db.execute('DELETE FROM outbox WHERE id=?', (row['id'],))
+                return None
+            result = Result(State(pair['state']), bool(pair['exploited']), pair['evidence'], pair['confidence'])
         if reasons == ['correction']:
-            # Preserve the correction's cleared state and episode until delivery.
+            # Keep the closing episode, including a correction awaiting retry.
             return row
         previous_body = body
         episode = body.get('episode', pair['episode'])
-        body = self._body(watch, body['record_id'], result)
+        body = self._body(watch, body['record_id'], result, route=route)
         body['episode'] = episode
         urgency = 'urgent' if self._urgent(body, reasons) else 'normal'
         due = row['due_at']
@@ -936,7 +1195,11 @@ class Engine:
         self._health_verdicts = {}
         self._attempted_records = set()
         order = {'cvelist': 0, 'kev': 1, 'epss': 2}
-        for ingest in sorted(ingests, key=lambda i: order[i.source]):
+        for ingest in (i for i in ingests if i.source == 'cvelist'):
+            with self.store.transaction():
+                self._ingest(ingest)
+        self.dispatch_adapters()
+        for ingest in sorted((i for i in ingests if i.source != 'cvelist'), key=lambda i: order[i.source]):
             with self.store.transaction():
                 self._ingest(ingest)
         self._retry_records()

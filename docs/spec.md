@@ -202,6 +202,14 @@ following an accepted empty midnight release arrive in the next delta without lo
 
 ### 6.4 Bounded feeds (v1.1 adapters)
 
+The [adapter foundation design](adapters.md) describes the v0.2.0 storage,
+identity, evidence and release-gate contracts. Every adapter is effectively
+disabled in this release.
+
+Any completed, intact HTTP 200 response with `conditional=false` resets that
+resource’s audit timestamp, even if its content later fails validation.
+`scoped_verdicts` adds UNKNOWN for a `product_only` match in a different scope.
+
 A feed that exposes only its newest N items cannot prove nothing was missed. Every v1.1 adapter must either catch up through an archive or index (CSAF `changes.csv`, OSV export, full pagination) or report an **unrecoverable gap** as a health warning when the oldest item it sees is newer than its cursor.
 
 ### 6.5 EPSS

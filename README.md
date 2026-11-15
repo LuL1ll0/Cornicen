@@ -15,7 +15,7 @@ Cornicen is for homelabs and small networks. You tell it what you run. It watche
   Email uses the ntfy server’s own forwarding; Cornicen stores no mail credentials.
 - **Silent first run.** The first bootstrap records what already matches and sends one summary; after that you hear only about changes.
 
-**Status:** version 0.1.16, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
+**Status:** version 0.2.0, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
 
 ## Contents
 
@@ -180,7 +180,7 @@ Cornicen only knows what the CVE List, KEV and EPSS publish, and CNA data is inc
 - **Not covered:** anything without a CVE record (a blog post, a GitHub issue), Apple (no official machine-readable feed), and Raspberry Pi-specific packages or firmware.
 - **GitHub rate limit:** without a token, GitHub allows 60 API requests an hour per IP address. An [optional GitHub token](docs/install.md#github-token-optional) raises the primary allowance to 5,000 an hour. Anything else on your network calling GitHub without a token draws on the same allowance. If it runs out, the CVE List source reports unhealthy until the hour resets.
 - **Plex:** no machine-readable advisory feed was found, so coverage comes from CVE records alone. Latest-release checks support GitHub releases only, which Plex does not publish, so a Plex latest-version check is still planned.
-- **Planned:** vendor advisory feeds, Debian data, NVD enrichment.
+- **Planned:** vendor advisory feeds, each off until it passes its own gate; Debian data; NVD enrichment.
 
 ## Privacy
 
@@ -200,6 +200,8 @@ make gate
 ```
 
 The gate runs the full unit, replay and fuzz suite with no network access. Testing a real deployment against CVEs you know should match: [docs/testing.md](docs/testing.md). How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md). Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+The adapter foundation's tables are additive and empty until an adapter is enabled; see the [foundation harness notes](tests/replay_v11/README.md).
 
 ## License and prior art
 

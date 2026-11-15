@@ -1,0 +1,9 @@
+{"#": "Invented multi-entry CNA: multi_unaffected_malformed"}
+{"t": "2026-11-03T07:00:00Z", "watchlist": "[[watch]]\nid=\"w\"\nname=\"Widget\"\nmatch=[\"examplecorp:widget\"]\nproduct_only=[\"widget\"]\nversion=\"1.0.0\"\nscheme=\"semver\"\n"}
+{"t": "2026-11-03T07:00:00Z", "ingest": {"source": "cvelist", "status": "complete", "origin": "snapshot", "cursor": "2026-11-03T07:00:00Z", "content_time": "2026-11-03T07:00:00Z", "records": []}}
+{"t": "2026-11-03T07:00:00Z", "ingest": {"source": "kev", "status": "complete", "origin": "catalog", "cursor": "2026-11-03T07:00:00Z", "content_time": "2026-11-03T07:00:00Z", "kev": {"CVE-2099-1199": {"cveID": "CVE-2099-1199", "vendorProject": "examplecorp", "product": "gadget"}}}}
+{"t": "2026-11-03T07:00:00Z", "ingest": {"source": "epss", "status": "complete", "origin": "scores", "cursor": "2026-11-03T07:00:00Z", "content_time": "2026-11-03T07:00:00Z", "epss": {"CVE-2099-1100": [0.01, 0.2]}, "epss_date": "2026-11-03"}}
+{"t": "2026-11-03T07:00:00Z", "cycle": true}
+{"t": "2026-11-03T07:10:00Z", "ingest": {"source": "cvelist", "status": "complete", "origin": "delta", "cursor": "2026-11-03T07:10:00Z", "content_time": "2026-11-03T07:10:00Z", "records": [{"dataType": "CVE_RECORD", "dataVersion": "5.1", "cveMetadata": {"cveId": "CVE-2099-1100", "state": "PUBLISHED"}, "containers": {"cna": {"title": "CNA widget title", "affected": [{"vendor": "examplecorp", "product": "widget", "versions": [{"version": "1.0.0", "versionType": "semver", "status": "unaffected"}], "defaultStatus": "unaffected"}, {"vendor": "examplecorp", "product": "widget", "versions": [{"version": "1.0.0", "versionType": "semver", "status": "affected"}], "defaultStatus": "unaffected", "version": "malformed-parent"}]}}}]}}
+{"t": "2026-11-03T07:11:00Z", "cycle": true}
+{"t": "2026-11-03T08:00:00Z", "cycle": true}

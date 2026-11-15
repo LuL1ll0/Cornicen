@@ -1,0 +1,44 @@
+{"#": "Spec §8 audits; exact remapped oracle; invented mutation."}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"classification": {"fixture_a": "PARTIAL"}}, "lifted_by": "F2a"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"cursor": {"fixture_a": {"tick": "2099-11-03T00:00:00Z", "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"}}}, "lifted_by": "F2a"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"dimensions": {"fixture_a": {"fetch": "healthy", "completeness": "unhealthy", "freshness": "n/a", "audit": "healthy"}}}, "lifted_by": "F2b"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"staged": [{"source": "fixture_a", "resource": "listing.json", "path": "staged/fixture_a.json", "digest": "3c0017bddf6ec61be4dc94834b7c8046d94d14346edec45dc65a6b09cc1d6288", "integrity": "pending"}]}, "lifted_by": "F2b"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "watch": "", "record": "fixture_a", "reasons": ["unhealthy"], "urgency": "health", "lifted_by": "F2b"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"pairs": [{"watch": "w", "id": "advisory:fixture_a:FIX-2099-0003:main", "state": "unknown", "episode": 1, "affected_latch": false, "notified": false}]}, "lifted_by": "F3a"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"notification_count": {"advisory": 0, "total": 1}}, "lifted_by": "F2b"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"classification": {"fixture_a": "PARTIAL"}}, "lifted_by": "F2a"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"cursor": {"fixture_a": {"tick": "2099-11-03T00:00:00Z", "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"}}}, "lifted_by": "F2a"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"dimensions": {"fixture_a": {"fetch": "healthy", "completeness": "unhealthy", "freshness": "n/a", "audit": "unhealthy"}}}, "lifted_by": "F2b"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"staged": [{"source": "fixture_a", "resource": "listing.json", "path": "staged/fixture_a.json", "digest": "3c0017bddf6ec61be4dc94834b7c8046d94d14346edec45dc65a6b09cc1d6288", "integrity": "pending"}]}, "lifted_by": "F2b"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"pairs": [{"watch": "w", "id": "advisory:fixture_a:FIX-2099-0003:main", "state": "unknown", "episode": 1, "affected_latch": false, "notified": false}]}, "lifted_by": "F3a"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"notification_count": {"advisory": 0, "total": 1}}, "lifted_by": "F2b"}
+{"t": "2099-11-03T03:00:00Z", "case": "main", "state": {"classification": {"fixture_a": "COMPLETE"}}, "lifted_by": "F1"}
+{"t": "2099-11-03T03:00:00Z", "case": "main", "state": {"cursor": {"fixture_a": {"tick": "2099-11-03T03:00:00Z", "digest": "ecf1317521a52db3627e475bdf4eacc340e88ea97ea23690f35c508b2fcb0e1f"}}, "manifests": {"fixture_a": [{"source_id": "FIX-2099-0003", "digest": "86a562015c44cfc0f0694e6f7f201673cea6108c04b986301d3431836f07ed1c"}]}}, "lifted_by": "F2a"}
+{"t": "2099-11-03T03:00:00Z", "case": "main", "state": {"dimensions": {"fixture_a": {"fetch": "healthy", "completeness": "healthy", "freshness": "n/a", "audit": "healthy"}}}, "lifted_by": "F2b"}
+{"t": "2099-11-03T03:00:00Z", "case": "main", "state": {"staged": []}, "lifted_by": "F2b"}
+{"t": "2099-11-03T03:00:00Z", "case": "main", "state": {"pairs": [{"watch": "w", "id": "advisory:fixture_a:FIX-2099-0003:main", "state": "unknown", "episode": 1, "affected_latch": false, "notified": false}]}, "lifted_by": "F3a"}
+{"t": "2099-11-03T03:00:00Z", "case": "main", "watch": "", "record": "fixture_a", "reasons": ["healthy"], "urgency": "health", "lifted_by": "F2b"}
+{"t": "2099-11-03T03:00:00Z", "case": "main", "state": {"notification_count": {"advisory": 0, "total": 2}}, "lifted_by": "F2b"}
+{"t": "2099-11-03T03:00:00Z", "case": "main", "state": {"dimensions": {"fixture_a": {"fetch": "healthy", "completeness": "healthy", "audit": "healthy", "freshness": "n/a"}}}, "lifted_by": "F2b"}
+{"t": "2099-11-13T01:00:00Z", "case": "permanent_gap", "state": {"classification": {"fixture_a": "PARTIAL"}}, "lifted_by": "F2a"}
+{"t": "2099-11-13T01:00:00Z", "case": "permanent_gap", "state": {"cursor": {"fixture_a": {"tick": "2099-11-03T00:00:00Z", "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"}}}, "lifted_by": "F2a"}
+{"t": "2099-11-13T01:00:00Z", "case": "permanent_gap", "state": {"dimensions": {"fixture_a": {"fetch": "healthy", "completeness": "unhealthy", "freshness": "n/a", "audit": "healthy"}}}, "lifted_by": "F2b"}
+{"t": "2099-11-13T01:00:00Z", "case": "permanent_gap", "state": {"gaps": [{"source": "fixture_a", "opened_at": "2099-11-13T00:00:00Z", "reason": "retention gap", "acknowledged_at": null}], "historical_completeness": {"fixture_a": "unhealthy (permanent gap)"}}, "lifted_by": "F2a"}
+{"t": "2099-11-13T01:00:00Z", "case": "permanent_gap", "watch": "", "record": "fixture_a", "reasons": ["unhealthy"], "urgency": "health", "lifted_by": "F2b"}
+{"t": "2099-11-13T01:00:00Z", "case": "permanent_gap", "state": {"notification_count": {"advisory": 0, "total": 1}}, "lifted_by": "F2b"}
+{"t": "2099-11-13T02:00:00Z", "case": "permanent_gap", "state": {"classification": {"fixture_a": "PARTIAL"}}, "lifted_by": "F2a"}
+{"t": "2099-11-13T02:00:00Z", "case": "permanent_gap", "state": {"cursor": {"fixture_a": {"tick": "2099-11-03T00:00:00Z", "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"}}}, "lifted_by": "F2a"}
+{"t": "2099-11-13T02:00:00Z", "case": "permanent_gap", "state": {"dimensions": {"fixture_a": {"fetch": "healthy", "completeness": "unhealthy", "freshness": "n/a", "audit": "healthy"}}}, "lifted_by": "F2b"}
+{"t": "2099-11-13T02:00:00Z", "case": "permanent_gap", "state": {"gaps": [{"source": "fixture_a", "opened_at": "2099-11-13T00:00:00Z", "reason": "retention gap", "acknowledged_at": null}], "historical_completeness": {"fixture_a": "unhealthy (permanent gap)"}}, "lifted_by": "F2a"}
+{"t": "2099-11-13T02:00:00Z", "case": "permanent_gap", "state": {"notification_count": {"advisory": 0, "total": 1}}, "lifted_by": "F2b"}
+{"t": "2099-11-13T03:00:00Z", "case": "permanent_gap", "state": {"classification": {"fixture_a": "PARTIAL"}}, "lifted_by": "F2a"}
+{"t": "2099-11-13T03:00:00Z", "case": "permanent_gap", "state": {"cursor": {"fixture_a": {"tick": "2099-11-03T00:00:00Z", "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"}}}, "lifted_by": "F2a"}
+{"t": "2099-11-13T03:00:00Z", "case": "permanent_gap", "state": {"dimensions": {"fixture_a": {"fetch": "healthy", "completeness": "unhealthy", "freshness": "n/a", "audit": "healthy"}}}, "lifted_by": "F2b"}
+{"t": "2099-11-13T03:00:00Z", "case": "permanent_gap", "state": {"gaps": [{"source": "fixture_a", "opened_at": "2099-11-13T00:00:00Z", "reason": "retention gap", "acknowledged_at": null}], "historical_completeness": {"fixture_a": "unhealthy (permanent gap)"}}, "lifted_by": "F2a"}
+{"t": "2099-11-13T03:00:00Z", "case": "permanent_gap", "state": {"notification_count": {"advisory": 0, "total": 1}}, "lifted_by": "F2b"}
+{"t": "2099-11-23T01:00:00Z", "case": "stale_export", "state": {"dimensions": {"fixture_export": {"fetch": "healthy", "completeness": "healthy", "freshness": "stale", "audit": "healthy"}}}, "lifted_by": "F2b"}
+{"t": "2099-11-23T01:00:00Z", "case": "stale_export", "watch": "", "record": "fixture_export", "reasons": ["unhealthy"], "urgency": "health", "lifted_by": "F2b"}
+{"t": "2099-11-23T01:00:00Z", "case": "stale_export", "state": {"notification_count": {"advisory": 0, "total": 1}}, "lifted_by": "F2b"}
+{"t": "2099-11-23T01:00:00Z", "case": "stale_export", "state": {"classification": {"fixture_export": "COMPLETE"}}, "lifted_by": "F1"}
+{"t": "2099-11-23T01:00:00Z", "case": "stale_export", "state": {"cursor": {"fixture_export": {"tick": "2099-11-23T01:00:00Z", "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"}}, "manifests": {"fixture_export": []}}, "lifted_by": "F2a"}
+{"t": "2099-11-23T01:00:00Z", "case": "stale_export", "state": {"dimensions": {"fixture_export": {"fetch": "healthy", "completeness": "healthy", "audit": "healthy", "freshness": "stale"}}}, "lifted_by": "F2b"}

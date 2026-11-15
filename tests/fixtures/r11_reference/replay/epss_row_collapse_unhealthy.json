@@ -1,0 +1,1109 @@
+{
+  "cohort": [
+    "service"
+  ],
+  "identities": [
+    "CVE-1999-0001",
+    "CVE-1999-0002",
+    "CVE-1999-0003",
+    "CVE-1999-0004",
+    "CVE-1999-0005",
+    "CVE-2026-118527"
+  ],
+  "snapshots": [
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [],
+      "health": [],
+      "index": 0,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        }
+      ],
+      "notifications": [],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [],
+      "routes": [],
+      "t": "2026-11-03T07:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [],
+      "health": [],
+      "index": 1,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        }
+      ],
+      "notifications": [],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [],
+      "routes": [],
+      "t": "2026-11-03T07:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [],
+      "health": [],
+      "index": 2,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        }
+      ],
+      "notifications": [],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [],
+      "routes": [],
+      "t": "2026-11-03T07:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [],
+      "health": [],
+      "index": 3,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        }
+      ],
+      "notifications": [],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [],
+      "routes": [],
+      "t": "2026-11-03T07:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [
+        {
+          "created_at": "2026-11-03T07:00:00+00:00",
+          "episode": 1,
+          "key": "|baseline|baseline|1",
+          "record_id": "baseline",
+          "type": "baseline",
+          "watch_id": ""
+        }
+      ],
+      "health": [
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "cvelist",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "epss",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "kev",
+          "state": "healthy"
+        }
+      ],
+      "index": 4,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        },
+        {
+          "k": "baseline_complete",
+          "v": "1"
+        },
+        {
+          "k": "committed_cve:snapshot:cve_2026-11-03_0700Z",
+          "v": "1"
+        },
+        {
+          "k": "kev_baseline:CVE-2026-118527",
+          "v": "1"
+        }
+      ],
+      "notifications": [
+        {
+          "body": {
+            "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            "record_id": "baseline"
+          },
+          "reasons": [
+            "baseline"
+          ],
+          "record_id": "baseline",
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": ""
+        }
+      ],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [
+        {
+          "notification": {
+            "body": {
+              "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+              "record_id": "baseline"
+            },
+            "reasons": [
+              "baseline"
+            ],
+            "record_id": "baseline",
+            "urgency": "normal",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00"
+        }
+      ],
+      "routes": [],
+      "t": "2026-11-03T07:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [
+        {
+          "created_at": "2026-11-03T07:00:00+00:00",
+          "episode": 1,
+          "key": "|baseline|baseline|1",
+          "record_id": "baseline",
+          "type": "baseline",
+          "watch_id": ""
+        }
+      ],
+      "health": [
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "cvelist",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "epss",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "kev",
+          "state": "healthy"
+        }
+      ],
+      "index": 5,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        },
+        {
+          "k": "baseline_complete",
+          "v": "1"
+        },
+        {
+          "k": "committed_cve:snapshot:cve_2026-11-03_0700Z",
+          "v": "1"
+        },
+        {
+          "k": "kev_baseline:CVE-2026-118527",
+          "v": "1"
+        }
+      ],
+      "notifications": [
+        {
+          "body": {
+            "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            "record_id": "baseline"
+          },
+          "reasons": [
+            "baseline"
+          ],
+          "record_id": "baseline",
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": ""
+        }
+      ],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [
+        {
+          "notification": {
+            "body": {
+              "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+              "record_id": "baseline"
+            },
+            "reasons": [
+              "baseline"
+            ],
+            "record_id": "baseline",
+            "urgency": "normal",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00"
+        }
+      ],
+      "routes": [],
+      "t": "2026-11-03T07:10:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [
+        {
+          "created_at": "2026-11-03T07:00:00+00:00",
+          "episode": 1,
+          "key": "|baseline|baseline|1",
+          "record_id": "baseline",
+          "type": "baseline",
+          "watch_id": ""
+        },
+        {
+          "created_at": "2026-11-03T07:11:00+00:00",
+          "episode": 1,
+          "key": "|epss|unhealthy|1",
+          "record_id": "epss",
+          "type": "unhealthy",
+          "watch_id": ""
+        }
+      ],
+      "health": [
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "cvelist",
+          "state": "healthy"
+        },
+        {
+          "detail": "Incomplete ingest; retry pending; last error: EPSS row count collapsed from 5 to 3 (40% drop); scores rejected",
+          "since": "2026-11-03T07:11:00+00:00",
+          "source": "epss",
+          "state": "unhealthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "kev",
+          "state": "healthy"
+        }
+      ],
+      "index": 6,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        },
+        {
+          "k": "baseline_complete",
+          "v": "1"
+        },
+        {
+          "k": "committed_cve:snapshot:cve_2026-11-03_0700Z",
+          "v": "1"
+        },
+        {
+          "k": "kev_baseline:CVE-2026-118527",
+          "v": "1"
+        }
+      ],
+      "notifications": [
+        {
+          "body": {
+            "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            "record_id": "baseline"
+          },
+          "reasons": [
+            "baseline"
+          ],
+          "record_id": "baseline",
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": ""
+        },
+        {
+          "body": {
+            "detail": "EPSS fetch failed",
+            "reason": "failed",
+            "record_id": "epss",
+            "since": "2026-11-03T07:11Z",
+            "state": "unhealthy"
+          },
+          "reasons": [
+            "unhealthy"
+          ],
+          "record_id": "epss",
+          "rendered": [
+            "Cornicen: epss unhealthy",
+            "epss: unhealthy \u2014 failed since 2026-11-03T07:11Z",
+            5,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:11:00+00:00",
+          "urgency": "health",
+          "watch_id": ""
+        }
+      ],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [
+        {
+          "notification": {
+            "body": {
+              "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+              "record_id": "baseline"
+            },
+            "reasons": [
+              "baseline"
+            ],
+            "record_id": "baseline",
+            "urgency": "normal",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00"
+        },
+        {
+          "notification": {
+            "body": {
+              "detail": "EPSS fetch failed",
+              "reason": "failed",
+              "record_id": "epss",
+              "since": "2026-11-03T07:11Z",
+              "state": "unhealthy"
+            },
+            "reasons": [
+              "unhealthy"
+            ],
+            "record_id": "epss",
+            "urgency": "health",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: epss unhealthy",
+            "epss: unhealthy \u2014 failed since 2026-11-03T07:11Z",
+            5,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:11:00+00:00"
+        }
+      ],
+      "routes": [],
+      "t": "2026-11-03T07:11:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [
+        {
+          "created_at": "2026-11-03T07:00:00+00:00",
+          "episode": 1,
+          "key": "|baseline|baseline|1",
+          "record_id": "baseline",
+          "type": "baseline",
+          "watch_id": ""
+        },
+        {
+          "created_at": "2026-11-03T07:11:00+00:00",
+          "episode": 1,
+          "key": "|epss|unhealthy|1",
+          "record_id": "epss",
+          "type": "unhealthy",
+          "watch_id": ""
+        }
+      ],
+      "health": [
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "cvelist",
+          "state": "healthy"
+        },
+        {
+          "detail": "Incomplete ingest; retry pending; last error: EPSS row count collapsed from 5 to 3 (40% drop); scores rejected",
+          "since": "2026-11-03T07:11:00+00:00",
+          "source": "epss",
+          "state": "unhealthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "kev",
+          "state": "healthy"
+        }
+      ],
+      "index": 7,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        },
+        {
+          "k": "baseline_complete",
+          "v": "1"
+        },
+        {
+          "k": "committed_cve:snapshot:cve_2026-11-03_0700Z",
+          "v": "1"
+        },
+        {
+          "k": "kev_baseline:CVE-2026-118527",
+          "v": "1"
+        }
+      ],
+      "notifications": [
+        {
+          "body": {
+            "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            "record_id": "baseline"
+          },
+          "reasons": [
+            "baseline"
+          ],
+          "record_id": "baseline",
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": ""
+        },
+        {
+          "body": {
+            "detail": "EPSS fetch failed",
+            "reason": "failed",
+            "record_id": "epss",
+            "since": "2026-11-03T07:11Z",
+            "state": "unhealthy"
+          },
+          "reasons": [
+            "unhealthy"
+          ],
+          "record_id": "epss",
+          "rendered": [
+            "Cornicen: epss unhealthy",
+            "epss: unhealthy \u2014 failed since 2026-11-03T07:11Z",
+            5,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:11:00+00:00",
+          "urgency": "health",
+          "watch_id": ""
+        }
+      ],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [
+        {
+          "notification": {
+            "body": {
+              "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+              "record_id": "baseline"
+            },
+            "reasons": [
+              "baseline"
+            ],
+            "record_id": "baseline",
+            "urgency": "normal",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00"
+        },
+        {
+          "notification": {
+            "body": {
+              "detail": "EPSS fetch failed",
+              "reason": "failed",
+              "record_id": "epss",
+              "since": "2026-11-03T07:11Z",
+              "state": "unhealthy"
+            },
+            "reasons": [
+              "unhealthy"
+            ],
+            "record_id": "epss",
+            "urgency": "health",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: epss unhealthy",
+            "epss: unhealthy \u2014 failed since 2026-11-03T07:11Z",
+            5,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:11:00+00:00"
+        }
+      ],
+      "routes": [],
+      "t": "2026-11-03T07:20:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [
+        {
+          "created_at": "2026-11-03T07:00:00+00:00",
+          "episode": 1,
+          "key": "|baseline|baseline|1",
+          "record_id": "baseline",
+          "type": "baseline",
+          "watch_id": ""
+        },
+        {
+          "created_at": "2026-11-03T07:21:00+00:00",
+          "episode": 2,
+          "key": "|epss|healthy|2",
+          "record_id": "epss",
+          "type": "healthy",
+          "watch_id": ""
+        },
+        {
+          "created_at": "2026-11-03T07:11:00+00:00",
+          "episode": 1,
+          "key": "|epss|unhealthy|1",
+          "record_id": "epss",
+          "type": "unhealthy",
+          "watch_id": ""
+        }
+      ],
+      "health": [
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "cvelist",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:21:00+00:00",
+          "source": "epss",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "kev",
+          "state": "healthy"
+        }
+      ],
+      "index": 8,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        },
+        {
+          "k": "baseline_complete",
+          "v": "1"
+        },
+        {
+          "k": "committed_cve:snapshot:cve_2026-11-03_0700Z",
+          "v": "1"
+        },
+        {
+          "k": "kev_baseline:CVE-2026-118527",
+          "v": "1"
+        }
+      ],
+      "notifications": [
+        {
+          "body": {
+            "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            "record_id": "baseline"
+          },
+          "reasons": [
+            "baseline"
+          ],
+          "record_id": "baseline",
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": ""
+        },
+        {
+          "body": {
+            "detail": "EPSS fetch failed",
+            "reason": "failed",
+            "record_id": "epss",
+            "since": "2026-11-03T07:11Z",
+            "state": "unhealthy"
+          },
+          "reasons": [
+            "unhealthy"
+          ],
+          "record_id": "epss",
+          "rendered": [
+            "Cornicen: epss unhealthy",
+            "epss: unhealthy \u2014 failed since 2026-11-03T07:11Z",
+            5,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:11:00+00:00",
+          "urgency": "health",
+          "watch_id": ""
+        },
+        {
+          "body": {
+            "detail": "component recovered",
+            "reason": "recovered",
+            "record_id": "epss",
+            "since": "2026-11-03T07:21Z",
+            "state": "healthy"
+          },
+          "reasons": [
+            "healthy"
+          ],
+          "record_id": "epss",
+          "rendered": [
+            "Cornicen: epss recovered",
+            "epss: recovered",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:21:00+00:00",
+          "urgency": "health",
+          "watch_id": ""
+        }
+      ],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [
+        {
+          "notification": {
+            "body": {
+              "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+              "record_id": "baseline"
+            },
+            "reasons": [
+              "baseline"
+            ],
+            "record_id": "baseline",
+            "urgency": "normal",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00"
+        },
+        {
+          "notification": {
+            "body": {
+              "detail": "EPSS fetch failed",
+              "reason": "failed",
+              "record_id": "epss",
+              "since": "2026-11-03T07:11Z",
+              "state": "unhealthy"
+            },
+            "reasons": [
+              "unhealthy"
+            ],
+            "record_id": "epss",
+            "urgency": "health",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: epss unhealthy",
+            "epss: unhealthy \u2014 failed since 2026-11-03T07:11Z",
+            5,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:11:00+00:00"
+        },
+        {
+          "notification": {
+            "body": {
+              "detail": "component recovered",
+              "reason": "recovered",
+              "record_id": "epss",
+              "since": "2026-11-03T07:21Z",
+              "state": "healthy"
+            },
+            "reasons": [
+              "healthy"
+            ],
+            "record_id": "epss",
+            "urgency": "health",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: epss recovered",
+            "epss: recovered",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:21:00+00:00"
+        }
+      ],
+      "routes": [],
+      "t": "2026-11-03T07:21:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [
+        {
+          "created_at": "2026-11-03T07:00:00+00:00",
+          "episode": 1,
+          "key": "|baseline|baseline|1",
+          "record_id": "baseline",
+          "type": "baseline",
+          "watch_id": ""
+        },
+        {
+          "created_at": "2026-11-03T07:21:00+00:00",
+          "episode": 2,
+          "key": "|epss|healthy|2",
+          "record_id": "epss",
+          "type": "healthy",
+          "watch_id": ""
+        },
+        {
+          "created_at": "2026-11-03T07:11:00+00:00",
+          "episode": 1,
+          "key": "|epss|unhealthy|1",
+          "record_id": "epss",
+          "type": "unhealthy",
+          "watch_id": ""
+        }
+      ],
+      "health": [
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "cvelist",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:21:00+00:00",
+          "source": "epss",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "kev",
+          "state": "healthy"
+        }
+      ],
+      "index": 9,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        },
+        {
+          "k": "baseline_complete",
+          "v": "1"
+        },
+        {
+          "k": "committed_cve:snapshot:cve_2026-11-03_0700Z",
+          "v": "1"
+        },
+        {
+          "k": "kev_baseline:CVE-2026-118527",
+          "v": "1"
+        }
+      ],
+      "notifications": [
+        {
+          "body": {
+            "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            "record_id": "baseline"
+          },
+          "reasons": [
+            "baseline"
+          ],
+          "record_id": "baseline",
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": ""
+        },
+        {
+          "body": {
+            "detail": "EPSS fetch failed",
+            "reason": "failed",
+            "record_id": "epss",
+            "since": "2026-11-03T07:11Z",
+            "state": "unhealthy"
+          },
+          "reasons": [
+            "unhealthy"
+          ],
+          "record_id": "epss",
+          "rendered": [
+            "Cornicen: epss unhealthy",
+            "epss: unhealthy \u2014 failed since 2026-11-03T07:11Z",
+            5,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:11:00+00:00",
+          "urgency": "health",
+          "watch_id": ""
+        },
+        {
+          "body": {
+            "detail": "component recovered",
+            "reason": "recovered",
+            "record_id": "epss",
+            "since": "2026-11-03T07:21Z",
+            "state": "healthy"
+          },
+          "reasons": [
+            "healthy"
+          ],
+          "record_id": "epss",
+          "rendered": [
+            "Cornicen: epss recovered",
+            "epss: recovered",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:21:00+00:00",
+          "urgency": "health",
+          "watch_id": ""
+        }
+      ],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [
+        {
+          "notification": {
+            "body": {
+              "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+              "record_id": "baseline"
+            },
+            "reasons": [
+              "baseline"
+            ],
+            "record_id": "baseline",
+            "urgency": "normal",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00"
+        },
+        {
+          "notification": {
+            "body": {
+              "detail": "EPSS fetch failed",
+              "reason": "failed",
+              "record_id": "epss",
+              "since": "2026-11-03T07:11Z",
+              "state": "unhealthy"
+            },
+            "reasons": [
+              "unhealthy"
+            ],
+            "record_id": "epss",
+            "urgency": "health",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: epss unhealthy",
+            "epss: unhealthy \u2014 failed since 2026-11-03T07:11Z",
+            5,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:11:00+00:00"
+        },
+        {
+          "notification": {
+            "body": {
+              "detail": "component recovered",
+              "reason": "recovered",
+              "record_id": "epss",
+              "since": "2026-11-03T07:21Z",
+              "state": "healthy"
+            },
+            "reasons": [
+              "healthy"
+            ],
+            "record_id": "epss",
+            "urgency": "health",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: epss recovered",
+            "epss: recovered",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:21:00+00:00"
+        }
+      ],
+      "routes": [],
+      "t": "2026-11-03T08:00:00Z"
+    }
+  ]
+}

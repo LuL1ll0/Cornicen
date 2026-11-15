@@ -1,0 +1,7 @@
+{"#": "Spec §8 synthetic_github_identifier; exact remapped oracle; invented mutation."}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "watch": "w", "record": "CVE-2099-0001", "reasons": ["new match"], "urgency": "normal", "lifted_by": "F3a"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"redirects": [{"old_id": "advisory:fixture_a:FIX-2099-0001:main", "new_id": "CVE-2099-0001"}], "pairs": [{"watch": "w", "id": "CVE-2099-0001", "state": "affected", "episode": 1, "affected_latch": true, "notified": true}], "fix": {"CVE-2099-0001": "2.0.0"}, "events": ["w|CVE-2099-0001|new match|1"]}, "lifted_by": "F3b"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"notification_count": {"advisory": 1, "total": 1}}, "lifted_by": "F3a"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"classification": {"fixture_a": "COMPLETE"}}, "lifted_by": "F1"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"cursor": {"fixture_a": {"tick": "2099-11-03T01:00:00Z", "digest": "fe3cba42361b119d0b952cb1aff849e3d9cb2ebfedc5273b275153e46e80eeb9"}}, "manifests": {"fixture_a": [{"source_id": "FIX-2099-0001", "digest": "b0213cbf2cb3bb06c01e80ebb8a6eed47bd52404ebdf0f8baee51932d816f0d7"}]}}, "lifted_by": "F2a"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"dimensions": {"fixture_a": {"fetch": "healthy", "completeness": "healthy", "audit": "healthy", "freshness": "n/a"}}}, "lifted_by": "F2b"}

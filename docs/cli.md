@@ -73,7 +73,9 @@ order, and EOL remains the leading warning. Urgency and digest ordering do not c
   are null. An unavailable database emits false availability/health, empty
   sources, false baseline completion and null reconciliation, then exits 1.
   Available status exits 0 even when unhealthy; use `container_healthy` for
-  monitoring. EOL coverage metadata is described below. Health assessments and
+  monitoring. Since 0.2.0 it also has `adapters`: one object per vendor
+  adapter with its `setting`, `gate`, `gate_name` and `effective` state (all adapters stay
+  disabled until their gate is met). EOL coverage metadata is described below. Health assessments and
   exit codes do not change.
 - `watch check [--file PATH] [--strict]` validates the candidate file only for
   this invocation. It works without a database. Explicit `--file` or `--strict`
@@ -214,3 +216,19 @@ roles, reasons and integer positions remain visible. Unknown config keys are
 counted with a fixed documentation hint; their names are never shown. `watch check` validation retains valid
 watch IDs, while suppressing paths and other private text. Operator inventory
 views are unchanged. See [privacy](privacy.md#command-failure-diagnostics).
+
+### Adapter maintenance (v0.2.0)
+
+`cornicen adapter rebaseline NAME` re-enumerates the adapter's cached resources
+and staged work. It advances the current completeness cursor only after a
+complete result. Success acknowledges existing gap rows without deleting them;
+historical completeness continues to report the permanent gap. Existing event
+keys and pending notifications are preserved. Failure exits 1 and does not
+acknowledge the gap. No adapter is effective in v0.2.0; this local maintenance
+command does not enable one or fetch new resources.
+
+Text `status` shows each adapter's gate and installation setting, for example
+`msrc: disabled: gate M not met (setting off)`. An enabled setting still says
+disabled while its release gate is unmet. The single `github:` line retains
+CVE-source authentication/rate status and appends `advisory adapter:` with the
+gate and setting. These are separate uses of the same service.

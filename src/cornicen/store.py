@@ -1,4 +1,8 @@
-"""SQLite state and transactional, coalesced delivery storage."""
+# script-purpose: Persist Cornicen state and migrate its additive SQLite schema.
+# script-class: pipeline-tool
+# script-trigger: Cornicen startup and persistence callers.
+# script-tests: tests/test_store.py, tests/test_f1.py, tests/test_f2a.py, tests/test_r11_shells.py, tests/test_r11_integration.py
+"""Read/write SQLite state; library callers handle errors (CLI exit codes 0/1)."""
 
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -263,6 +267,47 @@ class Store:
                 if (self.get_meta('last_error:epss') is None and not self.connection.execute(
                         "SELECT 1 FROM retry_queue WHERE source='epss' AND record_id='@fetch'").fetchone()):
                     self.connection.execute('INSERT INTO epss_crossing_scores SELECT * FROM epss')
+            # Adapter foundation is additive; population belongs to later tasks.
+            adapter_tables = (
+                'resource_cache(source TEXT, url TEXT, body BLOB, etag TEXT, last_modified TEXT, link_header TEXT, validated_at TEXT, PRIMARY KEY(source,url))',
+                "staged_containers(source TEXT, resource TEXT, path TEXT, digest TEXT, integrity TEXT CHECK(integrity IN ('pending','intact','failed')), staged_at TEXT, PRIMARY KEY(source,resource))",
+                "advisories(source TEXT, source_id TEXT, revision TEXT, digest TEXT, json TEXT, observed_at TEXT, published TEXT, updated TEXT, state TEXT CHECK(state IN ('active','withdrawn','quarantined')), PRIMARY KEY(source,source_id))",
+                'advisory_evidence(source TEXT, source_id TEXT, facet TEXT, identity TEXT, release TEXT, package TEXT, platform TEXT, scheme TEXT, "range" TEXT, status TEXT, fix TEXT, provenance TEXT)',
+                'quarantine(source TEXT, source_id TEXT, reason TEXT, first_at TEXT, last_at TEXT, PRIMARY KEY(source,source_id))',
+                'manifest_members(source TEXT, resource TEXT, source_id TEXT, digest TEXT, PRIMARY KEY(source,resource,source_id)) WITHOUT ROWID',
+                'baseline_members(source TEXT, source_id TEXT, PRIMARY KEY(source,source_id)) WITHOUT ROWID',
+                'manifests(source TEXT, resource TEXT, digest TEXT, members TEXT, fetched_at TEXT, audited_at TEXT, PRIMARY KEY(source,resource))',
+                'adapter_state(source TEXT PRIMARY KEY, cursor_tick TEXT, cursor_digest TEXT, cutoff TEXT, baseline_members TEXT, baseline_complete INTEGER NOT NULL DEFAULT 0, rebaselined_at TEXT)',
+                'adapter_retries(source TEXT, resource TEXT, attempts INTEGER, next_attempt_at TEXT, last_error TEXT, PRIMARY KEY(source,resource))',
+                'gap_ledger(source TEXT, opened_at TEXT, reason TEXT, acknowledged_at TEXT, PRIMARY KEY(source,opened_at,reason))',
+                "source_health(source TEXT, dimension TEXT CHECK(dimension IN ('fetch','completeness','freshness','audit')), state TEXT, since TEXT, detail TEXT, PRIMARY KEY(source,dimension))",
+                'identity_redirects(old_id TEXT PRIMARY KEY, new_id TEXT, linked_at TEXT)',
+                'coverage_inheritance(child_id TEXT, parent_id TEXT, watch_id TEXT, reason TEXT, episode INTEGER, PRIMARY KEY(child_id,parent_id,watch_id,reason,episode))',
+                'delivery_coverage(watch_id TEXT, canonical_id TEXT, reason TEXT, episode INTEGER, from_id TEXT, delivered_at TEXT, PRIMARY KEY(watch_id,canonical_id,reason,episode,from_id))',
+                'advisory_support(source TEXT, source_id TEXT, identity TEXT, PRIMARY KEY(source,source_id,identity))',
+                'advisory_shells(source TEXT, source_id TEXT, identity TEXT, PRIMARY KEY(source,source_id,identity))',
+                'affected_latches(watch_id TEXT, record_id TEXT, episode INTEGER, latched INTEGER NOT NULL DEFAULT 0 CHECK(latched IN (0,1)), PRIMARY KEY(watch_id,record_id,episode))',
+            )
+            shell_columns = [row[1] for row in self.connection.execute('PRAGMA table_info(advisory_shells)')]
+            if shell_columns == ['identity']:
+                # Unreleased schema: ownership cannot be recovered safely.
+                self.connection.execute('DROP TABLE advisory_shells')
+            for definition in adapter_tables:
+                self.connection.execute('CREATE TABLE IF NOT EXISTS ' + definition)
+            for table in ('advisory_evidence', 'advisory_shells', 'advisory_support'):
+                self.connection.execute(f'CREATE INDEX IF NOT EXISTS {table}_identity ON {table}(identity)')
+            self.connection.execute('INSERT OR IGNORE INTO advisory_support SELECT DISTINCT source,source_id,identity FROM advisory_evidence')
+            self.connection.execute('CREATE INDEX IF NOT EXISTS manifest_members_cursor ON manifest_members(source,source_id,digest)')
+            # Import the pre-row representation once, preserving accepted digests.
+            self.connection.execute("""INSERT OR IGNORE INTO manifest_members
+                SELECT source,resource,json_extract(m.value,'$.source_id'),json_extract(m.value,'$.digest')
+                FROM manifests,json_each(members) m WHERE members!='[]'""")
+            self.connection.execute("UPDATE manifests SET members='[]' WHERE members!='[]'")
+            self.connection.execute("""INSERT OR IGNORE INTO baseline_members
+                SELECT source,b.value FROM adapter_state,json_each(baseline_members) b
+                WHERE b.value NOT GLOB '@invalid:*'""")
+            self.connection.execute("UPDATE adapter_state SET baseline_members='[]' WHERE baseline_members IS NOT NULL")
+            self.set_meta('adapter_schema_version', '1')
             self.set_meta('schema_version', '1')
         self._migrate_record_projection()
 

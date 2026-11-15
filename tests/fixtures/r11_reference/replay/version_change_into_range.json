@@ -1,0 +1,891 @@
+{
+  "cohort": [
+    "router"
+  ],
+  "identities": [
+    "CVE-2013-20009",
+    "CVE-2026-118527"
+  ],
+  "snapshots": [
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [],
+      "health": [],
+      "index": 0,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        }
+      ],
+      "notifications": [],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [],
+      "routes": [],
+      "t": "2026-11-03T07:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [],
+      "health": [],
+      "index": 1,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        }
+      ],
+      "notifications": [],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [],
+      "routes": [],
+      "t": "2026-11-03T07:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [],
+      "health": [],
+      "index": 2,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        }
+      ],
+      "notifications": [],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [],
+      "routes": [],
+      "t": "2026-11-03T07:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [],
+      "events": [],
+      "health": [],
+      "index": 3,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        }
+      ],
+      "notifications": [],
+      "outbox": [],
+      "pairs": [],
+      "rendered": [],
+      "routes": [],
+      "t": "2026-11-03T07:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [
+        {
+          "crossing": 0,
+          "episode": 1,
+          "fired": 1,
+          "rearm_ratio": 0.8,
+          "record_id": "CVE-2013-20009",
+          "threshold": 0.1,
+          "watch_id": "router"
+        }
+      ],
+      "events": [
+        {
+          "created_at": "2026-11-03T07:00:00+00:00",
+          "episode": 1,
+          "key": "|baseline|baseline|1",
+          "record_id": "baseline",
+          "type": "baseline",
+          "watch_id": ""
+        }
+      ],
+      "health": [
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "cvelist",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "epss",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "kev",
+          "state": "healthy"
+        }
+      ],
+      "index": 4,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        },
+        {
+          "k": "baseline_complete",
+          "v": "1"
+        },
+        {
+          "k": "committed_cve:snapshot:cve_2026-11-03_0700Z",
+          "v": "1"
+        },
+        {
+          "k": "kev_baseline:CVE-2026-118527",
+          "v": "1"
+        },
+        {
+          "k": "record_baseline:CVE-2013-20009",
+          "v": "1"
+        }
+      ],
+      "notifications": [
+        {
+          "body": {
+            "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            "record_id": "baseline"
+          },
+          "reasons": [
+            "baseline"
+          ],
+          "record_id": "baseline",
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": ""
+        }
+      ],
+      "outbox": [],
+      "pairs": [
+        {
+          "alias_map_version": "none",
+          "baseline": 1,
+          "confidence": "high",
+          "episode": 1,
+          "evidence": "CNA unaffected example_router: 0 <= version <= 1.01.06; versionType dotted",
+          "exploited": 0,
+          "notified": 0,
+          "record_id": "CVE-2013-20009",
+          "state": "not_affected",
+          "watch_id": "router"
+        }
+      ],
+      "rendered": [
+        {
+          "notification": {
+            "body": {
+              "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+              "record_id": "baseline"
+            },
+            "reasons": [
+              "baseline"
+            ],
+            "record_id": "baseline",
+            "urgency": "normal",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00"
+        }
+      ],
+      "routes": [],
+      "t": "2026-11-03T07:00:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [
+        {
+          "crossing": 0,
+          "episode": 1,
+          "fired": 0,
+          "rearm_ratio": 0.8,
+          "record_id": "CVE-2013-20009",
+          "threshold": 0.1,
+          "watch_id": "router"
+        }
+      ],
+      "events": [
+        {
+          "created_at": "2026-11-03T07:10:00+00:00",
+          "episode": 1,
+          "key": "router|CVE-2013-20009|new match|1",
+          "record_id": "CVE-2013-20009",
+          "type": "new match",
+          "watch_id": "router"
+        },
+        {
+          "created_at": "2026-11-03T07:00:00+00:00",
+          "episode": 1,
+          "key": "|baseline|baseline|1",
+          "record_id": "baseline",
+          "type": "baseline",
+          "watch_id": ""
+        }
+      ],
+      "health": [
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "cvelist",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "epss",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "kev",
+          "state": "healthy"
+        },
+        {
+          "detail": "Watchlist re-match complete",
+          "since": "2026-11-03T07:10:00+00:00",
+          "source": "watchlist",
+          "state": "healthy"
+        }
+      ],
+      "index": 5,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        },
+        {
+          "k": "baseline_complete",
+          "v": "1"
+        },
+        {
+          "k": "committed_cve:snapshot:cve_2026-11-03_0700Z",
+          "v": "1"
+        },
+        {
+          "k": "kev_baseline:CVE-2026-118527",
+          "v": "1"
+        },
+        {
+          "k": "record_baseline:CVE-2013-20009",
+          "v": "1"
+        }
+      ],
+      "notifications": [
+        {
+          "body": {
+            "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            "record_id": "baseline"
+          },
+          "reasons": [
+            "baseline"
+          ],
+          "record_id": "baseline",
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": ""
+        }
+      ],
+      "outbox": [
+        {
+          "attempts": 0,
+          "body_json": {
+            "cna_cvss_score": null,
+            "confidence": "high",
+            "cve_title": null,
+            "eol": false,
+            "episode": 1,
+            "epss": {
+              "date": "2026-11-03",
+              "pct": 0.98056,
+              "score": 0.27183
+            },
+            "epss_threshold": 0.1,
+            "evidence": "CNA affected example_router: 0 <= version <= 1.01.06; versionType dotted",
+            "kev": null,
+            "name": "Example service",
+            "product": "example_router",
+            "record_id": "CVE-2013-20009",
+            "severity": 0,
+            "ssvc": {},
+            "state": "affected",
+            "version": "1.01.06",
+            "watch_id": "router"
+          },
+          "dirty": 1,
+          "due_at": "2026-11-03T07:10:00+00:00",
+          "enqueued_at": "2026-11-03T07:10:00+00:00",
+          "id": 2,
+          "next_attempt_at": null,
+          "pair_key": "router|CVE-2013-20009",
+          "reasons_json": [
+            "new match"
+          ],
+          "sent_at": null,
+          "urgency": "urgent"
+        }
+      ],
+      "pairs": [
+        {
+          "alias_map_version": "none",
+          "baseline": 1,
+          "confidence": "high",
+          "episode": 1,
+          "evidence": "CNA affected example_router: 0 <= version <= 1.01.06; versionType dotted",
+          "exploited": 0,
+          "notified": 0,
+          "record_id": "CVE-2013-20009",
+          "state": "affected",
+          "watch_id": "router"
+        }
+      ],
+      "rendered": [
+        {
+          "notification": {
+            "body": {
+              "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+              "record_id": "baseline"
+            },
+            "reasons": [
+              "baseline"
+            ],
+            "record_id": "baseline",
+            "urgency": "normal",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00"
+        }
+      ],
+      "routes": [],
+      "t": "2026-11-03T07:10:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [
+        {
+          "crossing": 0,
+          "episode": 1,
+          "fired": 1,
+          "rearm_ratio": 0.8,
+          "record_id": "CVE-2013-20009",
+          "threshold": 0.1,
+          "watch_id": "router"
+        }
+      ],
+      "events": [
+        {
+          "created_at": "2026-11-03T07:10:00+00:00",
+          "episode": 1,
+          "key": "router|CVE-2013-20009|new match|1",
+          "record_id": "CVE-2013-20009",
+          "type": "new match",
+          "watch_id": "router"
+        },
+        {
+          "created_at": "2026-11-03T07:00:00+00:00",
+          "episode": 1,
+          "key": "|baseline|baseline|1",
+          "record_id": "baseline",
+          "type": "baseline",
+          "watch_id": ""
+        }
+      ],
+      "health": [
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "cvelist",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "epss",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "kev",
+          "state": "healthy"
+        },
+        {
+          "detail": "Watchlist re-match complete",
+          "since": "2026-11-03T07:10:00+00:00",
+          "source": "watchlist",
+          "state": "healthy"
+        }
+      ],
+      "index": 6,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        },
+        {
+          "k": "baseline_complete",
+          "v": "1"
+        },
+        {
+          "k": "committed_cve:snapshot:cve_2026-11-03_0700Z",
+          "v": "1"
+        },
+        {
+          "k": "kev_baseline:CVE-2026-118527",
+          "v": "1"
+        },
+        {
+          "k": "record_baseline:CVE-2013-20009",
+          "v": "1"
+        }
+      ],
+      "notifications": [
+        {
+          "body": {
+            "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            "record_id": "baseline"
+          },
+          "reasons": [
+            "baseline"
+          ],
+          "record_id": "baseline",
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": ""
+        },
+        {
+          "body": {
+            "cna_cvss_score": null,
+            "confidence": "high",
+            "cve_title": null,
+            "eol": false,
+            "episode": 1,
+            "epss": {
+              "date": "2026-11-03",
+              "pct": 0.98056,
+              "score": 0.27183
+            },
+            "epss_threshold": 0.1,
+            "evidence": "CNA affected example_router: 0 <= version <= 1.01.06; versionType dotted",
+            "kev": null,
+            "name": "Example service",
+            "product": "example_router",
+            "record_id": "CVE-2013-20009",
+            "severity": 0,
+            "ssvc": {},
+            "state": "affected",
+            "version": "1.01.06",
+            "watch_id": "router"
+          },
+          "reasons": [
+            "new match"
+          ],
+          "record_id": "CVE-2013-20009",
+          "rendered": [
+            "\ud83d\udea8 Cornicen: CVE-2013-20009 \u2014 Example service (example_router 1.01.06)",
+            "Why: new match\nKEV: not listed\nSSVC: not assessed\nEPSS 27% (98th pct, 2026-11-03)\nMatch: CNA affected example_router: 0 <= version <= 1.01.06; versionType dotted \u2014 affected\nhttps://www.cve.org/CVERecord?id=CVE-2013-20009\nCVE title: unknown\nCNA CVSS score: unknown",
+            5,
+            [
+              "rotating_light"
+            ]
+          ],
+          "t": "2026-11-03T07:11:00+00:00",
+          "urgency": "urgent",
+          "watch_id": "router"
+        }
+      ],
+      "outbox": [],
+      "pairs": [
+        {
+          "alias_map_version": "none",
+          "baseline": 1,
+          "confidence": "high",
+          "episode": 1,
+          "evidence": "CNA affected example_router: 0 <= version <= 1.01.06; versionType dotted",
+          "exploited": 0,
+          "notified": 1,
+          "record_id": "CVE-2013-20009",
+          "state": "affected",
+          "watch_id": "router"
+        }
+      ],
+      "rendered": [
+        {
+          "notification": {
+            "body": {
+              "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+              "record_id": "baseline"
+            },
+            "reasons": [
+              "baseline"
+            ],
+            "record_id": "baseline",
+            "urgency": "normal",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00"
+        },
+        {
+          "notification": {
+            "body": {
+              "cna_cvss_score": null,
+              "confidence": "high",
+              "cve_title": null,
+              "eol": false,
+              "episode": 1,
+              "epss": {
+                "date": "2026-11-03",
+                "pct": 0.98056,
+                "score": 0.27183
+              },
+              "epss_threshold": 0.1,
+              "evidence": "CNA affected example_router: 0 <= version <= 1.01.06; versionType dotted",
+              "kev": null,
+              "name": "Example service",
+              "product": "example_router",
+              "record_id": "CVE-2013-20009",
+              "severity": 0,
+              "ssvc": {},
+              "state": "affected",
+              "version": "1.01.06",
+              "watch_id": "router"
+            },
+            "reasons": [
+              "new match"
+            ],
+            "record_id": "CVE-2013-20009",
+            "urgency": "urgent",
+            "watch_id": "router"
+          },
+          "rendered": [
+            "\ud83d\udea8 Cornicen: CVE-2013-20009 \u2014 Example service (example_router 1.01.06)",
+            "Why: new match\nKEV: not listed\nSSVC: not assessed\nEPSS 27% (98th pct, 2026-11-03)\nMatch: CNA affected example_router: 0 <= version <= 1.01.06; versionType dotted \u2014 affected\nhttps://www.cve.org/CVERecord?id=CVE-2013-20009\nCVE title: unknown\nCNA CVSS score: unknown",
+            5,
+            [
+              "rotating_light"
+            ]
+          ],
+          "t": "2026-11-03T07:11:00+00:00"
+        }
+      ],
+      "routes": [],
+      "t": "2026-11-03T07:11:00Z"
+    },
+    {
+      "affected_latches": [],
+      "epss_crossings": [
+        {
+          "crossing": 0,
+          "episode": 1,
+          "fired": 1,
+          "rearm_ratio": 0.8,
+          "record_id": "CVE-2013-20009",
+          "threshold": 0.1,
+          "watch_id": "router"
+        }
+      ],
+      "events": [
+        {
+          "created_at": "2026-11-03T07:10:00+00:00",
+          "episode": 1,
+          "key": "router|CVE-2013-20009|new match|1",
+          "record_id": "CVE-2013-20009",
+          "type": "new match",
+          "watch_id": "router"
+        },
+        {
+          "created_at": "2026-11-03T07:00:00+00:00",
+          "episode": 1,
+          "key": "|baseline|baseline|1",
+          "record_id": "baseline",
+          "type": "baseline",
+          "watch_id": ""
+        }
+      ],
+      "health": [
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "cvelist",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "epss",
+          "state": "healthy"
+        },
+        {
+          "detail": "Complete ingest",
+          "since": "2026-11-03T07:00:00+00:00",
+          "source": "kev",
+          "state": "healthy"
+        },
+        {
+          "detail": "Watchlist re-match complete",
+          "since": "2026-11-03T07:10:00+00:00",
+          "source": "watchlist",
+          "state": "healthy"
+        }
+      ],
+      "index": 7,
+      "meta": [
+        {
+          "k": "alias_map_version",
+          "v": "none"
+        },
+        {
+          "k": "applied_matching_revision",
+          "v": "2"
+        },
+        {
+          "k": "baseline_complete",
+          "v": "1"
+        },
+        {
+          "k": "committed_cve:snapshot:cve_2026-11-03_0700Z",
+          "v": "1"
+        },
+        {
+          "k": "kev_baseline:CVE-2026-118527",
+          "v": "1"
+        },
+        {
+          "k": "record_baseline:CVE-2013-20009",
+          "v": "1"
+        }
+      ],
+      "notifications": [
+        {
+          "body": {
+            "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            "record_id": "baseline"
+          },
+          "reasons": [
+            "baseline"
+          ],
+          "record_id": "baseline",
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00",
+          "urgency": "normal",
+          "watch_id": ""
+        },
+        {
+          "body": {
+            "cna_cvss_score": null,
+            "confidence": "high",
+            "cve_title": null,
+            "eol": false,
+            "episode": 1,
+            "epss": {
+              "date": "2026-11-03",
+              "pct": 0.98056,
+              "score": 0.27183
+            },
+            "epss_threshold": 0.1,
+            "evidence": "CNA affected example_router: 0 <= version <= 1.01.06; versionType dotted",
+            "kev": null,
+            "name": "Example service",
+            "product": "example_router",
+            "record_id": "CVE-2013-20009",
+            "severity": 0,
+            "ssvc": {},
+            "state": "affected",
+            "version": "1.01.06",
+            "watch_id": "router"
+          },
+          "reasons": [
+            "new match"
+          ],
+          "record_id": "CVE-2013-20009",
+          "rendered": [
+            "\ud83d\udea8 Cornicen: CVE-2013-20009 \u2014 Example service (example_router 1.01.06)",
+            "Why: new match\nKEV: not listed\nSSVC: not assessed\nEPSS 27% (98th pct, 2026-11-03)\nMatch: CNA affected example_router: 0 <= version <= 1.01.06; versionType dotted \u2014 affected\nhttps://www.cve.org/CVERecord?id=CVE-2013-20009\nCVE title: unknown\nCNA CVSS score: unknown",
+            5,
+            [
+              "rotating_light"
+            ]
+          ],
+          "t": "2026-11-03T07:11:00+00:00",
+          "urgency": "urgent",
+          "watch_id": "router"
+        }
+      ],
+      "outbox": [],
+      "pairs": [
+        {
+          "alias_map_version": "none",
+          "baseline": 1,
+          "confidence": "high",
+          "episode": 1,
+          "evidence": "CNA affected example_router: 0 <= version <= 1.01.06; versionType dotted",
+          "exploited": 0,
+          "notified": 1,
+          "record_id": "CVE-2013-20009",
+          "state": "affected",
+          "watch_id": "router"
+        }
+      ],
+      "rendered": [
+        {
+          "notification": {
+            "body": {
+              "detail": "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+              "record_id": "baseline"
+            },
+            "reasons": [
+              "baseline"
+            ],
+            "record_id": "baseline",
+            "urgency": "normal",
+            "watch_id": ""
+          },
+          "rendered": [
+            "Cornicen: baseline",
+            "baseline: 0 historical matches, 0 exploited \u2014 run `cornicen report`",
+            3,
+            [
+              "information_source"
+            ]
+          ],
+          "t": "2026-11-03T07:00:00+00:00"
+        },
+        {
+          "notification": {
+            "body": {
+              "cna_cvss_score": null,
+              "confidence": "high",
+              "cve_title": null,
+              "eol": false,
+              "episode": 1,
+              "epss": {
+                "date": "2026-11-03",
+                "pct": 0.98056,
+                "score": 0.27183
+              },
+              "epss_threshold": 0.1,
+              "evidence": "CNA affected example_router: 0 <= version <= 1.01.06; versionType dotted",
+              "kev": null,
+              "name": "Example service",
+              "product": "example_router",
+              "record_id": "CVE-2013-20009",
+              "severity": 0,
+              "ssvc": {},
+              "state": "affected",
+              "version": "1.01.06",
+              "watch_id": "router"
+            },
+            "reasons": [
+              "new match"
+            ],
+            "record_id": "CVE-2013-20009",
+            "urgency": "urgent",
+            "watch_id": "router"
+          },
+          "rendered": [
+            "\ud83d\udea8 Cornicen: CVE-2013-20009 \u2014 Example service (example_router 1.01.06)",
+            "Why: new match\nKEV: not listed\nSSVC: not assessed\nEPSS 27% (98th pct, 2026-11-03)\nMatch: CNA affected example_router: 0 <= version <= 1.01.06; versionType dotted \u2014 affected\nhttps://www.cve.org/CVERecord?id=CVE-2013-20009\nCVE title: unknown\nCNA CVSS score: unknown",
+            5,
+            [
+              "rotating_light"
+            ]
+          ],
+          "t": "2026-11-03T07:11:00+00:00"
+        }
+      ],
+      "routes": [],
+      "t": "2026-11-03T08:00:00Z"
+    }
+  ]
+}

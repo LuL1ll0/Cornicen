@@ -1,0 +1,27 @@
+{"#": "Spec §8 aggregate; exact remapped oracle; invented mutation."}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "watch": "w", "record": "CVE-2099-0001", "reasons": ["new match"], "urgency": "normal", "lifted_by": "F3a"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"pairs": [{"watch": "w", "id": "CVE-2099-0001", "state": "affected", "episode": 1, "affected_latch": true, "notified": true}]}, "lifted_by": "F3a"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"notification_count": {"advisory": 1, "total": 1}}, "lifted_by": "F3a"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"classification": {"fixture_a": "COMPLETE"}}, "lifted_by": "F1"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"cursor": {"fixture_a": {"tick": "2099-11-03T01:00:00Z", "digest": "22698e8e7787ed794b10a8df3bb669a4c7929e312009d0b526647f61ec4d9173"}}, "manifests": {"fixture_a": [{"source_id": "FIX-2099-0001", "digest": "dcde0e02033522be629ba4b0e65f1bba7dbafa947e18f1965244084d83080c8f"}]}}, "lifted_by": "F2a"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"dimensions": {"fixture_a": {"fetch": "healthy", "completeness": "healthy", "audit": "healthy", "freshness": "n/a"}}}, "lifted_by": "F2b"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"classification": {"fixture_b": "COMPLETE"}}, "lifted_by": "F1"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"cursor": {"fixture_b": {"tick": "2099-11-03T01:00:00Z", "digest": "149bc6765149da7cf542e825870f20fc9bdfb0e8c53a1a0c3a14a13bc8cbabef"}}, "manifests": {"fixture_b": [{"source_id": "FIX-2099-0001", "digest": "8a9006c08f9885b933f27429bebbd0dedc5843fb4709d0335e44142795d45865"}]}}, "lifted_by": "F2a"}
+{"t": "2099-11-03T01:00:00Z", "case": "main", "state": {"dimensions": {"fixture_b": {"fetch": "healthy", "completeness": "healthy", "audit": "healthy", "freshness": "n/a"}}}, "lifted_by": "F2b"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"pairs": [{"watch": "w", "id": "CVE-2099-0001", "state": "unknown", "episode": 1, "affected_latch": true, "notified": true}], "evidence": {"active_sources": ["cvelist", "fixture_b"]}}, "lifted_by": "F3a"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"notification_count": {"advisory": 1, "total": 1}}, "lifted_by": "F3a"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"classification": {"fixture_a": "COMPLETE"}}, "lifted_by": "F1"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"cursor": {"fixture_a": {"tick": "2099-11-03T02:00:00Z", "digest": "39f1f02aa5431b7bae4acef2b4d4c81658211efc51c8e4257508524ca381008d"}}, "manifests": {"fixture_a": [{"source_id": "FIX-2099-0001", "digest": "4d6c58bfe65237849255c15fd248e7f17433c622cb2a57793f78e7786dfaea8f"}]}}, "lifted_by": "F2a"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"dimensions": {"fixture_a": {"fetch": "healthy", "completeness": "healthy", "audit": "healthy", "freshness": "n/a"}}}, "lifted_by": "F2b"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"classification": {"fixture_b": "COMPLETE"}}, "lifted_by": "F1"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"cursor": {"fixture_b": {"tick": "2099-11-03T02:00:00Z", "digest": "149bc6765149da7cf542e825870f20fc9bdfb0e8c53a1a0c3a14a13bc8cbabef"}}, "manifests": {"fixture_b": [{"source_id": "FIX-2099-0001", "digest": "8a9006c08f9885b933f27429bebbd0dedc5843fb4709d0335e44142795d45865"}]}}, "lifted_by": "F2a"}
+{"t": "2099-11-03T02:00:00Z", "case": "main", "state": {"dimensions": {"fixture_b": {"fetch": "healthy", "completeness": "healthy", "audit": "healthy", "freshness": "n/a"}}}, "lifted_by": "F2b"}
+{"t": "2099-11-03T03:00:00Z", "case": "main", "watch": "w", "record": "CVE-2099-0001", "reasons": ["correction"], "urgency": "normal", "lifted_by": "F3a"}
+{"t": "2099-11-03T03:00:00Z", "case": "main", "state": {"pairs": [{"watch": "w", "id": "CVE-2099-0001", "state": "unaffected", "episode": 2, "affected_latch": false, "notified": false}]}, "lifted_by": "F3a"}
+{"t": "2099-11-03T03:00:00Z", "case": "main", "state": {"notification_count": {"advisory": 2, "total": 2}}, "lifted_by": "F3a"}
+{"t": "2099-11-13T01:00:00Z", "case": "different_release_cna", "watch": "w", "record": "CVE-2099-0001", "reasons": ["new match"], "urgency": "normal", "lifted_by": "F3a"}
+{"t": "2099-11-13T01:00:00Z", "case": "different_release_cna", "state": {"pairs": [{"watch": "w", "id": "CVE-2099-0001", "state": "affected", "episode": 1, "affected_latch": true, "notified": true}]}, "lifted_by": "F3a"}
+{"t": "2099-11-13T01:00:00Z", "case": "different_release_cna", "state": {"notification_count": {"advisory": 1, "total": 1}}, "lifted_by": "F3a"}
+{"t": "2099-11-13T01:00:00Z", "case": "different_release_cna", "state": {"classification": {"fixture_a": "COMPLETE"}}, "lifted_by": "F1"}
+{"t": "2099-11-13T01:00:00Z", "case": "different_release_cna", "state": {"cursor": {"fixture_a": {"tick": "2099-11-13T01:00:00Z", "digest": "22698e8e7787ed794b10a8df3bb669a4c7929e312009d0b526647f61ec4d9173"}}, "manifests": {"fixture_a": [{"source_id": "FIX-2099-0001", "digest": "dcde0e02033522be629ba4b0e65f1bba7dbafa947e18f1965244084d83080c8f"}]}}, "lifted_by": "F2a"}
+{"t": "2099-11-13T01:00:00Z", "case": "different_release_cna", "state": {"dimensions": {"fixture_a": {"fetch": "healthy", "completeness": "healthy", "audit": "healthy", "freshness": "n/a"}}}, "lifted_by": "F2b"}

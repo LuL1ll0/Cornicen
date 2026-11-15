@@ -11,7 +11,7 @@ import unicodedata
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from cornicen import __version__
+from cornicen import __version__, adapters
 from cornicen.diagnostics import FixedDiagnostic, file_error, toml_error, token_permissions
 
 
@@ -89,6 +89,7 @@ class Config:
     webhook_format: str = "json"
     epss_rearm_ratio: float = 0.8
     epss_crossing: bool = True
+    adapters: dict[str, bool] = field(default_factory=lambda: adapters.settings({}))
 
 
 def load_config(path: Path, env: Mapping[str, str]) -> Config:
@@ -275,6 +276,7 @@ def load_config(path: Path, env: Mapping[str, str]) -> Config:
             github_problem = 'unreadable'
     return Config(
         **webhook_values, webhook_format=webhook_format,
+        adapters=adapters.settings(settings.get("adapters", {})),
         deadman_url=deadman, deadman_interval_minutes=settings.get("deadman_interval_minutes", 5),
         **acceptance_paths, acceptance_interval_days=settings.get("acceptance_interval_days", 7),
         db_path=string("db_path", "/data/cornicen.db"),

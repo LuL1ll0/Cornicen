@@ -1,0 +1,179 @@
+{
+  "meta_keys": [
+    "record_projection_version",
+    "schema_version"
+  ],
+  "tables": {
+    "cursors": {
+      "columns": [
+        "source",
+        "value",
+        "content_time"
+      ],
+      "rows": []
+    },
+    "dead_letters": {
+      "columns": [
+        "source",
+        "record_id",
+        "attempts",
+        "next_attempt_at",
+        "last_error",
+        "version"
+      ],
+      "rows": []
+    },
+    "epss": {
+      "columns": [
+        "cve",
+        "score",
+        "pct",
+        "date"
+      ],
+      "rows": []
+    },
+    "epss_crossing_scores": {
+      "columns": [
+        "cve",
+        "score",
+        "pct",
+        "date"
+      ],
+      "rows": []
+    },
+    "epss_crossings": {
+      "columns": [
+        "watch_id",
+        "record_id",
+        "episode",
+        "fired",
+        "crossing",
+        "threshold",
+        "rearm_ratio"
+      ],
+      "rows": []
+    },
+    "events": {
+      "columns": [
+        "key",
+        "watch_id",
+        "record_id",
+        "type",
+        "episode",
+        "created_at"
+      ],
+      "rows": []
+    },
+    "health": {
+      "columns": [
+        "source",
+        "state",
+        "since",
+        "detail"
+      ],
+      "rows": []
+    },
+    "http_cache": {
+      "columns": [
+        "url",
+        "etag",
+        "link",
+        "body",
+        "used_at"
+      ],
+      "rows": []
+    },
+    "invalid_revisions": {
+      "columns": [
+        "record_id",
+        "json"
+      ],
+      "rows": []
+    },
+    "kev": {
+      "columns": [
+        "cve",
+        "json"
+      ],
+      "rows": []
+    },
+    "kev_seen": {
+      "columns": [
+        "cve"
+      ],
+      "rows": []
+    },
+    "meta": {
+      "columns": [
+        "k",
+        "v"
+      ],
+      "rows": [
+        [
+          "record_projection_version",
+          "1"
+        ],
+        [
+          "schema_version",
+          "1"
+        ]
+      ]
+    },
+    "outbox": {
+      "columns": [
+        "id",
+        "pair_key",
+        "urgency",
+        "reasons_json",
+        "body_json",
+        "due_at",
+        "attempts",
+        "next_attempt_at",
+        "sent_at",
+        "enqueued_at",
+        "dirty"
+      ],
+      "rows": []
+    },
+    "pairs": {
+      "columns": [
+        "watch_id",
+        "record_id",
+        "state",
+        "episode",
+        "baseline",
+        "exploited",
+        "notified",
+        "evidence",
+        "confidence",
+        "alias_map_version"
+      ],
+      "rows": []
+    },
+    "records": {
+      "columns": [
+        "id",
+        "json",
+        "ingested_at"
+      ],
+      "rows": []
+    },
+    "retry_queue": {
+      "columns": [
+        "source",
+        "record_id",
+        "attempts",
+        "next_attempt_at",
+        "last_error"
+      ],
+      "rows": []
+    },
+    "sqlite_sequence": {
+      "columns": [
+        "name",
+        "seq"
+      ],
+      "rows": []
+    }
+  }
+}
