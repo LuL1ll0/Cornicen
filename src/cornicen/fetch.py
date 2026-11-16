@@ -1,7 +1,7 @@
 # script-purpose: Fetch bounded public resources under per-source transport policies.
 # script-class: pipeline-tool
 # script-trigger: Public feed and adapter HTTP requests.
-# script-tests: tests/test_task1_b1.py, tests/test_task2_b1.py
+# script-tests: tests/test_task1_b1.py, tests/test_task2_b1.py, tests/test_task3_b1.py
 """Bounded public-feed HTTP, with source policy enforced at every request hop.
 
 Reads public HTTP responses and configuration; writes requested temporary downloads.
@@ -29,6 +29,7 @@ from cornicen.config import SecretToken, download_budgets as _download_budgets
 MAX_BODY_BYTES = 64 * 1024 * 1024
 CHUNK_BYTES = 1024 * 1024
 SOURCE_HOSTS = {
+    'cisco_csaf': frozenset({'www.cisco.com'}),
     'msrc_csaf': frozenset({'msrc.microsoft.com'}),
     'github_advisories': frozenset({'api.github.com'}),
     'cvelist': frozenset({'api.github.com', 'github.com', 'objects.githubusercontent.com',

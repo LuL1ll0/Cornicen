@@ -1,7 +1,7 @@
 # script-purpose: Validate complete watch lists before replacing active watches.
 # script-class: pipeline-tool
 # script-trigger: Watch list loading and engine reloads.
-# script-tests: tests/test_task1_b1.py
+# script-tests: tests/test_task1_b1.py, tests/test_task3_a.py
 """Validate complete watch lists before callers replace their active list.
 
 Reads configuration or request inputs; returns validated values without persistent writes.
@@ -68,6 +68,7 @@ class Watch:
     latest_release: str | None = None
     release_tag_prefix: str | None = None
     github: tuple[GitHubSelector, ...] = ()
+    platform: tuple[str, str] | None = None
 
 
 class WatchlistError(Exception):
@@ -126,6 +127,14 @@ def _watch(entry: dict) -> Watch:
     identities = tuple(_parse_identity(value) for value in matches)
     if any(not isinstance(value, str) or is_placeholder(value) for value in products):
         raise ValueError(FixedDiagnostic("product_only must contain non-placeholder product strings"))
+    platform = None
+    if 'platform' in entry:
+        value = entry['platform']
+        if (not isinstance(value, dict) or value.keys() != {'vendor', 'product'}
+                or any(not isinstance(v, str) or not v.strip() or is_placeholder(v)
+                       for v in value.values()) or ':' in value['vendor']):
+            raise ValueError(FixedDiagnostic("platform requires non-placeholder vendor and product strings"))
+        platform = tuple(normalise_identity(value[k]) for k in ('vendor', 'product'))
     github = _github_selectors(entry.get('github', []))
     if not identities and not products:
         raise ValueError(FixedDiagnostic("match or product_only must declare at least one identity"))
@@ -143,7 +152,7 @@ def _watch(entry: dict) -> Watch:
             or latest is None):
         raise ValueError(FixedDiagnostic("release_tag_prefix is invalid"))
     return Watch(watch_id, name, identities, tuple(map(normalise_identity, products)),
-                 version, scheme, eol, latest, prefix, github)
+                 version, scheme, eol, latest, prefix, github, platform)
 
 
 def load_document_text(text: str):
@@ -168,7 +177,7 @@ def load_document_text(text: str):
         try:
             if not isinstance(entry, dict):
                 raise ValueError(FixedDiagnostic("entry must be a table"))
-            unknown = entry.keys() - {"id", "name", "match", "product_only", "version", "scheme", "eol", "latest_release", "release_tag_prefix", "github"}
+            unknown = entry.keys() - {"id", "name", "match", "product_only", "version", "scheme", "eol", "latest_release", "release_tag_prefix", "github", "platform"}
             if unknown:
                 problems.extend(f"{label}: unknown key" for key in sorted(unknown))
                 public_problems.extend(FixedDiagnostic(f"watch entry {number}: unknown key") for _ in unknown)

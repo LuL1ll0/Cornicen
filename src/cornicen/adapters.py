@@ -1,7 +1,7 @@
 # script-purpose: Define adapter gates, settings and the runtime protocol.
 # script-class: pipeline-tool
 # script-trigger: Adapter configuration, status and engine dispatch.
-# script-tests: tests/test_f1.py, tests/test_task1_b1.py, tests/test_task2_b1.py
+# script-tests: tests/test_f1.py, tests/test_task1_b1.py, tests/test_task2_b1.py, tests/test_task3_b1.py
 """Release gates and the adapter protocol; no factories live in this registry.
 
 Reads install settings; returns validated settings and status without writes.
@@ -55,7 +55,7 @@ class Adapter:
         return setting is True and self.gate == 'met'
 
 
-REGISTRY = {name: Adapter(name, gate, export=name in ('debian','ubuntu'), independent=name in ('github', 'msrc')) for name, gate in
+REGISTRY = {name: Adapter(name, gate, export=name in ('debian','ubuntu'), independent=name in ('github', 'msrc', 'cisco')) for name, gate in
             zip(('synology', 'debian', 'ubuntu', 'msrc', 'cisco', 'github'), 'SDUMCG')}
 
 

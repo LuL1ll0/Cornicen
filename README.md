@@ -15,7 +15,7 @@ Cornicen is for homelabs and small networks. You tell it what you run. It watche
   Email uses the ntfy server’s own forwarding; Cornicen stores no mail credentials.
 - **Silent first run.** The first bootstrap records what already matches and sends one summary; after that you hear only about changes.
 
-**Status:** version 0.4.0, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
+**Status:** version 0.5.0, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
 
 ## Contents
 
@@ -71,6 +71,7 @@ stored SSVC data; projection health reads `incomplete` until it finishes.
 | [EPSS](https://www.first.org/epss/) | Daily probability that a CVE will be exploited in the next 30 days | hourly until the day's file arrives |
 | GitHub releases (opt-in per watch) | The latest release of a repository you name, for [latest-release checks](#watch-lists) | daily |
 | Microsoft CSAF — off until gate M | Budgeted download of every listed advisory, independent of watches; gate M not met | disabled |
+| Cisco CSAF — off until gate C | Budgeted download of the changes.csv/index.txt union, independent of watches; gate C not met | disabled |
 
 ## Quick start
 

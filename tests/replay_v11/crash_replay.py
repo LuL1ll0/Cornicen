@@ -1,7 +1,7 @@
 # script-purpose: Interrupt replay transaction boundaries and reopen durable stores.
 # script-class: harness
 # script-trigger: tests/test_f4.py through the foundation harness.
-# script-tests: tests/test_f4.py, tests/replay_v11/test-crash-replay.py, tests/test_task1_a.py, tests/test_task1_b2.py, tests/test_task2_b2.py
+# script-tests: tests/test_f4.py, tests/replay_v11/test-crash-replay.py, tests/replay_v11/test-msrc-crash-classification.py, tests/test_task1_a.py, tests/test_task1_b2.py, tests/test_task2_b2.py, tests/test_task3_b2.py
 """Read foundation timelines; write temporary SQLite stores and staging files.
 
 Library helper for unittest (exit 0 success, 1 failure). No production hooks.
@@ -42,7 +42,9 @@ def run(name, crash_index=None):
     from tests.replay_v11 import harness as h
     from tests.replay_v11.github_backend import GitHubBackend, is_github
     from cornicen.sources.github_advisories import GitHubState
-    from tests.replay_v11.msrc_backend import MsrcBackend, is_msrc
+    from tests.replay_v11.msrc_backend import backend_for, is_msrc, is_cisco
+    cisco = is_cisco(name)
+    CsafBackend = backend_for(name)
     msrc = is_msrc(name)
     github = is_github(name)
     points, durable = [], {}
@@ -88,7 +90,7 @@ def run(name, crash_index=None):
         kind = ('ack' if file == 'outbox.py' and function == 'deliver' else
                 'alias' if file == 'advisoryidentity.py' else
                 'record' if function in ('commit_advisory', 'commit_staged', '_isolated', 'observe_unknown_advisory')
-                else ('msrc_' + function if msrc and (file == 'msrc_csaf.py' or function in ('stage_members','_accept_batch','_finish_index','rebaseline','_acknowledge_rebaseline')) else 'github_' + function if github and file == 'github_advisories.py' and function != 'set_hold' else 'state'))
+                else (('cisco_' if cisco else 'msrc_') + function if (msrc or cisco) and (file in ('msrc_csaf.py', 'cisco_csaf.py', 'csaf_directory.py') or function in ('stage_members','_accept_batch','_finish_index','rebaseline','_acknowledge_rebaseline')) else 'github_' + function if github and file == 'github_advisories.py' and function != 'set_hold' else 'state'))
         if kind != 'ack':
             hit(kind, site, 'before')
         with transaction(store) as db:
@@ -115,7 +117,7 @@ def run(name, crash_index=None):
         hit('enqueue', site, 'after')
         return result
 
-    class Backend(MsrcBackend if msrc else GitHubBackend if github else ValidationBackend):
+    class Backend(CsafBackend if (msrc or cisco) else GitHubBackend if github else ValidationBackend):
         def __init__(self, registry):
             super().__init__(registry)
             if github:

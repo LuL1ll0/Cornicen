@@ -215,3 +215,22 @@ github = [{ repository = "examplecorp/widget-engine", ecosystem = "other", packa
 ```
 
 Selectors alone do not enable the adapter; gate G remains unmet in this release.
+
+## Cisco relationship platforms
+
+A watch can optionally declare the platform on which its component is installed:
+
+```toml
+platform = { vendor = "Cisco", product = "Contoso Sample Relay Gateway" }
+```
+
+The table requires exactly `vendor` and `product`, both nonempty strings without
+placeholder values; the vendor cannot contain `:`. Both strings are normalised
+like match identities, with no alias expansion for platform comparison.
+Only Cisco relationship evidence honours this field; every other source ignores
+it. Direct component assertions also ignore it. A matching supported
+`installed_on` assertion can decide applicability; an omitted platform yields
+unknown, and a different platform makes that assertion inapplicable. Unsupported
+relationships remain unknown when the component version is covered. Platforms
+do not separate watch collisions. Editing a platform re-matches that watch's
+stored evidence. Cisco remains disabled until its release gate is met.

@@ -1,7 +1,7 @@
 # script-purpose: Persist and classify invented raw fixture outcomes.
 # script-class: harness
 # script-trigger: tests/replay_v11/harness.py.
-# script-tests: tests/test_f1.py, tests/test_f2a.py, tests/test_f3a.py, tests/test_f3b.py, tests/replay_v11/test-harness.py, tests/test_task1_b2.py
+# script-tests: tests/test_f1.py, tests/test_f2a.py, tests/test_f3a.py, tests/test_f3b.py, tests/replay_v11/test-harness.py, tests/test_task1_b2.py, tests/test_task3_b2.py
 """Read replay actions; write temporary databases and staged files.
 
 Used by unittest discovery; exit codes are the parent runner's 0/1 status.
@@ -148,11 +148,13 @@ class ValidationBackend:
             import tomllib
             from cornicen.watchlist import load_watchlist_text
             raw = tomllib.loads(row['watchlist'])
-            self.scopes = {w['id']: {k: w[k] for k in ('release', 'platform') if k in w}
+            self.scopes = {w['id']: {k: w[k] for k in ('release', 'platform') if k in w and isinstance(w[k], str)}
                            for w in raw['watch']}
             # The only extra fixture selector is stripped before the v1 parser.
             text = '\n'.join(line for line in row['watchlist'].splitlines()
-                             if not line.startswith(('release=', 'platform=')))
+                             if not (line.lstrip().startswith(('release=', 'release =', 'platform=', 'platform ='))
+                                     and not (line.lstrip().startswith(('platform=', 'platform ='))
+                                              and '{' in line)))
             self.watches = load_watchlist_text(text)
             if self.engine is None:
                 self.start_engine()

@@ -1,7 +1,7 @@
 # script-purpose: Persist validated adapter records and reconcile staged resources.
 # script-class: pipeline-tool
 # script-trigger: The engine adapter dispatch and adapter rebaseline command.
-# script-tests: tests/test_f3b.py, tests/test_f2a.py, tests/test_f3a.py, tests/test_r11_shells.py, tests/test_task1_a.py, tests/test_task1_b1.py, tests/test_task1_b2.py, tests/test_task2_b1.py, tests/test_task2_b2.py
+# script-tests: tests/test_f3b.py, tests/test_f2a.py, tests/test_f3a.py, tests/test_r11_shells.py, tests/test_task1_a.py, tests/test_task1_b1.py, tests/test_task1_b2.py, tests/test_task2_b1.py, tests/test_task2_b2.py, tests/test_task3_b1.py
 """Durable, offline adapter commits. No factories or network transports live here.
 
 Containers are newline-delimited canonical JSON under the data directory. A
@@ -116,7 +116,7 @@ class AdapterStore:
             self.db.execute('INSERT OR IGNORE INTO baseline_members VALUES (?,?)', (source,source_id))
 
     @staticmethod
-    def _outcome_flags(resource):
+    def _outcome_flags(resource, source):
         """Validate optional flags before any member is staged or committed."""
         from cornicen.feeddates import rfc3339
         failures = resource.get('subrequest_failures', 0)
@@ -124,13 +124,17 @@ class AdapterStore:
         if (type(failures) is not int or type(http_errors) is not int
                 or not 0 <= http_errors <= failures):
             raise ValueError('invalid subrequest counts')
-        if 'msrc_generation' in resource and not (isinstance(resource['msrc_generation'], str)
-                and re.fullmatch(r'[0-9a-f]{32}', resource['msrc_generation'])):
-            raise ValueError('invalid MSRC generation')
+        from cornicen.sources.msrc_csaf import PROFILE as MICROSOFT
+        from cornicen.sources.cisco_csaf import PROFILE as CISCO
+        generation_key = next((p.generation_key for p in (MICROSOFT, CISCO) if p.source == source), None)
+        for key in (MICROSOFT.generation_key, CISCO.generation_key):
+            if key in resource and (key != generation_key or not (
+                    isinstance(resource[key], str) and re.fullmatch(r'[0-9a-f]{32}', resource[key]))):
+                raise ValueError('invalid CSAF generation')
         if 'record_audit_oldest' in resource:
             rfc3339(resource['record_audit_oldest'])
         return {key: resource[key] for key in ('coverage_complete', 'subrequest_failures',
-                'subrequest_http_errors', 'record_audit_oldest', 'msrc_generation') if key in resource}
+                'subrequest_http_errors', 'record_audit_oldest', generation_key) if key in resource}
 
     @staticmethod
     def _flag_classification(state, flags):
@@ -307,9 +311,10 @@ class AdapterStore:
                     self.db.execute('DELETE FROM meta WHERE k=?', (flag_key,))
                 else:
                     self.store.set_meta(flag_key, canonical(flags))
-                    if source == 'msrc' and 'msrc_generation' in flags:
-                        from cornicen.sources.msrc_csaf import MsrcState
-                        MsrcState(self.store).stage_generation(flags['msrc_generation'])
+                    from cornicen.sources.csaf_directory import state_for
+                    state = state_for(self.store, source)
+                    if state is not None and state.profile.generation_key in flags:
+                        state.stage_generation(flags[state.profile.generation_key])
             if prior and prior[0] != str(path):
                 Path(prior[0]).unlink(missing_ok=True)
         except BaseException:
@@ -466,9 +471,10 @@ class AdapterStore:
                         classification='PARTIAL'
                         self.quarantine(source,identity,safe_detail(error),tick)
             index.commit()
-            if source == 'msrc' and 'msrc_generation' in flags:
-                from cornicen.sources.msrc_csaf import MsrcState
-                MsrcState(self.store).commit_generation(flags['msrc_generation'])
+            from cornicen.sources.csaf_directory import state_for
+            state = state_for(self.store, source)
+            if state is not None and state.profile.generation_key in flags:
+                state.commit_generation(flags[state.profile.generation_key])
             classification = self._flag_classification(classification, flags)
             if finalize:
                 classification=self._finish_index(source,resource,tick,index,index_path,classification,checkpoint,accept=deferred is None,rebaseline=rebaseline)
@@ -602,9 +608,10 @@ class AdapterStore:
             batch_path.unlink(missing_ok=True)
 
     def _complete_baseline(self,source,tick):
-        if source == 'msrc' and self.store.get_meta('baseline_hold:' + source) is not None:
-            from cornicen.sources.msrc_csaf import MsrcState
-            MsrcState(self.store).release_if_resolved(tick)
+        from cornicen.sources.csaf_directory import state_for
+        state = state_for(self.store, source)
+        if state is not None and self.store.get_meta('baseline_hold:' + source) is not None:
+            state.release_if_resolved(tick)
         if self._independent(source) and self.store.get_meta('baseline_hold:' + source) is not None:
             return
         if self._independent(source):
@@ -1016,7 +1023,7 @@ class AdapterStore:
                 transfers.pop('@dispatch',None)
                 for r in resources:
                     try:
-                        self._outcome_flags(r)
+                        self._outcome_flags(r, source)
                         flags_valid = True
                     except ValueError:
                         flags_valid = False
@@ -1053,7 +1060,7 @@ class AdapterStore:
             resource=dict(resource)
             path=resource['path']
             try:
-                flags = self._outcome_flags(resource)
+                flags = self._outcome_flags(resource, source)
             except ValueError:
                 self.retry(source,path,tick,'FAILED')
                 states.append('FAILED')

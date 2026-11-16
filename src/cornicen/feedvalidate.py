@@ -1,7 +1,7 @@
 # script-purpose: Validate shared feed boundaries and normalize advisory evidence.
 # script-class: pipeline-tool
 # script-trigger: Adapter resource and member ingestion.
-# script-tests: tests/test_f1.py, tests/test_f3a.py, tests/test_f3b.py, tests/test_task1_a.py, tests/test_task1_b1.py, tests/test_task1_b2.py
+# script-tests: tests/test_f1.py, tests/test_f3a.py, tests/test_f3b.py, tests/test_task1_a.py, tests/test_task1_b1.py, tests/test_task1_b2.py, tests/test_task3_a.py
 """Read raw feed objects; return validated records without writing files.
 
 Library API with no process exit codes; invalid inputs raise ValueError.
@@ -138,6 +138,19 @@ def _validate_evidence(evidence_rows, products):
             Scheme(evidence.get('scheme'))
         except (ValueError, TypeError):
             raise _error('unknown version scheme') from None
+        if 'relationship' in evidence:
+            relationship = evidence['relationship']
+            if (not isinstance(relationship, dict)
+                    or not {'category'} <= relationship.keys() <= {'category', 'platform'}
+                    or not isinstance(relationship['category'], str)
+                    or not relationship['category'].strip() or len(relationship['category']) > 64):
+                raise _error('invalid advisory relationship')
+            if 'platform' in relationship:
+                platform = relationship['platform']
+                if (not isinstance(platform, str) or len(platform) > 200
+                        or platform.count(':') != 1
+                        or not all(part.strip() for part in platform.split(':'))):
+                    raise _error('invalid advisory relationship')
         for field in ('release', 'platform', 'fix', 'first_fixed'):
             if evidence.get(field) is not None and not isinstance(evidence[field], str):
                 raise _error('invalid advisory evidence field type')

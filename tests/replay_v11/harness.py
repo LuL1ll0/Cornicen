@@ -1,7 +1,7 @@
 # script-purpose: Run timestamped foundation oracles through test-only engine hooks.
 # script-class: harness
 # script-trigger: tests/test_replay_v11.py and unittest discovery.
-# script-tests: tests/replay_v11/test-harness.py, tests/test_f3b.py, tests/test_task1_b2.py, tests/test_task2_b2.py
+# script-tests: tests/replay_v11/test-harness.py, tests/test_f3b.py, tests/test_task1_b2.py, tests/test_task2_b2.py, tests/test_task3_b2.py
 """Read adjacent JSONL fixtures; write temporary SQLite databases and staged files.
 
 Usage: PYTHONPATH=src python3 -m unittest tests.test_replay_v11
@@ -66,7 +66,7 @@ def register_backend(factory):
 
 def scenario_names():
     return sorted(p.name.removesuffix('.input.jsonl') for p in SCENARIOS.glob('*.input.jsonl')
-                  if not p.name.startswith(('github_', 'synthetic_github_')) and p.name.removesuffix('.input.jsonl') not in ('csaf','csaf_inventory','msrc_bootstrap'))
+                  if not p.name.startswith(('github_', 'synthetic_github_', 'cisco_')) and p.name.removesuffix('.input.jsonl') not in ('csaf','csaf_inventory','msrc_bootstrap'))
 
 
 def _rows(path):
@@ -192,14 +192,14 @@ def validate_timeline(rows):
 def load_timeline(name):
     from tests.replay_v11.github_backend import is_github, validate_rows
     rows = _rows(SCENARIOS / f'{name}.input.jsonl')
-    from tests.replay_v11.msrc_backend import is_msrc, validate_rows as validate_msrc
-    return validate_msrc(rows) if is_msrc(name) else validate_rows(rows) if is_github(name) else validate_timeline(rows)
+    from tests.replay_v11.msrc_backend import is_csaf, is_cisco, validate_rows as validate_msrc
+    return validate_msrc(rows, 'cisco' if is_cisco(name) else 'msrc') if is_csaf(name) else validate_rows(rows) if is_github(name) else validate_timeline(rows)
 
 
 def load_expected(name, timeline=None):
     rows = _rows(SCENARIOS / f'{name}.expected.jsonl')
     from tests.replay_v11.github_backend import is_github
-    from tests.replay_v11.msrc_backend import is_msrc
+    from tests.replay_v11.msrc_backend import is_csaf as is_msrc
     if is_github(name) or is_msrc(name):
         for row in rows:
             utc(row['t'])
@@ -304,8 +304,8 @@ def run_scenario(name):
                 case = row.get('case', case)
                 from tests.replay_v11.fixture_adapter import ValidationBackend
                 from tests.replay_v11.github_backend import is_github, GitHubBackend
-                from tests.replay_v11.msrc_backend import is_msrc, MsrcBackend
-                backend = (BACKEND_FACTORY or (MsrcBackend if is_msrc(name) else GitHubBackend if is_github(name) else ValidationBackend))(fixture_registry())
+                from tests.replay_v11.msrc_backend import is_csaf as is_msrc, backend_for
+                backend = (BACKEND_FACTORY or (backend_for(name) if is_msrc(name) else GitHubBackend if is_github(name) else ValidationBackend))(fixture_registry())
             backend.action(row)
             if 'cycle' in row or 'command' in row or 'restart' in row:
                 key = (case, row['t'])

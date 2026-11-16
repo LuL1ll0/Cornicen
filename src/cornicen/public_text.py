@@ -1,4 +1,13 @@
-"""Final word boundary for container-log diagnostics."""
+# script-purpose: Redact inventory words from public diagnostics.
+# script-class: pipeline-tool
+# script-trigger: Public diagnostic rendering.
+# script-tests: tests/test_public_text.py, tests/test_task3_a.py
+"""Final word boundary for container-log diagnostics.
+
+Read diagnostics and watch inventory; return redacted text without writes.
+
+Library API with no process exit codes.
+"""
 
 import builtins
 import re
@@ -41,6 +50,7 @@ def _inventory(watches):
     for watch in watches:
         values = [watch.id, watch.name, watch.version, *watch.product_only]
         values.extend(value for value in (watch.latest_release, watch.release_tag_prefix) if value)
+        values.extend(watch.platform or ())
         values.extend(part for identity in watch.match for part in identity)
         for value in values:
             value = unicodedata.normalize('NFKC', _strip(value)).casefold()

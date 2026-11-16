@@ -568,3 +568,40 @@ outbox list (including failed), report (text/JSONL), and db backup already use o
 v1 tables. The upgrade differential builds a populated database with the pinned
 v0.1.16 Store, compares exit status/stdout/stderr for every entry point, and checks
 that the database bytes remain unchanged. Diagnostics never migrate it.
+
+Cisco CSAF replay (v0.5.0)
+-------------------------
+
+`msrc_backend.py` now provides `CsafBackend` and `ScriptedCsaf`, keyed by source.
+The compatibility exports `MsrcBackend`, `ScriptedMsrc`, `is_msrc` and
+`validate_rows(rows)` retain Microsoft's behavior. `CiscoBackend` uses the real
+lazy production factory, a local gate-C override, invented scripts and a resolver
+that only admits www.cisco.com. No network is used or production gate changed.
+Operations are `metadata`, `listing`, `index` and `record`; scripted redirect
+responses go through the production hop validator. State, completed-baseline
+seeds, gap/cache observations and summary keys use the selected source.
+
+`cisco_platform`, `cisco_bad_member` and `cisco_inventory` cite spec §8 and carry
+literal expectations, including cursor and manifest digests. Repaired copies are
+labelled synthetic mutations; their unrelated external URLs are replaced with
+invented URLs. The original dangling-ID record is loaded intact by fixture name.
+The bad-member seed supplies a literal prior document under that tracking ID;
+its evidence projection includes every persisted column and complete provenance,
+canonicalised and sorted with duplicate rows retained. The projection is Cisco
+only, so earlier snapshot contracts stay intact. Watch platform tables reach the
+watch parser; legacy string release/platform fixture scopes retain their behavior.
+
+Cisco scenarios are excluded by `scenario_names()` from F4's fixed legacy
+aggregate. Run `PYTHONPATH=src python3 -m unittest tests.test_task3_b2 -v` or the
+adjacent `test-csaf-backend.py`. Crash replay recognises the shared directory module
+and emits `cisco_*` kinds while preserving Microsoft's literal per-kind counts.
+Every selected boundary must actually crash; final evidence, events, baseline
+summaries and advisory deliveries are compared with uninterrupted runs.
+
+T21 is opt-in: `CORNICEN_SCALE=1 PYTHONPATH=src python3 -m unittest
+ tests.test_task2_b2.Task2B2Tests.test_t21_scale
+ tests.test_task3_b2.Task3B2Tests.test_t21_scale -v` (join as one shell command).
+The Cisco case seeds 20,000 cache paths, with 10% index-only, and measures complete
+bootstrap emission and steady dispatch fetching 200 changed paths. Each reports elapsed time and peak
+process RSS; budgets are 900 s, 60 s and 256 MB. Run each case in a fresh process
+when comparing memory measurements, since process peak RSS is cumulative.

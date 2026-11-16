@@ -1,0 +1,25 @@
+{
+    "canonical_url": "https://www.cisco.com/.well-known/csaf/provider-metadata.json",
+    "distributions": [
+        {
+            "directory_url": "https://www.cisco.com/.well-known/csaf/"
+        }
+    ],
+    "last_updated": "2024-12-18T15:30:00Z",
+    "list_on_CSAF_aggregators": true,
+    "metadata_version": "2.0",
+    "mirror_on_CSAF_aggregators": false,
+    "public_openpgp_keys": [
+        {
+            "fingerprint": "081e38f3eb110265a214514124b3ec61e4205802",
+            "url": "https://cscrdr.cloudapps.cisco.com/cscrdr/security/center/files/Cisco_PSIRT_PGP_Public_Key.asc"
+        }
+    ],
+    "publisher": {
+        "category": "vendor",
+        "name": "Cisco PSIRT",
+        "contact_details": "psirt@cisco.com",
+        "namespace": "https://cisco.com"
+    },
+    "role": "csaf_trusted_provider"
+}

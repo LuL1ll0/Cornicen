@@ -1,15 +1,29 @@
 # script-purpose: Normalize CSAF documents into scoped advisory facets without I/O.
 # script-class: pipeline-tool
 # script-trigger: CSAF callers and offline tests.
-# script-tests: tests/test_task2_a.py
+# script-tests: tests/test_task2_a.py, tests/test_task3_a.py
 """Read decoded CSAF objects; return product indexes or normalized advisory members.
 
 Pure library API: no files, clock, network, writes or process exit codes.
 Invalid publisher content returns a mapping_error dictionary.
 """
 import re
+from dataclasses import dataclass
+
+from cornicen.identity import normalise_identity
 
 from cornicen.feeddates import rfc3339
+
+
+@dataclass(frozen=True)
+class NormalisationPolicy:
+    family_names: bool = False
+    service_pack_versions: bool = False
+    relationships: bool = False
+
+
+MICROSOFT = NormalisationPolicy()
+CISCO = NormalisationPolicy(True, True, True)
 
 
 def _object(value):
@@ -37,9 +51,9 @@ def _references(values, products):
     return values
 
 
-def _index(document):
+def _index(document, policy):
     tree = _object(_object(document).get('product_tree', {}))
-    products = {}
+    products, branch_products, scopes = {}, set(), {}
 
     def add(product, ancestors=None, category=None, name=None):
         product = _object(product)
@@ -48,15 +62,20 @@ def _index(document):
         if pid in products:
             raise ValueError('duplicate product ID')
         ancestors = ancestors or {}
-        vendor, product_name = ancestors.get('vendor'), ancestors.get('product_name')
+        vendor = ancestors.get('vendor')
+        product_name = ancestors.get('product_name')
+        if policy.family_names and not product_name:
+            product_name = ancestors.get('product_family')
         if vendor and ':' in vendor:
             raise ValueError('invalid vendor name')
         entry = dict(id=pid, name=f'{vendor}:{product_name}' if vendor and product_name else f'csaf-unresolved:{pid}')
-        if category == 'product_version':
+        if category == 'product_version' or (policy.service_pack_versions and category == 'service_pack'):
             entry['version'] = _text(name)
         if category == 'product_version_range':
             entry['range'] = {'csaf': _text(name)}
         products[pid] = entry
+        if vendor and product_name:
+            branch_products.add(pid)
         return pid
 
     def branches(items, ancestors):
@@ -73,10 +92,12 @@ def _index(document):
     branches(tree.get('branches', []), {})
     for product in _array(tree.get('full_product_names', [])):
         add(product)
-    relationships = {}
+    relationships, categories = {}, {}
     for relationship in _array(tree.get('relationships', [])):
         relationship = _object(relationship)
         pid = add(relationship.get('full_product_name'))
+        if policy.relationships:
+            categories[pid] = _text(relationship.get('category'))
         relationships[pid] = [relationship.get('product_reference'), relationship.get('relates_to_product_reference')]
     # Validate all edges, including relationships not asserted by a vulnerability.
     visiting, visited = set(), set()
@@ -96,18 +117,49 @@ def _index(document):
         resolve(pid)
     for group in _array(tree.get('product_groups', [])):
         _references(_object(group).get('product_ids'), products)
-    return products
+    if policy.relationships:
+        resolved = {}
+
+        def component_scope(pid):
+            if pid in resolved:
+                return resolved[pid]
+            if pid not in relationships:
+                return (pid if pid in branch_products else None), [], 'installed_on', True
+            component_ref, platform_ref = relationships[pid]
+            component, platforms, category, supported = component_scope(component_ref)
+            if categories[pid] != 'installed_on':
+                category = categories[pid]
+            platform = products[platform_ref]
+            qualifies = (platform_ref in branch_products and 'version' not in platform
+                         and 'range' not in platform)
+            platforms = platforms + ([platform['name']] if qualifies else [])
+            supported = supported and qualifies and categories[pid] == 'installed_on'
+            if component is not None:
+                base = products[component]
+                products[pid] = dict(base, id=pid)
+                keys = {tuple(normalise_identity(part) for part in name.split(':', 1))
+                        for name in platforms}
+                relationship = dict(category=category)
+                if supported and len(keys) == 1 and ('version' in base or 'range' in base):
+                    relationship['platform'] = platforms[0]
+                scopes[pid] = relationship
+            resolved[pid] = component, platforms, category, supported
+            return resolved[pid]
+
+        for pid in relationships:
+            component_scope(pid)
+    return products, scopes
 
 
-def index_products(document):
+def index_products(document, *, policy=MICROSOFT):
     """Return products keyed by CSAF ID, or mapping_error for invalid content."""
     try:
-        return _index(document)
+        return _index(document, policy)[0]
     except (ValueError, TypeError, KeyError, RecursionError):
         return {'mapping_error': 'invalid product tree'}
 
 
-def normalise(document, *, path, directory_url):
+def normalise(document, *, path, directory_url, policy=MICROSOFT):
     """Return a clock-free member, or {id, mapping_error}; never parse fix prose."""
     identity = None
     try:
@@ -119,7 +171,7 @@ def normalise(document, *, path, directory_url):
             raise ValueError('draft advisory')
         published = rfc3339(tracking.get('initial_release_date')).raw
         updated = rfc3339(tracking.get('current_release_date')).raw
-        products = _index(document)
+        products, scopes = _index(document, policy)
         tree = document.get('product_tree', {})
         groups = {}
         for group in tree.get('product_groups', []):
@@ -157,6 +209,8 @@ def normalise(document, *, path, directory_url):
                 if status is None:
                     continue
                 entry = dict(product_id=pid, scheme='opaque', binding='watch', status=status)
+                if pid in scopes:
+                    entry['relationship'] = scopes[pid]
                 if 'range' in products[pid]:
                     entry['range'] = products[pid]['range']
                 if asserted & {'fixed', 'first_fixed'} and 'version' in products[pid]:

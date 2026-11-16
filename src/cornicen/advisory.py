@@ -1,7 +1,7 @@
 # script-purpose: Store and aggregate scoped advisory applicability and fix evidence.
 # script-class: pipeline-tool
 # script-trigger: Adapter commits and engine evaluation.
-# script-tests: tests/test_f3a.py, tests/test_f3b.py, tests/test_r11_differential.py, tests/test_r11_shells.py, tests/test_r11_integration.py, tests/test_task1_b1.py, tests/test_task2_a.py
+# script-tests: tests/test_f3a.py, tests/test_f3b.py, tests/test_r11_differential.py, tests/test_r11_shells.py, tests/test_r11_integration.py, tests/test_task1_b1.py, tests/test_task2_a.py, tests/test_task3_a.py
 """Read validated advisories and SQLite evidence; write scoped evidence rows.
 
 Library API, no command entry point or exit codes. No network access.
@@ -9,10 +9,10 @@ Library API, no command entry point or exit codes. No network access.
 import json
 import re
 
-from cornicen.versions import compare
-
 from cornicen import applicability, cnascope
 from cornicen.applicability import State, Result
+from cornicen.identity import normalise_identity
+from cornicen.versions import compare
 
 
 def retracted(data):
@@ -234,11 +234,20 @@ def _watch_bound_vote(row, watch, aliases):
     kind = applicability._identity_match(vendor, product, watch, aliases)
     if not kind:
         return None
+    relationship = json.loads(row['provenance']).get('evidence', {}).get('relationship')
+    supported = (relationship is not None and relationship.get('category') == 'installed_on'
+                 and 'platform' in relationship)
+    if supported and watch.platform is not None:
+        platform = tuple(normalise_identity(p) for p in relationship['platform'].split(':', 1))
+        if platform != watch.platform:
+            return ABSTAIN
     version = watch.version.strip()
     if kind == 'product_only' or version.startswith(('=', '>', '<')) or ',' in version:
         return State.UNKNOWN
     status = dict(known_affected=State.AFFECTED, known_not_affected=State.NOT_AFFECTED,
                   first_fixed=State.NOT_AFFECTED, under_investigation=State.UNKNOWN)[row['status']]
+    if relationship is not None and (not supported or watch.platform is None):
+        status = State.UNKNOWN
     bounds = json.loads(row['range']) if row['range'] else None
     if bounds is None:
         exact = json.loads(row['provenance']).get('product_version')
@@ -321,8 +330,10 @@ def resolve(db, identity, watch, aliases, *, record=None, kev=None, scope=None, 
 
 
 def same_scope(row, verdict, aliases, equivalents, *, scheme=None):
+    evidence = json.loads(row['provenance']).get('evidence')
+    if isinstance(evidence, dict) and 'relationship' in evidence:
+        return False
     vendor, _, product = row['package'].partition(':')
-    from cornicen.identity import normalise_identity
     identity = normalise_identity(vendor), normalise_identity(product)
     expanded = aliases.expand(identity)
     package = ':'.join(min(expanded) if expanded else identity)
@@ -379,15 +390,24 @@ def route(db, identity, watch, aliases, scope=None, equivalents=()):
     return 'v1'
 
 
+def _relationship_scope(row):
+    relationship = json.loads(row['provenance']).get('evidence', {}).get('relationship')
+    if relationship is None:
+        return None
+    platform = relationship.get('platform') if relationship['category'] == 'installed_on' else None
+    return (relationship['category'], *(tuple(normalise_identity(p) for p in platform.split(':', 1))
+                                        if platform else (None, None)))
+
+
 def fix_for(db, identity, watch, aliases, scope=None, equivalents=()):
     rows = rows_for(db, identity)
-    affected = {(row['source'], row['source_id'], row['facet']) for row in rows
+    affected = {(row['source'], row['source_id'], row['facet'], _relationship_scope(row)) for row in rows
                 if _watch_bound(row) and scope_matches(row, scope or {}, equivalents)
                 and evaluate_row(row, watch, aliases) == State.AFFECTED}
     bound_fixes = set()
     for row in rows:
         if (not _watch_bound(row) or not row['fix']
-                or (row['source'], row['source_id'], row['facet']) not in affected
+                or (row['source'], row['source_id'], row['facet'], _relationship_scope(row)) not in affected
                 or not scope_matches(row, scope or {}, equivalents)
                 or evaluate_row(row, watch, aliases) is None):
             continue
