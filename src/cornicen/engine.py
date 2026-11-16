@@ -1,7 +1,7 @@
 # script-purpose: Evaluate local feed evidence and deliver durable notifications.
 # script-class: pipeline-tool
 # script-trigger: Cornicen scheduler cycles and local command paths.
-# script-tests: tests/test_engine.py, tests/test_f3a.py, tests/test_f3b.py, tests/test_r11_differential.py, tests/test_r11_shells.py, tests/test_r11_integration.py, tests/test_task1_b1.py, tests/test_task1_b2.py, tests/test_task3_a.py
+# script-tests: tests/test_engine.py, tests/test_f3a.py, tests/test_f3b.py, tests/test_r11_differential.py, tests/test_r11_shells.py, tests/test_r11_integration.py, tests/test_task1_b1.py, tests/test_task1_b2.py, tests/test_task3_a.py, tests/test_task4_a.py
 """Read feed results and stored evidence; write SQLite state and notification outbox.
 
 Library API with no process exit codes; callers report operational failures.
@@ -27,7 +27,7 @@ from cornicen.store import record_ssvc
 from cornicen.scheduler import redact_tokens, safe_message
 from cornicen.outbox import deliver
 from cornicen.store import Store, TransactionAborted
-from cornicen.watchlist import Watch, GitHubSelector
+from cornicen.watchlist import Watch, GitHubSelector, OsvSelector
 from cornicen.versions import Scheme
 
 
@@ -114,6 +114,7 @@ class Engine:
                 self.watches = tuple(Watch(**dict(w, match=tuple(map(tuple, w['match'])),
                     product_only=tuple(w['product_only']), scheme=Scheme(w['scheme']),
                     github=tuple(GitHubSelector(**g) for g in w.get('github', [])),
+                    osv=tuple(OsvSelector(**o) for o in w.get('osv', [])),
                     platform=tuple(w['platform'][k] for k in ('vendor', 'product')) if w.get('platform') else None))
                     for w in json.loads(saved)) if saved else ()
                 previous_ids = ({row[0] for row in self.db.execute('SELECT DISTINCT watch_id FROM pairs')}
@@ -212,10 +213,11 @@ class Engine:
     def _canonical_watches(watches):
         return json.dumps([{k: v for k, v in dict(asdict(w),
                             platform=dict(zip(('vendor', 'product'), w.platform)) if w.platform else None,
+                            osv=[asdict(o) for o in sorted(w.osv, key=lambda o: (o.ecosystem, o.package))],
                             github=[asdict(g) for g in sorted(w.github,
                                 key=lambda g: (g.repository, g.ecosystem, g.package))]).items()
                             if (k not in ('latest_release', 'release_tag_prefix', 'platform') or v is not None)
-                            and (k != 'github' or v)}
+                            and (k not in ('github', 'osv') or v)}
                            for w in sorted(watches, key=lambda w: w.id)],
                           sort_keys=True, separators=(',', ':'))
 
@@ -920,7 +922,7 @@ class Engine:
             if watch is None:
                 return None
             # Preserve existing reload behavior for CVE configuration and labels.
-            return (watch.name, watch.match, watch.product_only, watch.version, watch.scheme, watch.eol, watch.github, watch.platform)
+            return (watch.name, watch.match, watch.product_only, watch.version, watch.scheme, watch.eol, watch.github, watch.platform, watch.osv)
         changed = tuple(watch for watch in watches if force_all or alias_changed
                         or matching_fields(previous.get(watch.id)) != matching_fields(watch))
         self.watches = watches

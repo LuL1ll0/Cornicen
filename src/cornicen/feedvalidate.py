@@ -1,7 +1,7 @@
 # script-purpose: Validate shared feed boundaries and normalize advisory evidence.
 # script-class: pipeline-tool
 # script-trigger: Adapter resource and member ingestion.
-# script-tests: tests/test_f1.py, tests/test_f3a.py, tests/test_f3b.py, tests/test_task1_a.py, tests/test_task1_b1.py, tests/test_task1_b2.py, tests/test_task3_a.py
+# script-tests: tests/test_f1.py, tests/test_f3a.py, tests/test_f3b.py, tests/test_task1_a.py, tests/test_task1_b1.py, tests/test_task1_b2.py, tests/test_task3_a.py, tests/test_task4_a.py
 """Read raw feed objects; return validated records without writing files.
 
 Library API with no process exit codes; invalid inputs raise ValueError.
@@ -300,6 +300,8 @@ def validate_advisory(raw, *, source, observed_at, input_path='', date_fields=No
                 cves=cves,
                 provenance=dict(input_path=input_path, field_path='$', alias_map_version=None),
                 products=raw['products'], evidence=raw['evidence'], **{'dates': dates})
+    if 'details' in raw:
+        data['details'] = raw['details']
     data['withdrawn'] = dates.get('withdrawn')
     if 'retraction' in raw:
         data['retraction'] = raw['retraction']

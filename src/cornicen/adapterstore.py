@@ -1,7 +1,7 @@
 # script-purpose: Persist validated adapter records and reconcile staged resources.
 # script-class: pipeline-tool
 # script-trigger: The engine adapter dispatch and adapter rebaseline command.
-# script-tests: tests/test_f3b.py, tests/test_f2a.py, tests/test_f3a.py, tests/test_r11_shells.py, tests/test_task1_a.py, tests/test_task1_b1.py, tests/test_task1_b2.py, tests/test_task2_b1.py, tests/test_task2_b2.py, tests/test_task3_b1.py
+# script-tests: tests/test_f3b.py, tests/test_f2a.py, tests/test_f3a.py, tests/test_r11_shells.py, tests/test_task1_a.py, tests/test_task1_b1.py, tests/test_task1_b2.py, tests/test_task2_b1.py, tests/test_task2_b2.py, tests/test_task3_b1.py, tests/test_task4_a.py, tests/test_task4_b1.py
 """Durable, offline adapter commits. No factories or network transports live here.
 
 Containers are newline-delimited canonical JSON under the data directory. A
@@ -80,6 +80,13 @@ def stamp(value):
     return value.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
 
 
+
+def date_fields(source):
+    """Return the source date contract, or the shared default."""
+    return {'published': (False, 'rfc3339'), 'updated': (True, 'rfc3339'),
+            'withdrawn': (False, 'rfc3339')} if source == 'debian' else None
+
+
 class AdapterStore:
     def __init__(self, store, data_dir, *, rng=None, on_record=None, on_unknown=None):
         self.on_unknown = on_unknown
@@ -155,7 +162,7 @@ class AdapterStore:
     def _process_file(self, source, resource, tick, candidates, flags):
         # Use the ordinary envelope validator for path and transport policy;
         # member decoding and validation remain streamed through the same path.
-        result = v.validate_resource(dict(resource, body='[]'), source=source, observed_at=tick)
+        result = v.validate_resource(dict(resource, body='[]'), source=source, observed_at=tick, date_fields=date_fields(source))
         if result.classification != 'COMPLETE':
             self.retry(source,resource['path'],tick,result.classification,**self._retry_headers(resource,tick))
             return result.classification
@@ -339,7 +346,7 @@ class AdapterStore:
         try:
             shell = v.validate_advisory(dict(raw, evidence=[], associations=[],
                 product_groups=[], remediations=[]), source=source,
-                observed_at=tick, input_path=resource).data
+                observed_at=tick, input_path=resource, date_fields=date_fields(source)).data
         except (ValueError, TypeError, KeyError):
             return
         self.on_unknown(shell)
@@ -434,7 +441,7 @@ class AdapterStore:
                         self.quarantine(source,identity,'invalid id' if invalid else 'same-ID conflict',tick)
                         continue
                     try:
-                        data=(raw['validated'] if typed else v.validate_advisory(raw,source=source,observed_at=tick,input_path=resource).data)
+                        data=(raw['validated'] if typed else v.validate_advisory(raw,source=source,observed_at=tick,input_path=resource,date_fields=date_fields(source)).data)
                         if data['source']!=source:
                             raise ValueError(FixedDiagnostic('advisory source mismatch'))
                     except (ValueError,TypeError,KeyError) as error:
@@ -944,11 +951,13 @@ class AdapterStore:
                 resources=adapter.poll(cutoff=state[0] if state else None)
                 if getattr(entry,'independent',False):
                     resources=list(resources)
+                    if source != 'debian' or not getattr(adapter, 'skipped', False):
+                        with self.store.transaction():
+                            self.db.execute("DELETE FROM adapter_retries WHERE source=? AND resource='@dispatch'",(source,))
+                outcomes[source]=self.process(source,resources,tick,**options)
+                if source != 'debian' or not getattr(adapter, 'skipped', False):
                     with self.store.transaction():
                         self.db.execute("DELETE FROM adapter_retries WHERE source=? AND resource='@dispatch'",(source,))
-                outcomes[source]=self.process(source,resources,tick,**options)
-                with self.store.transaction():
-                    self.db.execute("DELETE FROM adapter_retries WHERE source=? AND resource='@dispatch'",(source,))
                 for resource in self.audits_due(source,tick):
                     waiting=self.db.execute('SELECT next_attempt_at FROM adapter_retries WHERE source=? AND resource=?',(source,resource)).fetchone()
                     if waiting and instant(waiting[0])>instant(tick): continue
@@ -1096,7 +1105,7 @@ class AdapterStore:
                         pass
                     states.append('PARTIAL');continue
                 resource.update(status=200,body=cached['body'])
-            result=v.validate_resource(resource,source=source,observed_at=tick)
+            result=v.validate_resource(resource,source=source,observed_at=tick,date_fields=date_fields(source))
             # Validate the envelope first; streaming member validation happens
             # in the two-pass commit, not in an already drained result stream.
             try:

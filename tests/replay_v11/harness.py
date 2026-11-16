@@ -1,7 +1,7 @@
 # script-purpose: Run timestamped foundation oracles through test-only engine hooks.
 # script-class: harness
 # script-trigger: tests/test_replay_v11.py and unittest discovery.
-# script-tests: tests/replay_v11/test-harness.py, tests/test_f3b.py, tests/test_task1_b2.py, tests/test_task2_b2.py, tests/test_task3_b2.py
+# script-tests: tests/replay_v11/test-harness.py, tests/test_f3b.py, tests/test_task1_b2.py, tests/test_task2_b2.py, tests/test_task3_b2.py, tests/test_task4_b2.py
 """Read adjacent JSONL fixtures; write temporary SQLite databases and staged files.
 
 Usage: PYTHONPATH=src python3 -m unittest tests.test_replay_v11
@@ -66,7 +66,7 @@ def register_backend(factory):
 
 def scenario_names():
     return sorted(p.name.removesuffix('.input.jsonl') for p in SCENARIOS.glob('*.input.jsonl')
-                  if not p.name.startswith(('github_', 'synthetic_github_', 'cisco_')) and p.name.removesuffix('.input.jsonl') not in ('csaf','csaf_inventory','msrc_bootstrap'))
+                  if not p.name.startswith(('github_', 'synthetic_github_', 'cisco_', 'debian_')) and p.name.removesuffix('.input.jsonl') not in ('csaf','csaf_inventory','msrc_bootstrap'))
 
 
 def _rows(path):
@@ -192,6 +192,9 @@ def validate_timeline(rows):
 def load_timeline(name):
     from tests.replay_v11.github_backend import is_github, validate_rows
     rows = _rows(SCENARIOS / f'{name}.input.jsonl')
+    if name.startswith('debian_'):
+        from tests.replay_v11.osv_backend import validate_rows as validate_debian
+        return validate_debian(rows)
     from tests.replay_v11.msrc_backend import is_csaf, is_cisco, validate_rows as validate_msrc
     return validate_msrc(rows, 'cisco' if is_cisco(name) else 'msrc') if is_csaf(name) else validate_rows(rows) if is_github(name) else validate_timeline(rows)
 
@@ -206,6 +209,7 @@ def load_expected(name, timeline=None):
             if row.get('lifted_by') != 'F4' or (not isinstance(row.get('state'), dict) and not (is_msrc(name) and {'watch','record','reasons','urgency'} <= set(row))):
                 raise ValueError('invalid GitHub expectation')
         return rows
+    debian = name.startswith('debian_')
     timeline = timeline if timeline is not None else load_timeline(name)
     points = set()
     case = 'main'
@@ -228,12 +232,15 @@ def load_expected(name, timeline=None):
         utc(row['t'])
         keys = set(row) - {'case', 'lifted_by', 'snapshot'}
         if 'state' in row:
-            if keys != {'t', 'state'} or not isinstance(row['state'], dict) or not row['state'] or set(row['state']) - STATE_FIELDS:
+            if keys != {'t', 'state'} or not isinstance(row['state'], dict) or not row['state'] or set(row['state']) - (STATE_FIELDS | ({'requests', 'request_trace', 'evidence_rows', 'freshness_detail', 'retry_detail'} if debian else set())):
                 raise ValueError('invalid state assertion')
             validate_state(row['state'])
         elif keys != {'t', 'watch', 'record', 'reasons', 'urgency'} or row['urgency'] not in ('normal', 'urgent', 'health') or not isinstance(row['reasons'], list):
             raise ValueError('invalid notification assertion')
-    validate_identities(rows)
+    if debian:
+        from tests.replay_v11.osv_backend import validate_identities as validate_debian_identities
+        validate_debian_identities(rows)
+    else: validate_identities(rows)
     return rows
 
 
@@ -305,7 +312,8 @@ def run_scenario(name):
                 from tests.replay_v11.fixture_adapter import ValidationBackend
                 from tests.replay_v11.github_backend import is_github, GitHubBackend
                 from tests.replay_v11.msrc_backend import is_csaf as is_msrc, backend_for
-                backend = (BACKEND_FACTORY or (backend_for(name) if is_msrc(name) else GitHubBackend if is_github(name) else ValidationBackend))(fixture_registry())
+                from tests.replay_v11.osv_backend import DebianBackend
+                backend = (BACKEND_FACTORY or (DebianBackend if name.startswith('debian_') else backend_for(name) if is_msrc(name) else GitHubBackend if is_github(name) else ValidationBackend))(fixture_registry())
             backend.action(row)
             if 'cycle' in row or 'command' in row or 'restart' in row:
                 key = (case, row['t'])

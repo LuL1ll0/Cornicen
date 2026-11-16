@@ -1,7 +1,7 @@
 # script-purpose: Validate complete watch lists before replacing active watches.
 # script-class: pipeline-tool
 # script-trigger: Watch list loading and engine reloads.
-# script-tests: tests/test_task1_b1.py, tests/test_task3_a.py
+# script-tests: tests/test_task1_b1.py, tests/test_task3_a.py, tests/test_task4_a.py
 """Validate complete watch lists before callers replace their active list.
 
 Reads configuration or request inputs; returns validated values without persistent writes.
@@ -27,6 +27,33 @@ class GitHubSelector:
     repository: str
     ecosystem: str
     package: str
+
+
+@dataclass(frozen=True)
+class OsvSelector:
+    ecosystem: str
+    package: str
+
+
+def _osv_selectors(entries):
+    if not isinstance(entries, list) or len(entries) > 20:
+        raise ValueError(FixedDiagnostic('osv must be an array of at most 20 selectors'))
+    result = []
+    for entry in entries:
+        if not isinstance(entry, dict) or entry.keys() != {'ecosystem', 'package'}:
+            raise ValueError(FixedDiagnostic('osv selector requires ecosystem and package'))
+        ecosystem, package = entry['ecosystem'], entry['package']
+        if (not isinstance(ecosystem, str) or not 1 <= len(ecosystem) <= 100
+                or not re.fullmatch(r'[A-Za-z][A-Za-z0-9._ -]*(:[A-Za-z0-9._ -]+)*', ecosystem)):
+            raise ValueError(FixedDiagnostic('osv ecosystem is invalid'))
+        if (not isinstance(package, str) or not 1 <= len(package) <= 200
+                or any(c.isspace() or c == '#' or unicodedata.category(c) in ('Cc', 'Cf') for c in package)):
+            raise ValueError(FixedDiagnostic('osv package is invalid'))
+        selector = OsvSelector(ecosystem, package)
+        if selector in result:
+            raise ValueError(FixedDiagnostic('duplicate osv selector'))
+        result.append(selector)
+    return tuple(result)
 
 
 _REPOSITORY = r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/[A-Za-z0-9_.-]{1,100}'
@@ -69,6 +96,7 @@ class Watch:
     release_tag_prefix: str | None = None
     github: tuple[GitHubSelector, ...] = ()
     platform: tuple[str, str] | None = None
+    osv: tuple[OsvSelector, ...] = ()
 
 
 class WatchlistError(Exception):
@@ -107,8 +135,11 @@ def _watch(entry: dict) -> Watch:
         scheme = Scheme(entry.get("scheme"))
     except (ValueError, TypeError):
         raise ValueError(FixedDiagnostic("scheme must be semver, dotted, debian, opaque or python")) from None
+    osv = _osv_selectors(entry.get('osv', []))
     # Opaque versions may contain spaces ("RomePI 1.0.0.G"); only operators make them a range.
     range_chars = r"[=<>!,~^]" if scheme == Scheme.OPAQUE else r"[=<>!,~^\s]"
+    if scheme == Scheme.DEBIAN and osv:
+        range_chars = r'[=<>!,^\s]'
     if re.search(range_chars, version):
         try:
             bounds = parse_constraint(version)
@@ -152,7 +183,7 @@ def _watch(entry: dict) -> Watch:
             or latest is None):
         raise ValueError(FixedDiagnostic("release_tag_prefix is invalid"))
     return Watch(watch_id, name, identities, tuple(map(normalise_identity, products)),
-                 version, scheme, eol, latest, prefix, github, platform)
+                 version, scheme, eol, latest, prefix, github, platform, osv)
 
 
 def load_document_text(text: str):
@@ -177,7 +208,7 @@ def load_document_text(text: str):
         try:
             if not isinstance(entry, dict):
                 raise ValueError(FixedDiagnostic("entry must be a table"))
-            unknown = entry.keys() - {"id", "name", "match", "product_only", "version", "scheme", "eol", "latest_release", "release_tag_prefix", "github", "platform"}
+            unknown = entry.keys() - {"id", "name", "match", "product_only", "version", "scheme", "eol", "latest_release", "release_tag_prefix", "github", "platform", "osv"}
             if unknown:
                 problems.extend(f"{label}: unknown key" for key in sorted(unknown))
                 public_problems.extend(FixedDiagnostic(f"watch entry {number}: unknown key") for _ in unknown)

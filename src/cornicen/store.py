@@ -1,7 +1,7 @@
 # script-purpose: Persist Cornicen state and migrate its additive SQLite schema.
 # script-class: pipeline-tool
 # script-trigger: Cornicen startup and persistence callers.
-# script-tests: tests/test_store.py, tests/test_f1.py, tests/test_f2a.py, tests/test_r11_shells.py, tests/test_r11_integration.py
+# script-tests: tests/test_store.py, tests/test_f1.py, tests/test_f2a.py, tests/test_r11_shells.py, tests/test_r11_integration.py, tests/test_task4_b1.py
 """Read/write SQLite state; library callers handle errors (CLI exit codes 0/1)."""
 
 from contextlib import contextmanager
@@ -296,6 +296,7 @@ class Store:
                 self.connection.execute('CREATE TABLE IF NOT EXISTS ' + definition)
             for table in ('advisory_evidence', 'advisory_shells', 'advisory_support'):
                 self.connection.execute(f'CREATE INDEX IF NOT EXISTS {table}_identity ON {table}(identity)')
+            self.connection.execute('CREATE INDEX IF NOT EXISTS advisory_evidence_record ON advisory_evidence(source, source_id)')
             self.connection.execute('INSERT OR IGNORE INTO advisory_support SELECT DISTINCT source,source_id,identity FROM advisory_evidence')
             self.connection.execute('CREATE INDEX IF NOT EXISTS manifest_members_cursor ON manifest_members(source,source_id,digest)')
             # Import the pre-row representation once, preserving accepted digests.

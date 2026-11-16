@@ -105,6 +105,17 @@ connection:
 | Peak memory | about 210 MB | about 150 MB, on a homelab server |
 | Data volume | about 750 MB at peak, about 410 MB after | about 490 MB after ten days, on a homelab server |
 
+**If you enable the Debian adapter** (not possible in this release: gate D is unmet), budget for it separately. It downloads the whole Debian OSV export once a day, about 81.5 MB, and keeps every record. Measured offline with 100,000 invented records shaped like the real ones (the real export had 74,345 on 2026-11-16), on an 18-core desktop:
+
+| | First day | Each later day with no changes |
+|---|---|---|
+| Time | about 5 minutes | about 15 seconds |
+| Peak memory | about 125 MB | about 125 MB |
+| Database growth | about 580 MB | none |
+| Peak disk in the data folder | about 790 MB | about 1.2 GB (the archive, the merge index and the staged records sit beside the database) |
+
+These times exclude the download. A smaller or slower machine takes longer.
+
 Slower connections, disks and CPUs take longer. The database grows as new CVEs
 are published. `status` shows each source as healthy once it has been fetched.
 

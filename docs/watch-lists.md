@@ -234,3 +234,14 @@ unknown, and a different platform makes that assertion inapplicable. Unsupported
 relationships remain unknown when the component version is covered. Platforms
 do not separate watch collisions. Editing a platform re-matches that watch's
 stored evidence. Cisco remains disabled until its release gate is met.
+
+OSV selectors match an ecosystem and source package exactly, including the release:
+
+```toml
+osv = [{ecosystem = "Debian:12", package = "examplessl"}]
+```
+
+Use `scheme = "debian"` for Debian packages. With an OSV selector, a Debian
+version such as `93.0.11-1~deb12u1` is a literal version. At most 20 selectors
+are allowed; duplicate selectors are rejected. Ecosystems and packages retain
+their spelling and case. Raspberry Pi OS means Debian base coverage only.

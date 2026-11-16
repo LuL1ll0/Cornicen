@@ -1,7 +1,7 @@
 # script-purpose: Validate install settings and bounded download budgets.
 # script-class: pipeline-tool
 # script-trigger: Cornicen startup and configuration loading.
-# script-tests: tests/test_task1_b1.py, tests/test_task2_b1.py, tests/test_task3_b1.py
+# script-tests: tests/test_task1_b1.py, tests/test_task2_b1.py, tests/test_task3_b1.py, tests/test_task4_b1.py
 """Shareable TOML settings with ntfy secrets supplied separately.
 
 Reads configuration or request inputs; returns validated values without persistent writes.
@@ -25,6 +25,7 @@ from cornicen.diagnostics import FixedDiagnostic, file_error, toml_error, token_
 
 # Compressed transfer budgets, in bytes and total elapsed seconds.
 DOWNLOAD_BUDGETS = {
+    'osv_debian': {'max_bytes': 256 * 1024**2, 'deadline_seconds': 900},
     'cisco_csaf': {'max_bytes': 16 * 1024**2, 'deadline_seconds': 60},
     'msrc_csaf': {'max_bytes': 16 * 1024**2, 'deadline_seconds': 60},
     'github_advisories': {'max_bytes': 8 * 1024**2, 'deadline_seconds': 60},

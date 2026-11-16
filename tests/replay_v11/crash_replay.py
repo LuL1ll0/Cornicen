@@ -1,7 +1,7 @@
 # script-purpose: Interrupt replay transaction boundaries and reopen durable stores.
 # script-class: harness
 # script-trigger: tests/test_f4.py through the foundation harness.
-# script-tests: tests/test_f4.py, tests/replay_v11/test-crash-replay.py, tests/replay_v11/test-msrc-crash-classification.py, tests/test_task1_a.py, tests/test_task1_b2.py, tests/test_task2_b2.py, tests/test_task3_b2.py
+# script-tests: tests/test_f4.py, tests/replay_v11/test-crash-replay.py, tests/replay_v11/test-msrc-crash-classification.py, tests/test_task1_a.py, tests/test_task1_b2.py, tests/test_task2_b2.py, tests/test_task3_b2.py, tests/test_task4_b2.py
 """Read foundation timelines; write temporary SQLite stores and staging files.
 
 Library helper for unittest (exit 0 success, 1 failure). No production hooks.
@@ -43,6 +43,9 @@ def run(name, crash_index=None):
     from tests.replay_v11.github_backend import GitHubBackend, is_github
     from cornicen.sources.github_advisories import GitHubState
     from tests.replay_v11.msrc_backend import backend_for, is_msrc, is_cisco
+    from tests.replay_v11.osv_backend import DebianBackend
+    debian = name.startswith('debian_')
+    reference = run(name) if debian and crash_index is not None else None
     cisco = is_cisco(name)
     CsafBackend = backend_for(name)
     msrc = is_msrc(name)
@@ -66,9 +69,10 @@ def run(name, crash_index=None):
         attempts = (old[0] if old else 0) + 1
         wait = retry(adapter, source, resource, tick, error, **kwargs)
         key = source, resource
-        witnessed[key] = witnessed.get(key, 0) + 1
-        failures[adapter.directory, source, resource] = (
-            attempts, stamp(instant(tick) + timedelta(seconds=wait)), tick)
+        if not debian:
+            witnessed[key] = witnessed.get(key, 0) + 1
+            failures[adapter.directory, source, resource] = (
+                attempts, stamp(instant(tick) + timedelta(seconds=wait)), tick)
         return wait
 
     def hit(kind, site, side):
@@ -91,10 +95,19 @@ def run(name, crash_index=None):
                 'alias' if file == 'advisoryidentity.py' else
                 'record' if function in ('commit_advisory', 'commit_staged', '_isolated', 'observe_unknown_advisory')
                 else (('cisco_' if cisco else 'msrc_') + function if (msrc or cisco) and (file in ('msrc_csaf.py', 'cisco_csaf.py', 'csaf_directory.py') or function in ('stage_members','_accept_batch','_finish_index','rebaseline','_acknowledge_rebaseline')) else 'github_' + function if github and file == 'github_advisories.py' and function != 'set_hold' else 'state'))
+        if debian and (file == 'osv_debian.py' or file == 'adapterstore.py'):
+            kind = 'debian_' + function
         if kind != 'ack':
             hit(kind, site, 'before')
         with transaction(store) as db:
             yield db
+        if debian and file == 'adapterstore.py' and function == 'retry':
+            values = frame.f_locals
+            adapter, source, resource = values['self'], values['source'], values['resource']
+            row = adapter.db.execute('SELECT attempts,next_attempt_at FROM adapter_retries WHERE source=? AND resource=?', (source, resource)).fetchone()
+            key = source, resource
+            witnessed[key] = witnessed.get(key, 0) + 1
+            failures[adapter.directory, source, resource] = (row['attempts'], row['next_attempt_at'], values['tick'])
         if github and file == 'github_advisories.py':
             values = frame.f_locals
             if function == 'charge':
@@ -117,7 +130,7 @@ def run(name, crash_index=None):
         hit('enqueue', site, 'after')
         return result
 
-    class Backend(CsafBackend if (msrc or cisco) else GitHubBackend if github else ValidationBackend):
+    class Backend(DebianBackend if debian else CsafBackend if (msrc or cisco) else GitHubBackend if github else ValidationBackend):
         def __init__(self, registry):
             super().__init__(registry)
             if github:
@@ -217,12 +230,22 @@ def run(name, crash_index=None):
             for row in retries['rows']:
                 values = dict(zip(retries['columns'], row))
                 key = values['source'], values['resource']
+                assert values['attempts'] > 0, 'retry attempts must be positive'
                 attempts, deadline, tick = failures[self.persistence.directory, *key]
                 assert type(values['attempts']) is int and values['attempts'] == attempts
                 assert values['next_attempt_at'] == deadline, 'retry backoff deadline'
                 assert instant(tick) <= self.clock(), 'failure beyond harness clock'
                 count = attempts - self.interrupted_retries.get(key, 0)
-                assert count > 0
+                if debian and reference is not None:
+                    expected = reference.durable[len(durable)]['adapter_retries']
+                    expected_counts = {(r[expected['columns'].index('source')],
+                                        r[expected['columns'].index('resource')]):
+                                       r[expected['columns'].index('attempts')] for r in expected['rows']}
+                    # Same-tick resume can retain only the committed failure; require its exact uninterrupted count.
+                    if count == 0:
+                        count = attempts
+                    assert count == expected_counts[key], 'retry count differs from uninterrupted run'
+                assert count > 0, 'retry count must be positive'
                 row[retries['columns'].index('attempts')] = count
                 row[retries['columns'].index('next_attempt_at')] = tick
             # Only the complete unevaluated initialization shape is inert.
@@ -240,9 +263,18 @@ def run(name, crash_index=None):
                                tuple(notification.reasons), notification.body.get('episode', 1)))
         return accepted
 
+    # A killed process does not execute Python cleanup handlers. In particular,
+    # stage_members must not unlink an already durable stage while the injected
+    # BaseException unwinds; resume needs precisely those committed bytes.
+    unlink = Path.unlink
+    def process_unlink(path, *args, **kwargs):
+        if debian and active and isinstance(sys.exc_info()[1], Crash):
+            return None
+        return unlink(path, *args, **kwargs)
+
     previous = h.register_backend(Backend)
     try:
-        with patch.object(Store, 'transaction', boundary), patch.object(Store, 'queue', enqueue), \
+        with patch.object(Path, 'unlink', process_unlink), patch.object(Store, 'transaction', boundary), patch.object(Store, 'queue', enqueue), \
                 patch.object(AdapterStore, 'retry', record_retry), \
                 patch.object(RecordingNotifier, 'send', record_send):
             result = h.run_scenario(name)

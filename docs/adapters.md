@@ -127,3 +127,46 @@ existing host-keyed `user_agent_overrides` setting (`www.cisco.com`); the adapte
 does not substitute a special User-Agent. Full listings and records across two
 publication updates, inventory conformance, an outage/rollover replay and Lou's
 approval remain required before gate C can be met.
+
+## Debian via OSV
+
+Debian (OSV) is off in v0.6.0: gate D is **not met**. The production
+registry's publication clock remains unvalidated, so freshness is unknown
+until gate D establishes the export's publication semantics. An individual
+OSV query sample cannot satisfy that gate.
+
+When enabled, the adapter downloads the whole Debian OSV export once a day
+(about 81.5 MB), whatever the watch list. The bucket operator sees your
+IP address and an interest in Debian. Requests carry Cornicen's User-Agent,
+which includes its version and the repository URL. No package, watched version
+or CVE ID is sent, and there is no query fallback. Discovery reads `ecosystems.txt` and
+fetches every listed `Debian` or `Debian:` ecosystem's `all.zip`, including
+unwatched releases. Requests are unconditional; durable retry deadlines take
+precedence over the daily cadence after failures.
+
+Archives stream through an on-disk merge index. Identical copies deduplicate;
+disjoint release projections merge only when their common fields and revision
+agree. Conflicts retain prior evidence and hold the cursor; recovery requires
+two coherent complete passes in the same cycle. Missing members, ecosystems
+or copies never imply withdrawal. `cornicen adapter rebaseline debian`
+acknowledges missing coverage; a following poll can publish the remaining
+projection. Withdrawals explicitly retract only that record's evidence.
+
+OSV watches use exact ecosystem/source-package selectors and Debian ordering:
+
+```toml
+[[watch]]
+id = "sample"
+name = "Sample package"
+match = ["examplecorp:widget"]
+version = "93.0.11-1~deb12u1"
+scheme = "debian"
+osv = [{ecosystem = "Debian:12", package = "examplessl"}]
+```
+
+These invented names illustrate the syntax. A DSA listing several CVEs with
+shared ranges supplies advisory-level evidence; it does not establish which
+listed CVE affects a watch. Distribution backports remain scoped to their
+OSV ecosystem/package. Gate D stays unmet pending discovery, full archives,
+inventories, duplicate/projection checks across two generations and a proven
+publication clock.

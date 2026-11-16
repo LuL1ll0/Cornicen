@@ -605,3 +605,42 @@ The Cisco case seeds 20,000 cache paths, with 10% index-only, and measures compl
 bootstrap emission and steady dispatch fetching 200 changed paths. Each reports elapsed time and peak
 process RSS; budgets are 900 s, 60 s and 256 MB. Run each case in a fresh process
 when comparing memory measurements, since process peak RSS is cumulative.
+
+Debian OSV replay (v0.6.0)
+-------------------------
+
+`osv_backend.py` serves scripts keyed by action index, operation (`discovery`
+or `archive:<ecosystem>`) and occurrence. Inline invented OSV members become
+ZIPs at replay time; literal broken bytes cover short transfers and destroyed
+central directories. A real `Http` with an injected opener and resolver runs
+through `production_factories` and the real daily scheduler. No network is used.
+
+The test-local Debian registry sets gate D to `met` and validates the synthetic
+Last-Modified clock. Production gate D remains `not met` and its clock remains
+unvalidated. Completed-baseline seeds and explicit daily timestamps make the
+applicability and health transitions reviewable. Queued `ingest` actions run
+before Debian dispatch in the same tick, including CNA updates in aggregate.
+
+The five scenario pairs cite spec §8: `debian_bounds` (`osv_bounds`),
+`debian_exports` (`osv_exports`, Debian rows), `debian_split` (`split`),
+`debian_aggregate` (`aggregate`) and `debian_boundary` (`boundary`, archive rows).
+Their literal expected snapshots include cursors/manifests, per-identity evidence
+with every persisted column and decoded provenance, duplicates retained, and
+freshness detail. Debian-only additions do not relax legacy expectation schemas;
+these scenarios are excluded from the legacy aggregate counts and cycle hashes.
+
+Crash replay classifies Debian adapter state and store transactions as injectable,
+including attempt, projection state, audit, staging, retries, quarantine and
+manifest/baseline acceptance. During simulated process loss Debian cleanup unlinks
+are suppressed: a killed process would not execute exception cleanup that deletes
+a committed stage. Durable retry accounting is observed at its committed boundary.
+Microsoft and Cisco classification and cleanup behavior remain unchanged.
+
+Run `PYTHONPATH=src python3 -m unittest tests.test_task4_b2 -v` and
+`PYTHONPATH=src:. python3 tests/replay_v11/test-osv-backend.py -v`.
+T22 is opt-in: `CORNICEN_SCALE=1 PYTHONPATH=src python3 -m unittest
+ tests.test_task4_b2.Task4B2Tests.test_t22_scale -v` (on one line).
+It generates 100,000 members before measurement, then runs each day in a fresh
+foreground process with file-backed HTTP responses, sampling peak data-directory
+disk use. `CORNICEN_SCALE_MEMBERS=10000` selects the rehearsal size. It checks one
+baseline summary, durations, platform-normalized RSS and staging/download cleanup.

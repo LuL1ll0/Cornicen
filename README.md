@@ -15,7 +15,7 @@ Cornicen is for homelabs and small networks. You tell it what you run. It watche
   Email uses the ntfy server’s own forwarding; Cornicen stores no mail credentials.
 - **Silent first run.** The first bootstrap records what already matches and sends one summary; after that you hear only about changes.
 
-**Status:** version 0.5.0, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
+**Status:** version 0.6.0, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
 
 ## Contents
 
@@ -72,6 +72,7 @@ stored SSVC data; projection health reads `incomplete` until it finishes.
 | GitHub releases (opt-in per watch) | The latest release of a repository you name, for [latest-release checks](#watch-lists) | daily |
 | Microsoft CSAF — off until gate M | Budgeted download of every listed advisory, independent of watches; gate M not met | disabled |
 | Cisco CSAF — off until gate C | Budgeted download of the changes.csv/index.txt union, independent of watches; gate C not met | disabled |
+| Debian (OSV) — off until gate D | Whole Debian export, independent of watches; gate D not met | disabled |
 
 ## Quick start
 
@@ -182,7 +183,7 @@ Cornicen only knows what the CVE List, KEV and EPSS publish, and CNA data is inc
 - **Not covered:** anything without a CVE record (a blog post, a GitHub issue), Apple (no official machine-readable feed), and Raspberry Pi-specific packages or firmware.
 - **GitHub rate limit:** without a token, GitHub allows 60 API requests an hour per IP address. An [optional GitHub token](docs/install.md#github-token-optional) raises the primary allowance to 5,000 an hour. Anything else on your network calling GitHub without a token draws on the same allowance. If it runs out, the CVE List source reports unhealthy until the hour resets.
 - **Plex:** no machine-readable advisory feed was found, so coverage comes from CVE records alone. Latest-release checks support GitHub releases only, which Plex does not publish, so a Plex latest-version check is still planned.
-- **Planned:** vendor advisory feeds, each off until it passes its own gate; Debian data; NVD enrichment.
+- **Planned:** vendor advisory feeds, each off until it passes its own gate; NVD enrichment.
 
 ## Privacy
 
@@ -197,6 +198,8 @@ When the GitHub advisories adapter is enabled (not in this release: gate G is un
 [adapters.github]
 enabled = false
 ```
+
+When the Debian adapter is enabled (not in this release: gate D is unmet), it downloads the whole Debian OSV export once a day (about 81.5 MB) whatever the watch list, so the bucket's operator sees your IP address and an interest in Debian. Requests carry Cornicen's User-Agent, which includes its version and the repository URL.
 
 ## Getting help
 

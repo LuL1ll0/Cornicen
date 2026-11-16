@@ -1,18 +1,20 @@
 # script-purpose: Store and aggregate scoped advisory applicability and fix evidence.
 # script-class: pipeline-tool
 # script-trigger: Adapter commits and engine evaluation.
-# script-tests: tests/test_f3a.py, tests/test_f3b.py, tests/test_r11_differential.py, tests/test_r11_shells.py, tests/test_r11_integration.py, tests/test_task1_b1.py, tests/test_task2_a.py, tests/test_task3_a.py
+# script-tests: tests/test_f3a.py, tests/test_f3b.py, tests/test_r11_differential.py, tests/test_r11_shells.py, tests/test_r11_integration.py, tests/test_task1_b1.py, tests/test_task2_a.py, tests/test_task3_a.py, tests/test_task4_a.py
 """Read validated advisories and SQLite evidence; write scoped evidence rows.
 
 Library API, no command entry point or exit codes. No network access.
 """
+from functools import cmp_to_key
 import json
 import re
 
 from cornicen import applicability, cnascope
 from cornicen.applicability import State, Result
 from cornicen.identity import normalise_identity
-from cornicen.versions import compare
+from cornicen.versions import Scheme, compare
+from cornicen.osv import OSV_SCHEMES, OSV_SOURCES, ecosystem_scheme, range_shape
 
 
 def retracted(data):
@@ -270,7 +272,127 @@ def _watch_bound_vote(row, watch, aliases):
     return status if low >= 0 and (high < 0 or high == 0 and op == '<=') else ABSTAIN
 
 
+
+def osv_row(row):
+    return row['source'] in OSV_SOURCES and row['package'].startswith('osv-selector:')
+
+
+def _osv_selector(row, watch):
+    ecosystem, separator, package = row['package'].removeprefix('osv-selector:').partition('#')
+    return next((s for s in watch.osv if separator and (s.ecosystem, s.package) == (ecosystem, package)), None)
+
+
+def _osv_compile(row, ecosystem):
+    """Compile listed-order pairs once, retaining unsupported portions."""
+    try:
+        bounds = json.loads(json.loads(row['range'])['osv'])
+    except (ValueError, TypeError, KeyError):
+        return [], [], True
+    if (not range_shape(bounds) or not (bounds['ranges'] or bounds['versions'])
+            or row['status'] != 'known_affected'):
+        return [], [], True
+    intervals, unknown = [], False
+    for r in bounds['ranges']:
+        scheme = ecosystem if r['type'] == 'ECOSYSTEM' else 'semver' if r['type'] == 'SEMVER' else None
+        if scheme is None:
+            unknown = True
+            continue
+        scheme = Scheme(scheme)
+        opened, lower, parts, valid = False, None, [], True
+        for event in r['events']:
+            key, value = next(iter(event.items()))
+            if not (key == 'introduced' and value == '0') and compare(value, value, scheme) is None:
+                valid = False
+                break
+            if key == 'introduced':
+                if opened:
+                    valid = False
+                    break
+                opened, lower = True, None if value == '0' else value
+            else:
+                if not opened:
+                    valid = False
+                    break
+                order = compare(lower, value, scheme) if lower is not None else -1
+                if order is None or order > 0:
+                    valid = False
+                    break
+                parts.append((lower, value, key, scheme))
+                opened = False
+        if valid:
+            if opened:
+                parts.append((lower, None, None, scheme))
+            intervals.extend(parts)
+        else:
+            unknown = True
+    return intervals, [(v, Scheme(ecosystem)) for v in bounds['versions']], unknown
+
+
+def _osv_union_vote(compiled, version):
+    intervals, versions, unknown = compiled
+    for lower, upper, close, scheme in intervals:
+        if compare(version, version, scheme) is None:
+            unknown = True
+            continue
+        low = compare(version, lower, scheme) if lower is not None else 1
+        high = compare(version, upper, scheme) if upper is not None else -1
+        if low is None or high is None:
+            unknown = True
+        elif low >= 0 and (high < 0 or high == 0 and close == 'last_affected'):
+            return State.AFFECTED
+    for value, scheme in versions:
+        order = compare(version, value, scheme)
+        if order is None:
+            unknown = True
+        elif order == 0:
+            return State.AFFECTED
+    return State.UNKNOWN if unknown else State.NOT_AFFECTED
+
+
+def _osv_vote(row, watch):
+    selector = _osv_selector(row, watch)
+    if selector is None:
+        return None
+    scheme = ecosystem_scheme(selector.ecosystem)
+    if (scheme is None or watch.scheme.value != scheme
+            or re.search(r'^[=><]|[,\s]', watch.version)
+            or compare(watch.version, watch.version, watch.scheme) is None):
+        return State.UNKNOWN
+    return _osv_union_vote(_osv_compile(row, scheme), watch.version)
+
+
+def _osv_fixes(rows, watch):
+    if re.search(r'^[=><]|[,\s]', watch.version) or compare(watch.version, watch.version, watch.scheme) is None:
+        return set()
+    groups = {}
+    for row in rows:
+        selector = _osv_selector(row, watch)
+        if selector is None or ecosystem_scheme(selector.ecosystem) != watch.scheme.value:
+            continue
+        key = (row['source'], row['source_id'], row['facet'], selector)
+        groups.setdefault(key, []).append(row)
+    fixes = set()
+    for key, members in groups.items():
+        union = ([], [], False)
+        candidates = []
+        for row in members:
+            compiled = _osv_compile(row, watch.scheme.value)
+            union = (union[0] + compiled[0], union[1] + compiled[1], union[2] or compiled[2])
+            if _osv_union_vote(compiled, watch.version) == State.AFFECTED:
+                candidates.extend((upper, scheme) for _, upper, close, scheme in compiled[0]
+                                  if close == 'fixed' and compare(upper, watch.version, scheme) == 1)
+        candidates = sorted(set(candidates), key=cmp_to_key(
+            lambda a, b: compare(a[0], b[0], a[1]) if a[1] == b[1]
+            else (a[1].value > b[1].value) - (a[1].value < b[1].value)))
+        for candidate, scheme in candidates:
+            if _osv_union_vote(union, candidate) == State.NOT_AFFECTED:
+                fixes.add(candidate if scheme == watch.scheme else 'available')
+    return fixes
+
+
 def evaluate_row(row, watch, aliases):
+    if osv_row(row):
+        return _osv_vote(row, watch)
     if _watch_bound(row):
         return _watch_bound_vote(row, watch, aliases)
     if row['package'].startswith('github-selector:'):
@@ -330,6 +452,8 @@ def resolve(db, identity, watch, aliases, *, record=None, kev=None, scope=None, 
 
 
 def same_scope(row, verdict, aliases, equivalents, *, scheme=None):
+    if osv_row(row):
+        return False
     evidence = json.loads(row['provenance']).get('evidence')
     if isinstance(evidence, dict) and 'relationship' in evidence:
         return False
@@ -421,8 +545,10 @@ def fix_for(db, identity, watch, aliases, scope=None, equivalents=()):
     if any(compare(left, right, watch.scheme) is None
            for i, left in enumerate(bound_versions) for right in bound_versions[i+1:]):
         return 'available'
-    fixes = bound_fixes | {row['fix'] for row in rows
-             if not _watch_bound(row)
+    osv_fixes = _osv_fixes([r for r in rows if osv_row(r)
+                            and scope_matches(r, scope or {}, equivalents)], watch)
+    fixes = bound_fixes | osv_fixes | {row['fix'] for row in rows
+             if not _watch_bound(row) and not osv_row(row)
              and row['fix'] and (
                  (row['package'].startswith('github-selector:')
                   and not any(c.isspace() or c in ',|' for c in row['fix'])

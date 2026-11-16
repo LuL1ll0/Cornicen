@@ -1,0 +1,20 @@
+{"#": "# script-purpose: Replay spec \u00a78 boundary (archive rows) with invented Debian mutations.\n# script-class: harness\n# script-trigger: tests/test_task4_b2.py\n# script-tests: tests/test_task4_b2.py"}
+{"t": "2026-11-03T00:00:00Z", "watchlist": "[[watch]]\nid=\"w\"\nname=\"Sample\"\nmatch=[\"examplecorp:widget\"]\nversion=\"93.0.11-1~deb12u1\"\nscheme=\"debian\"\nosv=[{ecosystem=\"Debian:12\",package=\"examplessl\"}]\n"}
+{"t": "2026-11-03T00:00:00Z", "seed": {"v1_baseline_complete": true, "debian_completed_baseline": true}}
+{"t": "2026-11-03T01:00:00Z", "debian": [{"operation": "discovery", "body": "<html>unavailable</html>"}]}
+{"t": "2026-11-03T01:00:00Z", "cycle": true}
+{"t": "2026-11-08T00:00:00Z", "case": "blank"}
+{"t": "2026-11-08T00:00:00Z", "watchlist": "[[watch]]\nid=\"w\"\nname=\"Sample\"\nmatch=[\"examplecorp:widget\"]\nversion=\"93.0.11-1~deb12u1\"\nscheme=\"debian\"\nosv=[{ecosystem=\"Debian:12\",package=\"examplessl\"}]\n"}
+{"t": "2026-11-08T00:00:00Z", "seed": {"v1_baseline_complete": true, "debian_completed_baseline": true}}
+{"t": "2026-11-08T01:00:00Z", "debian": [{"operation": "discovery", "body": ""}]}
+{"t": "2026-11-08T01:00:00Z", "cycle": true}
+{"t": "2026-11-13T00:00:00Z", "case": "malformed"}
+{"t": "2026-11-13T00:00:00Z", "watchlist": "[[watch]]\nid=\"w\"\nname=\"Sample\"\nmatch=[\"examplecorp:widget\"]\nversion=\"93.0.11-1~deb12u1\"\nscheme=\"debian\"\nosv=[{ecosystem=\"Debian:12\",package=\"examplessl\"}]\n"}
+{"t": "2026-11-13T00:00:00Z", "seed": {"v1_baseline_complete": true, "debian_completed_baseline": true}}
+{"t": "2026-11-13T01:00:00Z", "debian": [{"operation": "discovery", "body": "Debian\nBad\u0000name\n"}]}
+{"t": "2026-11-13T01:00:00Z", "cycle": true}
+{"t": "2026-11-18T00:00:00Z", "case": "truncated"}
+{"t": "2026-11-18T00:00:00Z", "watchlist": "[[watch]]\nid=\"w\"\nname=\"Sample\"\nmatch=[\"examplecorp:widget\"]\nversion=\"93.0.11-1~deb12u1\"\nscheme=\"debian\"\nosv=[{ecosystem=\"Debian:12\",package=\"examplessl\"}]\n"}
+{"t": "2026-11-18T00:00:00Z", "seed": {"v1_baseline_complete": true, "debian_completed_baseline": true}}
+{"t": "2026-11-18T01:00:00Z", "debian": [{"operation": "discovery", "body": "Debian\n"}, {"operation": "archive:Debian", "headers": {"last-modified": "Wed, 18 Nov 2026 00:00:00 GMT"}, "broken": "truncated"}]}
+{"t": "2026-11-18T01:00:00Z", "cycle": true}
