@@ -1,7 +1,7 @@
 # script-purpose: Store and aggregate scoped advisory applicability and fix evidence.
 # script-class: pipeline-tool
 # script-trigger: Adapter commits and engine evaluation.
-# script-tests: tests/test_f3a.py, tests/test_f3b.py, tests/test_r11_differential.py, tests/test_r11_shells.py, tests/test_r11_integration.py, tests/test_task1_b1.py
+# script-tests: tests/test_f3a.py, tests/test_f3b.py, tests/test_r11_differential.py, tests/test_r11_shells.py, tests/test_r11_integration.py, tests/test_task1_b1.py, tests/test_task2_a.py
 """Read validated advisories and SQLite evidence; write scoped evidence rows.
 
 Library API, no command entry point or exit codes. No network access.
@@ -216,7 +216,54 @@ def _github_entry(row, watch):
     return dict(defaultStatus='unaffected', versions=versions)
 
 
+ABSTAIN = object()
+CSAF_SOURCES = frozenset({'msrc', 'cisco'})
+
+
+def _watch_bound(row):
+    if row['source'] not in CSAF_SOURCES:
+        return False
+    evidence = json.loads(row['provenance']).get('evidence')
+    return isinstance(evidence, dict) and evidence.get('binding') == 'watch'
+
+
+def _watch_bound_vote(row, watch, aliases):
+    if row['package'].startswith('csaf-unresolved:'):
+        return None
+    vendor, _, product = row['package'].partition(':')
+    kind = applicability._identity_match(vendor, product, watch, aliases)
+    if not kind:
+        return None
+    version = watch.version.strip()
+    if kind == 'product_only' or version.startswith(('=', '>', '<')) or ',' in version:
+        return State.UNKNOWN
+    status = dict(known_affected=State.AFFECTED, known_not_affected=State.NOT_AFFECTED,
+                  first_fixed=State.NOT_AFFECTED, under_investigation=State.UNKNOWN)[row['status']]
+    bounds = json.loads(row['range']) if row['range'] else None
+    if bounds is None:
+        exact = json.loads(row['provenance']).get('product_version')
+        if exact is None:
+            return status
+        order = compare(version, exact, watch.scheme)
+        return State.UNKNOWN if order is None else status if order == 0 else ABSTAIN
+    text = bounds.get('csaf')
+    if not isinstance(text, str) or watch.scheme.value == 'opaque':
+        return State.UNKNOWN
+    match = re.fullmatch(r'(?:>=\s*([^\s<>=!,|]+)\s+)?(<=|<)\s*([^\s<>=!,|]+)', text)
+    if not match:
+        return State.UNKNOWN
+    lower, op, upper = match.groups()
+    high = compare(version, upper, watch.scheme)
+    low = compare(version, lower, watch.scheme) if lower is not None else 0
+    span = compare(lower, upper, watch.scheme) if lower is not None else -1
+    if high is None or low is None or span is None or span > 0 or (span == 0 and op == '<'):
+        return State.UNKNOWN
+    return status if low >= 0 and (high < 0 or high == 0 and op == '<=') else ABSTAIN
+
+
 def evaluate_row(row, watch, aliases):
+    if _watch_bound(row):
+        return _watch_bound_vote(row, watch, aliases)
     if row['package'].startswith('github-selector:'):
         if row['source'] != 'github' or not _selector_matches(row, watch):
             return None
@@ -241,7 +288,7 @@ def resolve(db, identity, watch, aliases, *, record=None, kev=None, scope=None, 
     for row in rows_for(db, identity):
         if scope_matches(row, scope, equivalents):
             state = evaluate_row(row, watch, aliases)
-            if state is not None:
+            if state is not None and state is not ABSTAIN:
                 applicable.append((row['source'], state))
     cna = [v for v in cnascope.scoped_verdicts(record, watch, aliases)
            if scope_matches(dict(release=v.release, platform=v.platform), scope, equivalents)]
@@ -252,10 +299,10 @@ def resolve(db, identity, watch, aliases, *, record=None, kev=None, scope=None, 
         if not scope_matches(row, scope, equivalents):
             continue
         state = evaluate_row(row, watch, aliases)
-        if state is None:
+        if state is None or state is ABSTAIN:
             continue
         decisive = [v.state for v in cna if v.authoritative
-                    and same_scope(row, v, aliases, equivalents)]
+                    and same_scope(row, v, aliases, equivalents, scheme=watch.scheme)]
         states.append(aggregate(decisive) if decisive else state)
     states.extend(v.state for v in cna)
     state = aggregate(states)
@@ -273,13 +320,14 @@ def resolve(db, identity, watch, aliases, *, record=None, kev=None, scope=None, 
     return Result(state, bool(kev), detail, confidence)
 
 
-def same_scope(row, verdict, aliases, equivalents):
+def same_scope(row, verdict, aliases, equivalents, *, scheme=None):
     vendor, _, product = row['package'].partition(':')
     from cornicen.identity import normalise_identity
     identity = normalise_identity(vendor), normalise_identity(product)
     expanded = aliases.expand(identity)
     package = ':'.join(min(expanded) if expanded else identity)
-    return (package == verdict.package and row['scheme'] == verdict.scheme
+    effective = scheme if scheme is not None and _watch_bound(row) else row['scheme']
+    return (package == verdict.package and effective == verdict.scheme
             and scope_matches(row, dict(release=verdict.release, platform=verdict.platform), equivalents))
 
 
@@ -332,8 +380,30 @@ def route(db, identity, watch, aliases, scope=None, equivalents=()):
 
 
 def fix_for(db, identity, watch, aliases, scope=None, equivalents=()):
-    fixes = {row['fix'] for row in rows_for(db, identity)
-             if row['fix'] and (
+    rows = rows_for(db, identity)
+    affected = {(row['source'], row['source_id'], row['facet']) for row in rows
+                if _watch_bound(row) and scope_matches(row, scope or {}, equivalents)
+                and evaluate_row(row, watch, aliases) == State.AFFECTED}
+    bound_fixes = set()
+    for row in rows:
+        if (not _watch_bound(row) or not row['fix']
+                or (row['source'], row['source_id'], row['facet']) not in affected
+                or not scope_matches(row, scope or {}, equivalents)
+                or evaluate_row(row, watch, aliases) is None):
+            continue
+        if row['fix'] == 'available':
+            bound_fixes.add('available')
+        else:
+            order = compare(row['fix'], watch.version, watch.scheme)
+            if order is not None and order > 0:
+                bound_fixes.add(row['fix'])
+    bound_versions = sorted(bound_fixes - {'available'})
+    if any(compare(left, right, watch.scheme) is None
+           for i, left in enumerate(bound_versions) for right in bound_versions[i+1:]):
+        return 'available'
+    fixes = bound_fixes | {row['fix'] for row in rows
+             if not _watch_bound(row)
+             and row['fix'] and (
                  (row['package'].startswith('github-selector:')
                   and not any(c.isspace() or c in ',|' for c in row['fix'])
                   and compare(row['fix'], row['fix'], watch.scheme) is not None)

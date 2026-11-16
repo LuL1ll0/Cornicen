@@ -1,0 +1,224 @@
+{
+  "document": {
+    "acknowledgments": [
+      {
+        "names": [
+          "Example Researcher"
+        ]
+      }
+    ],
+    "aggregate_severity": {
+      "namespace": "https://www.microsoft.com/en-us/msrc/security-update-severity-rating-system",
+      "text": "Important"
+    },
+    "category": "csaf_security_advisory",
+    "csaf_version": "2.0",
+    "distribution": {
+      "text": "Public",
+      "tlp": {
+        "label": "WHITE",
+        "url": "https://www.first.org/tlp/"
+      }
+    },
+    "lang": "en-US",
+    "notes": [
+      {
+        "category": "general",
+        "text": "To determine the support lifecycle for your software, see the Microsoft Support Lifecycle: https://support.microsoft.com/lifecycle",
+        "title": "Additional Resources"
+      },
+      {
+        "category": "legal_disclaimer",
+        "text": "The information provided in the Microsoft Knowledge Base is provided \\\"as is\\\" without warranty of any kind. Microsoft disclaims all warranties, either express or implied, including the warranties of merchantability and fitness for a particular purpose. In no event shall Microsoft Corporation or its suppliers be liable for any damages whatsoever including direct, indirect, incidental, consequential, loss of business profits or special damages, even if Microsoft Corporation or its suppliers have been advised of the possibility of such damages. Some states do not allow the exclusion or limitation of liability for consequential or incidental damages so the foregoing limitation may not apply.",
+        "title": "Disclaimer"
+      },
+      {
+        "category": "general",
+        "text": "Required. The vulnerability documented by this CVE requires customer action to resolve.",
+        "title": "Customer Action"
+      }
+    ],
+    "publisher": {
+      "category": "vendor",
+      "contact_details": "secure@microsoft.com",
+      "name": "Microsoft Security Response Center",
+      "namespace": "https://msrc.microsoft.com"
+    },
+    "references": [
+      {
+        "category": "self",
+        "summary": "CVE-2099-71001 Contoso Sample Agent Information Disclosure Vulnerability - HTML",
+        "url": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2099-71001"
+      },
+      {
+        "category": "self",
+        "summary": "CVE-2099-71001 Contoso Sample Agent Information Disclosure Vulnerability - CSAF",
+        "url": "https://msrc.microsoft.com/csaf/advisories/2099/msrc_cve-2099-71001.json"
+      },
+      {
+        "category": "external",
+        "summary": "Microsoft Exploitability Index",
+        "url": "https://www.microsoft.com/en-us/msrc/exploitability-index?rtc=1"
+      },
+      {
+        "category": "external",
+        "summary": "Microsoft Support Lifecycle",
+        "url": "https://support.microsoft.com/lifecycle"
+      },
+      {
+        "category": "external",
+        "summary": "Common Vulnerability Scoring System",
+        "url": "https://www.first.org/cvss"
+      }
+    ],
+    "title": "Contoso Sample Agent Information Disclosure Vulnerability",
+    "tracking": {
+      "current_release_date": "2026-11-02T08:00:00.000Z",
+      "generator": {
+        "date": "2026-11-03T01:25:21.357Z",
+        "engine": {
+          "name": "MSRC Generator",
+          "version": "1.0"
+        }
+      },
+      "id": "msrc_CVE-2099-71001",
+      "initial_release_date": "2026-10-13T07:00:00.000Z",
+      "revision_history": [
+        {
+          "date": "2026-10-13T07:00:00.000Z",
+          "legacy_version": "1",
+          "number": "1",
+          "summary": "Information published."
+        },
+        {
+          "date": "2026-11-02T08:00:00.000Z",
+          "legacy_version": "1.1",
+          "number": "2",
+          "summary": "Updated an acknowledgement. This is an informational change only."
+        }
+      ],
+      "status": "final",
+      "version": "2"
+    }
+  },
+  "product_tree": {
+    "branches": [
+      {
+        "branches": [
+          {
+            "branches": [
+              {
+                "category": "product_version_range",
+                "name": "<9.4.1200.8",
+                "product": {
+                  "name": "Contoso Sample Agent for Windows <9.4.1200.8",
+                  "product_id": "1"
+                }
+              },
+              {
+                "category": "product_version",
+                "name": "9.4.1200.8",
+                "product": {
+                  "name": "Contoso Sample Agent for Windows 9.4.1200.8",
+                  "product_id": "12013"
+                }
+              }
+            ],
+            "category": "product_name",
+            "name": "Contoso Sample Agent for Windows"
+          }
+        ],
+        "category": "vendor",
+        "name": "Microsoft"
+      }
+    ]
+  },
+  "vulnerabilities": [
+    {
+      "cve": "CVE-2099-71001",
+      "cwe": {
+        "id": "CWE-125",
+        "name": "Out-of-bounds Read"
+      },
+      "notes": [
+        {
+          "category": "general",
+          "text": "Microsoft",
+          "title": "Assigning CNA"
+        },
+        {
+          "category": "faq",
+          "text": "An attacker who successfully exploited this vulnerability could potentially read portions of heap memory.",
+          "title": "What type of information could be disclosed by this vulnerability?"
+        }
+      ],
+      "product_status": {
+        "fixed": [
+          "12013"
+        ],
+        "known_affected": [
+          "1"
+        ]
+      },
+      "references": [
+        {
+          "category": "self",
+          "summary": "CVE-2099-71001 Contoso Sample Agent Information Disclosure Vulnerability - HTML",
+          "url": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2099-71001"
+        },
+        {
+          "category": "self",
+          "summary": "CVE-2099-71001 Contoso Sample Agent Information Disclosure Vulnerability - CSAF",
+          "url": "https://msrc.microsoft.com/csaf/advisories/2099/msrc_cve-2099-71001.json"
+        }
+      ],
+      "remediations": [
+        {
+          "category": "vendor_fix",
+          "date": "2026-10-13T07:00:00.000Z",
+          "details": "9.4.1200.8:Security Update:https://learn.microsoft.com/en-us/example/contoso-sample-agent-releases#windows-antivirus--sample-2099--platform-941200008--engine-941200008",
+          "product_ids": [
+            "1"
+          ],
+          "url": "https://learn.microsoft.com/en-us/example/contoso-sample-agent-releases#windows-antivirus--sample-2099--platform-941200008--engine-941200008"
+        }
+      ],
+      "scores": [
+        {
+          "cvss_v3": {
+            "attackComplexity": "LOW",
+            "attackVector": "LOCAL",
+            "availabilityImpact": "NONE",
+            "baseScore": 5.5,
+            "baseSeverity": "MEDIUM",
+            "confidentialityImpact": "HIGH",
+            "exploitCodeMaturity": "UNPROVEN",
+            "integrityImpact": "NONE",
+            "privilegesRequired": "LOW",
+            "remediationLevel": "OFFICIAL_FIX",
+            "reportConfidence": "CONFIRMED",
+            "scope": "UNCHANGED",
+            "temporalScore": 4.8,
+            "userInteraction": "NONE",
+            "vectorString": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N/E:U/RL:O/RC:C",
+            "version": "3.1"
+          },
+          "products": [
+            "1"
+          ]
+        }
+      ],
+      "threats": [
+        {
+          "category": "impact",
+          "details": "Information Disclosure"
+        },
+        {
+          "category": "exploit_status",
+          "details": "Publicly Disclosed:No;Exploited:No;Latest Software Release:Exploitation Less Likely"
+        }
+      ],
+      "title": "Contoso Sample Agent Information Disclosure Vulnerability"
+    }
+  ]
+}

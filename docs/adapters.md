@@ -1,8 +1,7 @@
 # Adapter foundation (v0.2.0)
 
 This release supplies the shared adapter storage and evaluation machinery.
-Every production release gate is unmet and the production registry contains
-no factories. An installation setting can never bypass a release gate; no
+Every production release gate is unmet and production factories remain inactive. An installation setting can never bypass a release gate; no
 ineffective adapter is constructed, polled, audited, retried or transported.
 The GitHub setting defaults on, but its advisory adapter remains disabled.
 
@@ -40,9 +39,45 @@ duplicate delivery ([design spec §1](spec.md#1-design-goals)).
 
 ## GitHub repository advisories
 
-Gate G remains not met in 0.3.0. No transport is constructed while disabled.
+Gate G remains not met in 0.4.0. No transport is constructed while disabled.
 Explicit watch selectors consent to repository enumeration. The adapter sends
 unconditional listings, checks two consecutive traversals, and reconciles missing
 members with details. Local limits are 30 requests per cycle and 60 per rolling
 hour, shared across repositories; these cannot guarantee GitHub's shared IP budget.
 Each repository has independent coverage, retries and a seven-day audit clock.
+
+## Microsoft CSAF
+
+Microsoft CSAF is off until gate M. Gate M remains **not met** in 0.4.0;
+turning the installation setting on cannot construct or poll this adapter.
+Offline invented scenarios provide test coverage, not inventory conformance
+evidence or permission to enable the source.
+
+When enabled after the gate is met, it downloads provider metadata and the
+complete advisories changes.csv listing, then every listed advisory, whatever
+the watch list. Requests disclose only the host IP and an interest in Microsoft;
+no watch identity or installed version is sent. The separate vex distribution
+is never fetched. Metadata expires after 24 hours. Every redirect is restricted
+to the metadata, listing and safe advisory paths on msrc.microsoft.com.
+
+Sequential local limits are 200 requests per cycle and 400 per rolling hour,
+including metadata, listings and redirects. Record admission leaves one request
+of budget unused. These ceilings do not guarantee the publisher's shared IP
+allowance. A 403 or 429 holds further requests; per-path failures and backoff
+persist across cycles. A 9,056-record bootstrap takes about 46 hourly cycles.
+
+The first clean, nonempty listing pins bootstrap paths. Their accepted or
+quarantined members remain baseline even when a later retry repairs them.
+New paths are incremental after the first container. The adapter streams one
+container from its durable cache each cycle. Changed timestamp sets, including
+ties and regressions, trigger unconditional transfers; unchanged paths refresh
+at six days. Audit health fails at seven days since the last intact transfer,
+or first observation for a path that has never succeeded.
+
+Invalid listing rows retain earlier membership and hold the cursor. Record
+failures keep usable members while holding coverage; HTTP errors classify the
+run FAILED, other transfer failures PARTIAL. Disappearances record a separate
+gap for each path and episode, preserving evidence. Explicit rebaseline can
+acknowledge absence and restore current completeness, but historical coverage
+remains unhealthy for the acknowledged gap. Conflicting raw documents sharing
+an ID are quarantined; identical copies are emitted once.

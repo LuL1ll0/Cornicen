@@ -1,7 +1,7 @@
 # script-purpose: Persist validated adapter records and reconcile staged resources.
 # script-class: pipeline-tool
 # script-trigger: The engine adapter dispatch and adapter rebaseline command.
-# script-tests: tests/test_f3b.py, tests/test_f2a.py, tests/test_f3a.py, tests/test_r11_shells.py, tests/test_task1_a.py, tests/test_task1_b1.py, tests/test_task1_b2.py
+# script-tests: tests/test_f3b.py, tests/test_f2a.py, tests/test_f3a.py, tests/test_r11_shells.py, tests/test_task1_a.py, tests/test_task1_b1.py, tests/test_task1_b2.py, tests/test_task2_b1.py, tests/test_task2_b2.py
 """Durable, offline adapter commits. No factories or network transports live here.
 
 Containers are newline-delimited canonical JSON under the data directory. A
@@ -95,6 +95,107 @@ class AdapterStore:
         return bool((entry and entry.independent) or
                     self.store.get_meta('required_since:' + source) is not None)
 
+    def set_baseline_hold(self, source, tick):
+        """Delay the independent summary, retaining permission for late pins."""
+        self.ensure(source, tick)
+        with self.store.transaction():
+            self.store.set_meta('baseline_hold:' + source, tick)
+            self.store.set_meta('baseline_hold_used:' + source, tick)
+
+    def release_baseline_hold(self, source, tick):
+        """Release the summary barrier; baseline membership remains durable."""
+        with self.store.transaction():
+            self.db.execute('DELETE FROM meta WHERE k=?', ('baseline_hold:' + source,))
+
+    def pin_baseline_member(self, source, source_id, tick):
+        """Pin a late bootstrap identity even after the summary was released."""
+        if self.store.get_meta('baseline_hold_used:' + source) is None:
+            return
+        v.source_id(source_id)
+        with self.store.transaction():
+            self.db.execute('INSERT OR IGNORE INTO baseline_members VALUES (?,?)', (source,source_id))
+
+    @staticmethod
+    def _outcome_flags(resource):
+        """Validate optional flags before any member is staged or committed."""
+        from cornicen.feeddates import rfc3339
+        failures = resource.get('subrequest_failures', 0)
+        http_errors = resource.get('subrequest_http_errors', 0)
+        if (type(failures) is not int or type(http_errors) is not int
+                or not 0 <= http_errors <= failures):
+            raise ValueError('invalid subrequest counts')
+        if 'msrc_generation' in resource and not (isinstance(resource['msrc_generation'], str)
+                and re.fullmatch(r'[0-9a-f]{32}', resource['msrc_generation'])):
+            raise ValueError('invalid MSRC generation')
+        if 'record_audit_oldest' in resource:
+            rfc3339(resource['record_audit_oldest'])
+        return {key: resource[key] for key in ('coverage_complete', 'subrequest_failures',
+                'subrequest_http_errors', 'record_audit_oldest', 'msrc_generation') if key in resource}
+
+    @staticmethod
+    def _flag_classification(state, flags):
+        if state == 'FAILED' or flags.get('subrequest_http_errors', 0):
+            return 'FAILED'
+        if (state == 'PARTIAL' or flags.get('coverage_complete', True) is not True
+                or flags.get('subrequest_failures', 0)):
+            return 'PARTIAL'
+        return state
+
+    def _staged_flags(self, source, resource):
+        return json.loads(self.store.get_meta(f'staged_flags:{source}:{resource}') or '{}')
+
+    def _delete_stage_row(self, source, resource):
+        self.db.execute('DELETE FROM staged_containers WHERE source=? AND resource=?', (source,resource))
+        self.db.execute('DELETE FROM meta WHERE k=?', (f'staged_flags:{source}:{resource}',))
+
+    def _process_file(self, source, resource, tick, candidates, flags):
+        # Use the ordinary envelope validator for path and transport policy;
+        # member decoding and validation remain streamed through the same path.
+        result = v.validate_resource(dict(resource, body='[]'), source=source, observed_at=tick)
+        if result.classification != 'COMPLETE':
+            self.retry(source,resource['path'],tick,result.classification,**self._retry_headers(resource,tick))
+            return result.classification
+        try:
+            path = Path(resource['members_file']).resolve()
+            if not path.is_relative_to(self.directory.parent.resolve()):
+                raise ValueError('members file outside data directory')
+            with path.open('rb') as stream:
+                self.stage_members(source,resource['path'],(v.decode_json(line) for line in stream),tick,flags=flags)
+            path.unlink(missing_ok=True)
+        except (OSError, ValueError, TypeError):
+            self.retry(source,resource['path'],tick,'FAILED')
+            return 'FAILED'
+        state = self.commit_staged(source,resource['path'],tick,deferred=candidates,schedule_retry=False)
+        if state != 'COMPLETE':
+            self.retry(source,resource['path'],tick,state,**self._retry_headers(resource,tick))
+        return state
+
+    def _clear_reappeared(self, source, resource):
+        # Called with the current container index attached.
+        key = f'ack_absent:{source}:{resource}'
+        prior = self.store.get_meta(key)
+        if prior is not None:
+            remaining = [r[0] for r in self.db.execute('''SELECT value FROM json_each(?)
+                WHERE NOT EXISTS (SELECT 1 FROM adapter_index.members WHERE id=value)''', (prior,))]
+            with self.store.transaction():
+                self.store.set_meta(key, canonical(remaining))
+
+    def _acknowledge_absent(self, source):
+        for resource in sorted(self.required_resources(source)):
+            key = f'ack_absent:{source}:{resource}'
+            acknowledged = set(json.loads(self.store.get_meta(key) or '[]'))
+            staged = self.db.execute('SELECT path FROM staged_containers WHERE source=? AND resource=?',
+                                     (source,resource)).fetchone()
+            if staged:
+                with Path(staged[0]).open('rb') as stream:
+                    present = {self._key(v.decode_json(line), False)[0] for line in stream}
+            else:
+                present = {r[0] for r in self.db.execute('SELECT source_id FROM manifest_members WHERE source=? AND resource=?',
+                                                       (source,resource))}
+            acknowledged.update(self.known_members(source,resource) - present)
+            acknowledged.difference_update(present)
+            self.store.set_meta(key, canonical(sorted(acknowledged)))
+
     def required_resources(self, source):
         """Read the reconciled required logical keys, or None for shared sources."""
         if not self._independent(source):
@@ -125,6 +226,7 @@ class AdapterStore:
                     if row['resource'] != '@dispatch' and row['resource'] not in required:
                         if table == 'staged_containers':
                             paths.append(Path(row['path']))
+                            self.db.execute('DELETE FROM meta WHERE k=?', (f"staged_flags:{source}:{row['resource']}",))
                         self.db.execute(f'DELETE FROM {table} WHERE source=? AND resource=?',
                                         (source, row['resource']))
             row = self.db.execute("SELECT detail FROM source_health WHERE source=? AND dimension='fetch'", (source,)).fetchone()
@@ -151,7 +253,7 @@ class AdapterStore:
                 known.discard(row['source_id'])
             else:
                 known.add(row['source_id'])
-        return known
+        return known - set(json.loads(self.store.get_meta(f'ack_absent:{source}:{resource}') or '[]'))
 
     def _independent_completeness(self, source, tick):
         dispatch = self.db.execute("SELECT last_error FROM adapter_retries WHERE source=? AND resource='@dispatch'", (source,)).fetchone()
@@ -176,7 +278,7 @@ class AdapterStore:
         with self.store.transaction():
             self.db.execute('INSERT OR IGNORE INTO adapter_state(source,cutoff) VALUES (?,?)', (source,tick))
 
-    def stage_members(self, source, resource, members, tick, *, integrity='intact', typed=False):
+    def stage_members(self, source, resource, members, tick, *, integrity='intact', typed=False, flags=None):
         """Spool a one-shot stream before touching advisory state.
 
         The typed route is the engine boundary; a bad type cannot write any DB
@@ -200,6 +302,14 @@ class AdapterStore:
                 prior = self.db.execute('SELECT path FROM staged_containers WHERE source=? AND resource=?',(source,resource)).fetchone()
                 self.db.execute('INSERT OR REPLACE INTO staged_containers VALUES (?,?,?,?,?,?)',
                                 (source,resource,str(path),checksum.hexdigest(),integrity,tick))
+                flag_key = f'staged_flags:{source}:{resource}'
+                if flags is None:
+                    self.db.execute('DELETE FROM meta WHERE k=?', (flag_key,))
+                else:
+                    self.store.set_meta(flag_key, canonical(flags))
+                    if source == 'msrc' and 'msrc_generation' in flags:
+                        from cornicen.sources.msrc_csaf import MsrcState
+                        MsrcState(self.store).stage_generation(flags['msrc_generation'])
             if prior and prior[0] != str(path):
                 Path(prior[0]).unlink(missing_ok=True)
         except BaseException:
@@ -304,7 +414,8 @@ class AdapterStore:
             index.execute('CREATE TABLE baseline(id TEXT PRIMARY KEY)')
             for baseline_row in self.db.execute('SELECT source_id FROM baseline_members WHERE source=?',(source,)):
                 index.execute('INSERT INTO baseline VALUES (?)',(baseline_row[0],))
-            classification=initial_classification
+            flags = self._staged_flags(source, resource)
+            classification=self._flag_classification(initial_classification, flags)
             # Pass two: validation and independent idempotent record transactions.
             with path.open('rb') as stream:
                 for line in stream:
@@ -355,6 +466,10 @@ class AdapterStore:
                         classification='PARTIAL'
                         self.quarantine(source,identity,safe_detail(error),tick)
             index.commit()
+            if source == 'msrc' and 'msrc_generation' in flags:
+                from cornicen.sources.msrc_csaf import MsrcState
+                MsrcState(self.store).commit_generation(flags['msrc_generation'])
+            classification = self._flag_classification(classification, flags)
             if finalize:
                 classification=self._finish_index(source,resource,tick,index,index_path,classification,checkpoint,accept=deferred is None,rebaseline=rebaseline)
             if deferred is not None and classification=='COMPLETE':
@@ -389,13 +504,14 @@ class AdapterStore:
                 AND NOT EXISTS (SELECT 1 FROM advisories a WHERE a.source=m.source
                     AND a.source_id=m.source_id AND a.state='withdrawn') LIMIT 1''',(source,resource)).fetchone()
             if self._independent(source):
+                self._clear_reappeared(source, resource)
                 # A PARTIAL publication can commit members without a manifest.
                 # Recovery must preserve their unresolved coverage as well.
-                missing = missing or any(not self.db.execute(
+                missing = any(not self.db.execute(
                     'SELECT 1 FROM adapter_index.members WHERE id=?', (identity,)).fetchone()
                     for identity in self.known_members(source, resource))
             gap=self.db.execute('SELECT 1 FROM gap_ledger WHERE source=? AND acknowledged_at IS NULL',(source,)).fetchone()
-            if (missing or gap) and not rebaseline: classification='PARTIAL'
+            if (missing or gap) and not rebaseline and classification != 'FAILED': classification='PARTIAL'
             if classification=='COMPLETE' and accept:
                 md=self._manifest_digest(index)
                 with self.store.transaction():
@@ -403,7 +519,7 @@ class AdapterStore:
                     checkpoint('after_manifest')
                     self.db.execute('DELETE FROM adapter_retries WHERE source=? AND resource=?',(source,resource))
                     if self._independent(source):
-                        self.db.execute('DELETE FROM staged_containers WHERE source=? AND resource=?', (source,resource))
+                        self._delete_stage_row(source, resource)
                     self._advance_cursor(source,tick)
                     self._complete_baseline(source,tick)
             return classification
@@ -476,7 +592,7 @@ class AdapterStore:
                     self._advance_cursor(source,tick)
                     self._complete_baseline(source,tick)
                     for resource,path,index_path in candidates:
-                        self.db.execute('DELETE FROM staged_containers WHERE source=? AND resource=?',(source,resource))
+                        self._delete_stage_row(source, resource)
             finally:
                 self.db.execute('DETACH DATABASE adapter_batch')
             for resource,path,index_path in candidates:
@@ -486,6 +602,11 @@ class AdapterStore:
             batch_path.unlink(missing_ok=True)
 
     def _complete_baseline(self,source,tick):
+        if source == 'msrc' and self.store.get_meta('baseline_hold:' + source) is not None:
+            from cornicen.sources.msrc_csaf import MsrcState
+            MsrcState(self.store).release_if_resolved(tick)
+        if self._independent(source) and self.store.get_meta('baseline_hold:' + source) is not None:
+            return
         if self._independent(source):
             baseline = set(json.loads(self.store.get_meta('baseline_resources:' + source) or '[]'))
             if not baseline:
@@ -518,7 +639,7 @@ class AdapterStore:
 
     def _remove_stage(self,source,resource,path):
         with self.store.transaction():
-            self.db.execute('DELETE FROM staged_containers WHERE source=? AND resource=?',(source,resource))
+            self._delete_stage_row(source, resource)
         path.unlink(missing_ok=True)
 
     def resume(self,tick,*,source=None,independent=None):
@@ -527,6 +648,7 @@ class AdapterStore:
         for name in sources:
             is_independent = self._independent(name) if independent is None else independent
             candidates=[]
+            recovered=[]
             try:
                 rows=self.db.execute("""SELECT resource FROM staged_containers s
                     WHERE source=? AND integrity='intact' AND NOT EXISTS
@@ -535,18 +657,43 @@ class AdapterStore:
                     required = self.required_resources(name)
                     if required is not None and row[0] not in required:
                         continue
-                    self.commit_staged(name,row[0],tick,deferred=candidates)
+                    if is_independent and self.store.get_meta(f'staged_flags:{name}:{row[0]}') is not None:
+                        staged = self.db.execute('SELECT * FROM staged_containers WHERE source=? AND resource=?', (name,row[0])).fetchone()
+                        path = Path(staged['path'])
+                        checksum = sha256()
+                        error = None
+                        try:
+                            with path.open('rb') as stream:
+                                for line in stream:
+                                    checksum.update(line)
+                            if checksum.hexdigest() != staged['digest']:
+                                error = 'container digest mismatch'
+                        except OSError:
+                            error = 'unreadable staged container'
+                        if error:
+                            with self.store.transaction():
+                                self.db.execute("UPDATE staged_containers SET integrity='failed' WHERE source=? AND resource=?", (name,row[0]))
+                            self.retry(name,row[0],tick,error)
+                            continue
+                        recovered.append(dict(path=row[0], status=200, members_file=path,
+                                              **self._staged_flags(name,row[0])))
+                    elif is_independent:
+                        state = self.commit_staged(name,row[0],tick,deferred=candidates)
+                        if state == 'COMPLETE':
+                            staged = self.db.execute('SELECT path FROM staged_containers WHERE source=? AND resource=?', (name,row[0])).fetchone()
+                            with Path(staged[0]).open('rb') as stream:
+                                body = canonical(dict(advisories=[v.decode_json(line) for line in stream]))
+                            recovered.append(dict(path=row[0], status=200, body=body))
+                    else:
+                        self.commit_staged(name,row[0],tick,deferred=candidates)
+                if is_independent and recovered:
+                    # Classify every recovered stream before accepting COMPLETE
+                    # containers, just as the ordinary commit loop does above.
+                    self.process(name, recovered, tick)
                 ready={r[0] for r in candidates}
                 unresolved=any(r[0] not in ready for r in self.db.execute(
                     "SELECT resource FROM staged_containers WHERE source=? UNION SELECT resource FROM adapter_retries WHERE source=? AND resource!='@dispatch'",(name,name)))
-                if is_independent:
-                    for candidate in candidates:
-                        # Restore the logical enumeration, including retractions.
-                        with candidate[1].open('rb') as stream:
-                            members = [json.loads(line.decode('utf-8')) for line in stream]
-                        self.process(name, [dict(path=candidate[0], status=200,
-                            body=canonical(dict(advisories=members)))], tick)
-                elif candidates and not unresolved:
+                if not is_independent and candidates and not unresolved:
                     self._accept_batch(name,tick,candidates)
             finally:
                 for resource,path,index_path in candidates:
@@ -594,6 +741,8 @@ class AdapterStore:
         return ('unhealthy (permanent gap)' if self.db.execute('SELECT 1 FROM gap_ledger WHERE source=?',(source,)).fetchone() else 'healthy')
 
     def _acknowledge_rebaseline(self,source,tick):
+        if self._independent(source):
+            self._acknowledge_absent(source)
         self.db.execute("DELETE FROM baseline_members WHERE source=? AND source_id GLOB '@invalid:*'",(source,))
         self.db.execute("UPDATE adapter_state SET baseline_members='[]' WHERE source=?",(source,))
         self.db.execute('UPDATE gap_ledger SET acknowledged_at=? WHERE source=? AND acknowledged_at IS NULL',(tick,source))
@@ -734,6 +883,9 @@ class AdapterStore:
             overdue=[r['resource'] for r in self.db.execute('SELECT * FROM manifests WHERE source=?',(source,))
                      if (required is None or r['resource'] in required)
                      and self._age_limit(tick,r['audited_at'] or r['fetched_at'],7*86400, inclusive=self._independent(source))]
+            record_clock = self.store.get_meta('record_audit_oldest:' + source)
+            if record_clock is not None and self._age_limit(tick,record_clock,7*86400,inclusive=True):
+                overdue.append('record_audit_oldest')
             self.dimension(source,'audit','unhealthy' if overdue else 'healthy',tick,canonical(overdue))
         if export:
             self._publication_dimension(source,self._publication_clocks(source),tick)
@@ -793,13 +945,17 @@ class AdapterStore:
                 for resource in self.audits_due(source,tick):
                     waiting=self.db.execute('SELECT next_attempt_at FROM adapter_retries WHERE source=? AND resource=?',(source,resource)).fetchone()
                     if waiting and instant(waiting[0])>instant(tick): continue
-                    self.process(source,adapter.audit(resource),tick,**options)
+                    results = list(adapter.audit(resource))
+                    if results:
+                        self.process(source,results,tick,**options)
                 for row in self.db.execute('SELECT * FROM adapter_retries WHERE source=?',(source,)).fetchall():
                     if row['resource']=='@dispatch': continue
                     required=self.required_resources(source)
                     if required is not None and row['resource'] not in required: continue
                     if instant(row['next_attempt_at'])<=instant(tick):
-                        self.process(source,adapter.retry(row['resource']),tick,**options)
+                        results = list(adapter.retry(row['resource']))
+                        if results:
+                            self.process(source,results,tick,**options)
             except Exception as error:
                 detail=safe_detail(error)
                 self.ensure(source,tick)
@@ -831,6 +987,13 @@ class AdapterStore:
         never dispose of unresolved staged work or retries. A resource's export
         flag defaults to the adapter export policy; set it False for discovery
         or metadata responses that carry no export revision.
+
+        Instead of body, members_file accepts a str or Path naming JSONL under
+        data_dir. It is consumed line by line and removed after durable staging.
+        coverage_complete defaults to True; anything other than True holds
+        coverage. subrequest_failures and subrequest_http_errors default to 0
+        and require nonnegative exact ints, with HTTP errors <= total failures.
+        record_audit_oldest is an optional RFC 3339 string; omit it for no clock.
         """
         self.ensure(source,tick)
         if required_resources is not None:
@@ -852,10 +1015,16 @@ class AdapterStore:
                     transfers={}
                 transfers.pop('@dispatch',None)
                 for r in resources:
-                    transfers[r['path']]=(r.get('unenumerated') is True or
+                    try:
+                        self._outcome_flags(r)
+                        flags_valid = True
+                    except ValueError:
+                        flags_valid = False
+                    transfers[r['path']]=(flags_valid and (r.get('unenumerated') is True or
                         ((200<=r['status']<300 or (r['status']==304 and not r.get('unconditional',False)))
                          and not (r.get('transport_error') or r.get('invalid_status'))
                          and r.get('transfer_complete',True) and r.get('integrity','intact')=='intact'))
+                         and type(r.get('subrequest_failures',0)) is int and r.get('subrequest_failures',0)==0)
                 self.dimension(source,'fetch','healthy' if all(transfers.values()) else 'unhealthy',tick,canonical(transfers))
                 if required is None:
                     self.dimension(source,'completeness','healthy' if state=='COMPLETE' else 'unhealthy',tick)
@@ -866,6 +1035,14 @@ class AdapterStore:
                     self._complete_baseline(source,tick)
             return state
         finally:
+            for resource in resources:
+                if 'members_file' in resource:
+                    try:
+                        path = Path(resource['members_file']).resolve()
+                        if path.is_relative_to(self.directory.parent.resolve()):
+                            path.unlink(missing_ok=True)
+                    except (OSError, TypeError, ValueError):
+                        pass
             for resource,path,index_path in candidates:
                 index_path.unlink(missing_ok=True)
 
@@ -875,11 +1052,26 @@ class AdapterStore:
         for resource in resources:
             resource=dict(resource)
             path=resource['path']
+            try:
+                flags = self._outcome_flags(resource)
+            except ValueError:
+                self.retry(source,path,tick,'FAILED')
+                states.append('FAILED')
+                continue
+            with self.store.transaction():
+                if 'record_audit_oldest' in flags:
+                    self.store.set_meta('record_audit_oldest:' + source, flags['record_audit_oldest'])
+                else:
+                    self.db.execute('DELETE FROM meta WHERE k=?', ('record_audit_oldest:' + source,))
             if resource.get('unenumerated') is True:
-                self.retry(source,path,tick,'unenumerated')
-                states.append('PARTIAL')
+                state = self._flag_classification('PARTIAL', flags)
+                self.retry(source,path,tick,'unenumerated' if state == 'PARTIAL' else state)
+                states.append(state)
                 continue
             self._audit_observation(source,resource,tick)
+            if 'members_file' in resource:
+                states.append(self._process_file(source,resource,tick,candidates,flags))
+                continue
             conditional = resource['status']==304 and not resource.get('unconditional', False)
             if conditional:
                 cached=self.db.execute('SELECT * FROM resource_cache WHERE source=? AND url=?',(source,path)).fetchone()
@@ -918,7 +1110,7 @@ class AdapterStore:
                 current=self.db.execute('SELECT cursor_tick,cutoff FROM adapter_state WHERE source=?',(source,)).fetchone()
                 if instant(coverage)>instant(current['cursor_tick'] or current['cutoff']):
                     self.gap(source,tick,'retention gap')
-            self.stage_members(source,path,iter(members),tick)
+            self.stage_members(source,path,iter(members),tick,flags=flags or None)
             state=self.commit_staged(source,path,tick,deferred=candidates,initial_classification=result.classification,schedule_retry=False)
             if state!='COMPLETE':
                 self.retry(source,path,tick,state,**self._retry_headers(resource,tick))

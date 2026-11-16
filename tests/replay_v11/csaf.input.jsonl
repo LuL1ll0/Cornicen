@@ -1,0 +1,10 @@
+{"#": "Spec §8 csaf; invented offline mutations; no production gate evidence."}
+{"t": "2026-11-03T00:00:00Z", "watchlist": "[[watch]]\nid=\"w\"\nname=\"Contoso Sample Agent\"\nmatch=[\"microsoft:contoso sample agent for windows\"]\nversion=\"9.4.1200.7\"\nscheme=\"dotted\"\n"}
+{"t": "2026-11-03T00:00:00Z", "seed": {"v1_baseline_complete": true, "msrc_completed_baseline": true}}
+{"t": "2026-11-03T01:00:00Z", "msrc": [{"operation": "metadata", "body": {"distributions": [{"directory_url": "https://msrc.microsoft.com/csaf/advisories/"}, {"directory_url": "https://msrc.microsoft.com/csaf/vex/"}]}}, {"operation": "listing", "body": "2099/msrc_cve-2099-71001.json,2026-11-03T00:00:00Z\n"}, {"operation": "record", "path": "2099/msrc_cve-2099-71001.json", "body_fixture": "advisory_sample.json"}]}
+{"t": "2026-11-03T01:00:00Z", "cycle": true}
+{"t": "2026-11-04T00:00:00Z", "case": "fixed"}
+{"t": "2026-11-04T00:00:00Z", "watchlist": "[[watch]]\nid=\"w\"\nname=\"Contoso Sample Agent\"\nmatch=[\"microsoft:contoso sample agent for windows\"]\nversion=\"9.4.1200.8\"\nscheme=\"dotted\"\n"}
+{"t": "2026-11-04T00:00:00Z", "seed": {"v1_baseline_complete": true, "msrc_completed_baseline": true}}
+{"t": "2026-11-04T01:00:00Z", "msrc": [{"operation": "metadata", "body": {"distributions": [{"directory_url": "https://msrc.microsoft.com/csaf/advisories/"}, {"directory_url": "https://msrc.microsoft.com/csaf/vex/"}]}}, {"operation": "listing", "body": "2099/msrc_cve-2099-71001.json,2026-11-04T00:00:00Z\n"}, {"operation": "record", "path": "2099/msrc_cve-2099-71001.json", "body_fixture": "advisory_sample.json"}]}
+{"t": "2026-11-04T01:00:00Z", "cycle": true}

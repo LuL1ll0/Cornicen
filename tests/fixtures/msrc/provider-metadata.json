@@ -1,0 +1,28 @@
+{
+    "canonical_url": "https://msrc.microsoft.com/csaf/provider-metadata.json",
+    "distributions": [
+        {
+            "directory_url": "https://msrc.microsoft.com/csaf/advisories"
+        },
+	{
+            "directory_url": "https://msrc.microsoft.com/csaf/vex"
+        }	
+    ],
+    "last_updated": "2025-10-22T22:39:00Z",
+    "list_on_CSAF_aggregators": true,
+    "metadata_version": "2.0",
+    "mirror_on_CSAF_aggregators": false,
+    "public_openpgp_keys": [ 
+      { 
+        "fingerprint": "998D7EC1A516E3D17FF90480EF148D3CDE714E0D", 
+        "url": "https://msrc.microsoft.com/.well-known/csaf/openpgp/998D7EC1A516E3D17FF90480EF148D3CDE714E0D.asc" 
+       }    
+   ],
+   "publisher": {
+        "category": "vendor",
+        "name": "Microsoft Security Response Center",
+        "contact_details": "secure@microsoft.com",
+        "namespace": "https://www.microsoft.com"
+    },
+    "role": "csaf_provider"
+}

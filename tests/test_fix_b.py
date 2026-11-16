@@ -209,6 +209,7 @@ class DownloadTests(unittest.TestCase):
     def test_defaults_and_config_overrides(self):
         from cornicen.config import DOWNLOAD_BUDGETS
         self.assertEqual(DOWNLOAD_BUDGETS, {
+            'msrc_csaf': {'max_bytes': 16 * 1024**2, 'deadline_seconds': 60},
             'github_advisories': {'max_bytes': 8 * 1024**2, 'deadline_seconds': 60},
             'cvelist_snapshot': {'max_bytes': 2 * 1024**3, 'deadline_seconds': 2700},
             'cvelist_delta': {'max_bytes': 200 * 1024**2, 'deadline_seconds': 300},
