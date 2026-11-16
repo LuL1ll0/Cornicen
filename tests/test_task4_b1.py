@@ -613,6 +613,14 @@ class Task4B1Tests(unittest.TestCase):
         self.assertEqual(self.process(dict(path=RESOURCE, status=200, members_file=str(members))), 'COMPLETE')
         self.assertLess(time.monotonic()-started, 30)
 
+    def test_peak_rss_reads_vmhwm_off_darwin(self):
+        from tests.source_helpers import peak_rss_bytes
+        status = 'Name:\tpython\nVmPeak:\t 900000 kB\nVmHWM:\t   71234 kB\nVmRSS:\t   70000 kB\n'
+        self.assertEqual(peak_rss_bytes(status, platform='linux'), 71234 * 1024)
+        self.assertEqual(peak_rss_bytes(None, platform='darwin', maxrss=5_000_000), 5_000_000)
+        with self.assertRaises(RuntimeError):
+            peak_rss_bytes('Name:\tpython\n', platform='linux')
+
     def test_t11_scale_rss(self):
         result = subprocess.run([sys.executable, '-m', 'tests.test_task4_b1', '--scale-child'], cwd=ROOT, capture_output=True, text=True, check=True)
         self.assertLess(json.loads(result.stdout)['rss_bytes'], 128*1024**2)
@@ -640,8 +648,8 @@ def scale_child():
             outcome = adapter.poll(cutoff=None)[0]
             with Path(outcome['members_file']).open() as f:
                 assert sum(1 for _ in f) == 20000
-            rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-            print(json.dumps(dict(rss_bytes=rss if sys.platform == 'darwin' else rss*1024)))
+            from tests.source_helpers import peak_rss_bytes
+            print(json.dumps(dict(rss_bytes=peak_rss_bytes())))
         finally: case.doCleanups()
 
 

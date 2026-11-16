@@ -285,8 +285,16 @@ class Task4ATests(unittest.TestCase):
 
     def test_t6_many_endpoints(self):
         self.put(synthetic(ranges=[dict(type='ECOSYSTEM',events=events('introduced','0','fixed',str(i))) for i in range(2,602)]))
-        start = time.monotonic(); self.assertEqual(self.fix(watch()),'601')
-        self.assertLess(time.monotonic()-start,1.0)
+        # Count comparisons, not seconds: a shared CI runner's clock is no bound.
+        # Each candidate is checked against the whole union once (quadratic);
+        # anything worse would exceed 2 * 600**2.
+        calls = [0]; real = advisory.compare
+        def counting(*args, **kwargs):
+            calls[0] += 1
+            return real(*args, **kwargs)
+        with patch.object(advisory, 'compare', counting):
+            self.assertEqual(self.fix(watch()),'601')
+        self.assertLess(calls[0], 2 * 600**2)
 
     def test_t7_cna_scope_and_withdrawal(self):
         helper = f3a.F3aTests(); helper.setUp(); self.addCleanup(helper.doCleanups)

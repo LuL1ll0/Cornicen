@@ -11,6 +11,29 @@ from zipfile import ZipFile, ZIP_DEFLATED, ZIP_STORED
 RAW = Path(__file__).parent / 'fixtures' / 'raw'
 
 
+def peak_rss_bytes(status_text=None, *, platform=None, maxrss=None):
+    """This process's peak resident set size in bytes.
+
+    Linux keeps ru_maxrss across fork and execve, so a freshly started child
+    reports its parent's peak; VmHWM in /proc/self/status belongs to the new
+    address space and does not. Darwin reports ru_maxrss in bytes for this
+    process only.
+    """
+    import resource, sys
+    platform = sys.platform if platform is None else platform
+    if platform == 'darwin':
+        return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss if maxrss is None else maxrss
+    if status_text is None:
+        try:
+            status_text = Path('/proc/self/status').read_text()
+        except OSError:
+            status_text = ''
+    for line in status_text.splitlines():
+        if line.startswith('VmHWM:'):
+            return int(line.split()[1]) * 1024
+    raise RuntimeError('VmHWM unavailable; cannot measure peak RSS on this platform')
+
+
 def public_resolver(host, port, **kwargs):
     return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, '',
              ('93.184.216.34', port))]

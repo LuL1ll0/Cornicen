@@ -331,7 +331,8 @@ def scale_day(directory,day):
     summaries=store.connection.execute("SELECT count(*) FROM events WHERE type='baseline' AND record_id='baseline:debian'").fetchone()[0]
     store.connection.execute('PRAGMA wal_checkpoint(TRUNCATE)')
     growth=disk()-initial; peak[0]=max(peak[0],disk())
-    rss=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss*(1 if sys.platform=='darwin' else 1024)
+    from tests.source_helpers import peak_rss_bytes
+    rss=peak_rss_bytes()
     store.connection.close();store._finalizer.detach()
     print(json.dumps(dict(day=day,seconds=elapsed,rss_bytes=rss,db_growth_bytes=growth,peak_disk_bytes=peak[0],members=members,summaries=summaries)))
 
