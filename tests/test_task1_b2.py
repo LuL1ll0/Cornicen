@@ -1193,7 +1193,7 @@ class B2Tests(unittest.TestCase):
         path.write_text(block)
         self.assertIs(load_config(path, {}).adapters['github'], False)
         from cornicen import __version__
-        self.assertEqual(__version__, '0.6.0')
+        self.assertEqual(__version__, '0.6.1')
 
 
 if __name__ == '__main__':

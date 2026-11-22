@@ -222,7 +222,7 @@ class Task4B2Tests(unittest.TestCase):
         from cornicen.adapterfactories import production_factories
         from cornicen.adapters import REGISTRY
         from cornicen import __version__
-        self.assertEqual(__version__,'0.6.0')
+        self.assertEqual(__version__,'0.6.1')
         self.assertEqual(REGISTRY['debian'].gate,'not met')
         self.assertFalse(REGISTRY['debian'].last_modified_validated)
         expected=[dict(method='GET',url=url,headers={'User-agent':'Cornicen/test'}) for url in (

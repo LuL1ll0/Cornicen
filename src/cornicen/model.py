@@ -32,6 +32,8 @@ class IngestResult:
     unchanged: bool = False
     # Number of errors emitted solely by validate.record on decoded records.
     record_validation_errors: int = 0
+    # Coverage day of a validated, record-bearing CVE List delta archive.
+    nonempty_delta_day: date | None = None
 
 
 @dataclass(frozen=True)

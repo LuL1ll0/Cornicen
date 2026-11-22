@@ -180,25 +180,26 @@ First run downloads the latest **full snapshot** of CVE List V5, then the cumula
 ### 6.2 Cursors and catch-up
 
 - Each source keeps a durable cursor (CVE List: last fully processed release; KEV: `catalogVersion`; EPSS: score date).
-- CVE List deltas are **cumulative since midnight UTC**. Catch-up processes one release per missed day, in date order, plus the latest release today. For past days it fetches the direct GitHub `/releases/tags/` endpoint for `cve_YYYY-MM-DD_at_end_of_day`, ordered after `2300Z`, with asset `YYYY-MM-DD_delta_CVEs_at_end_of_day.zip`; on HTTP 404 it falls back to the latest listed hourly `cve_YYYY-MM-DD_HH00Z` release. End-of-day releases need not carry a snapshot. Listing stops after passing the cursor day; HTTP 422 “Only the first 1000 results are available” ends the listing. A missed day older than the available releases requires full-snapshot reconciliation. If a day is missing, Cornicen reconciles from the latest available full snapshot and says so in health output. Unknown tags are skipped with a warning; a listing with no supported releases fails, including during bootstrap. Without a completed CVE List fetch, bootstrap becomes unhealthy after a two-hour grace period. Poll deadlines and loop elapsed time use a monotonic clock; UTC remains authoritative for metadata and digests. Persisted content times and cursor timestamps are checked for future skew; timestamps more than two hours in the future are unhealthy and cannot advance coverage.
+- CVE List deltas are **cumulative since midnight UTC**. Catch-up processes one release per missed day, in date order, plus the latest release today. For past days it fetches the direct GitHub `/releases/tags/` endpoint for `cve_YYYY-MM-DD_at_end_of_day`, ordered after `2300Z`, with asset `YYYY-MM-DD_delta_CVEs_at_end_of_day.zip`. End-of-day releases need not carry a snapshot. If yesterday's uncommitted end-of-day tag returns HTTP 404 in the first two hours after midnight UTC, Cornicen processes earlier missed days in order and then yesterday's latest listed hourly release if it is newer than the cursor. The poll stops there, skips reconciliation, and leaves yesterday's end-of-day release eligible for the next poll. The 404 has no fetch-health effect and the ordinary content-age check still runs. After the grace period, a 404 falls back to the latest listed hourly release when the listing is exhausted and triggers reconciliation when the listing is incomplete. Listing stops after passing the cursor day; HTTP 422 “Only the first 1000 results are available” ends the listing. A missed day older than the available releases requires full-snapshot reconciliation. If a day is missing, Cornicen reconciles from the latest available full snapshot and says so in health output. Unknown tags are skipped with a warning; a listing with no supported releases fails, including during bootstrap. Without a completed CVE List fetch, bootstrap becomes unhealthy after a two-hour grace period. Poll deadlines and loop elapsed time use a monotonic clock; UTC remains authoritative for metadata and digests. Persisted content times and cursor timestamps are checked for future skew; timestamps more than two hours in the future are unhealthy and cannot advance coverage.
 - The cursor and committed CVE release identity advance only with the release's records and resulting events in one transaction. Already committed or older releases are ignored before applying records; incomplete releases remain retryable.
   If nested savepoint cleanup loses the whole transaction, `TransactionAborted` stops the cycle before retries or later records can commit; further nested scopes are refused until the outer scope exits. Ordinary record failures still isolate the record and preserve the cycle's other work.
 - A KEV catalog whose `dateReleased` precedes the stored content time is a failed fetch, including after restart. It leaves the accepted catalog and cursor untouched and keeps or makes KEV unhealthy.
 
 ### 6.3 Completeness
 
-A fetch is **complete**, **partial** or **failed**. Partial covers: a truncated or undecodable body, a non-empty `error[]` in a CVE delta, a referenced record that could not be fetched, a schema mismatch. Partial and failed records go to a durable retry queue; the cursor does not pass them. An empty 200 is accepted only where the source can legitimately be empty (an empty delta); otherwise it is a failure.
+A fetch is **complete**, **partial** or **failed**. Partial covers: a truncated or undecodable body, a non-empty `error[]` in a CVE delta, a referenced record that could not be fetched, a schema mismatch. Partial and failed records go to a durable retry queue; the cursor does not pass them. A 200 response with no body fails validation.
 
-A delta zip with zero entries is valid only when its tag is
-`cve_YYYY-MM-DD_0000Z` and its asset covers exactly midnight UTC on the same
-day. The listing must contain exactly one release with that tag (including
-filtered drafts and prereleases), with exactly one asset, the delta archive;
-release parsing must succeed. Ambiguity, extra assets or parsing errors prevent
-the exception. An empty `0100Z` or later archive remains incomplete even when
-no earlier release is listed or pagination is exhausted. Its cursor does not
-advance. A non-empty archive without recognised records or an explicit
-zero-change manifest is also incomplete. Daily deltas are cumulative, so records
-following an accepted empty midnight release arrive in the next delta without loss.
+A valid delta ZIP with zero central-directory entries and a downloaded size
+of at most 1 KiB is eligible to be a complete empty delta at any hour.
+The release must parse successfully, the ASCII tag and delta asset must agree
+on coverage, and duplicate tags in the listing prevent acceptance, including
+duplicates marked as drafts or prereleases. The ZIP's end record cannot declare
+entries when the central directory is empty. Other archives require recognised
+records or an explicit zero-change manifest. An unrecognised record
+layout remains incomplete even with that manifest. An empty cumulative delta is
+partial if an earlier committed delta on the same UTC day contained records.
+Cornicen stores the UTC day of the latest committed non-empty delta in the same
+transaction as its cursor.
 
 ### 6.4 Bounded feeds (v1.1 adapters)
 

@@ -73,11 +73,11 @@ class BoundaryTests(unittest.TestCase):
         self.assertEqual(result.status, FetchStatus.PARTIAL)
         self.assertIn('CVE-2026-10001', ' '.join(result.errors))
 
-    def test_unexplained_empty_and_unrecognised_layout_are_partial(self):
-        for entries in ([], [('unexpected/record.json', {})]):
-            with self.subTest(entries=entries):
-                self.store.connection.execute('DELETE FROM cursors')
-                self.assertEqual(self.delta(entries).status, FetchStatus.PARTIAL)
+    def test_unrecognised_layout_is_partial(self):
+        # A zero-member delta is a complete empty delta (spec 6.3); see
+        # test_cvelist_source for it and for the same-day records bound.
+        self.store.connection.execute('DELETE FROM cursors')
+        self.assertEqual(self.delta([('unexpected/record.json', {})]).status, FetchStatus.PARTIAL)
 
     def test_zero_manifest_does_not_hide_unknown_record_layout(self):
         result = self.delta([('deltaLog.json', {'new': [], 'updated': [], 'error': []}),

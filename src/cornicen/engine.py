@@ -733,6 +733,9 @@ class Engine:
             previous_position = self.store.get_meta('cvelist_release_position')
             if position and (not previous_position or position > previous_position):
                 self.store.set_meta('cvelist_release_position', position)
+            nonempty_day = saved.get('nonempty_delta_day')
+            if nonempty_day and nonempty_day > (self.store.get_meta('cvelist_nonempty_delta_day') or ''):
+                self.store.set_meta('cvelist_nonempty_delta_day', nonempty_day)
             if saved.get('snapshot'):
                 self.store.set_meta('cvelist_snapshot_complete', '1')
         self.store.set_meta('complete:' + source, '1')
@@ -883,6 +886,8 @@ class Engine:
                              snapshot=ingest.origin == Origin.SNAPSHOT)
                 if ingest.origin == Origin.SNAPSHOT:
                     saved['cursor'] = None
+                elif ingest.nonempty_delta_day is not None:
+                    saved['nonempty_delta_day'] = ingest.nonempty_delta_day.isoformat()
             self.store.set_meta('pending_ingest:' + source, json.dumps(saved))
             pending = self.db.execute('SELECT 1 FROM retry_queue WHERE source=? UNION ALL SELECT 1 FROM dead_letters WHERE source=? LIMIT 1', (source, source)).fetchone()
             if pending is None:

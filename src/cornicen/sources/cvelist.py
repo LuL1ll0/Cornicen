@@ -32,9 +32,11 @@ RELEASES_URL = 'https://api.github.com/repos/CVEProject/cvelistV5/releases'
 # Untrusted archive expansion budgets: 8 MiB per JSON, 4 GiB per snapshot.
 MAX_RECORD_BYTES = 8 * 1024 * 1024
 MAX_SNAPSHOT_BYTES = 4 * 1024 * 1024 * 1024
+MAX_EMPTY_DELTA_BYTES = 1024
 MAX_COMPRESSION_RATIO = 200
 MAX_RELEASE_PAGES = 50
 LISTING_RESULT_CAP = 1000
+EOD_PUBLICATION_GRACE = timedelta(hours=2)
 COPY_CHUNK_BYTES = 1024 * 1024
 RECORD_PATH = re.compile(r'(?:cves/\d{4}/[^/]+|deltaCves)/(CVE-\d{4}-\d{4,})\.json\Z')
 
@@ -62,6 +64,8 @@ class _SnapshotZip(z.ZipFile):
         # Eight bytes per member retain overlap protection, including archives
         # whose central directory order differs from local-header order.
         offsets = array('Q', (entry.header_offset for entry in self._entries()))
+        if not offsets and (end[z._ECD_ENTRIES_THIS_DISK] or end[z._ECD_ENTRIES_TOTAL]):
+            raise z.BadZipFile('Missing ZIP central directory entries')
         self._offsets = array('Q', sorted(offsets))
         if any(a == b for a, b in zip(self._offsets, self._offsets[1:])):
             raise z.BadZipFile('Overlapping ZIP member offsets')
@@ -158,6 +162,7 @@ _stamp = validate.release_stamp
 class CveListSource:
     def __init__(self, http, store, github_token_problem=None, *, ntfy_token=None, deadman_url=None, webhook_url=None, webhook_secret=None):
         self.http, self.store = http, store
+        self._listing_tag_counts = {}
         self._redaction_tokens = (http.github_token, ntfy_token, deadman_url, webhook_url, webhook_secret)
         self.directory = data_directory(http, store)
         auth = 'token' if self.http.github_token is not None else 'none'
@@ -418,17 +423,15 @@ class CveListSource:
             raise ValueError('Record size limit exceeded')
         return json.loads(payload)
 
-    def _read_records(self, zipped, records, errors, snapshot, *, first_release=False):
+    def _read_records(self, zipped, records, errors, snapshot):
         validation_errors = 0
         seen = set()
         decoded = set()
         manifests = []
         unrecognised_json = False
         expanded = 0
-        entries = 0
         root = 'cves/' if snapshot else 'deltaCves/'
         for entry in zipped.infolist():
-            entries += 1
             if snapshot and entry.filename in validate.SNAPSHOT_MANIFESTS:
                 # These describe delta history, not snapshot coverage. Never
                 # open them or apply record/expansion budgets to their contents.
@@ -485,11 +488,10 @@ class CveListSource:
             errors.append('Unrecognised delta record layout')
         if not snapshot and (decoded or manifests or not errors):
             for manifest in manifests or [None]:
-                errors.extend(validate.delta(manifest, decoded,
-                    empty_first_release=first_release and entries == 0))
+                errors.extend(validate.delta(manifest, decoded))
         return validation_errors
 
-    def _archive(self, release, origin, now, *, first_release=False):
+    def _archive(self, release, origin, now):
         snapshot = origin == Origin.SNAPSHOT
         path = None
         records = _Records(self.directory)
@@ -524,15 +526,24 @@ class CveListSource:
                         with _SnapshotZip(inner) as record_zip:
                             validation_errors = self._read_records(record_zip, records, errors, True)
                 else:
-                    validation_errors = self._read_records(zipped, records, errors, False,
-                                                          first_release=first_release)
+                    tag = release['tag_name']
+                    # Empty archives carry no corroborating record data.
+                    empty_delta = (not zipped._offsets and path.stat().st_size <= MAX_EMPTY_DELTA_BYTES
+                                   and self._listing_tag_counts.get(tag, 0) <= 1
+                                   and tag.isascii() and asset['name'].isascii() and stamp == _stamp(tag))
+                    if not empty_delta:
+                        validation_errors = self._read_records(zipped, records, errors, False)
             if snapshot and not records and not errors:
                 raise ValueError('Empty CVE snapshot')
+            if (not snapshot and not records and not errors
+                    and self.store.get_meta('cvelist_nonempty_delta_day') == stamp.date().isoformat()):
+                errors.append('Empty cumulative delta after an earlier same-day delta had records')
             # The engine stores snapshot identity separately from delta coverage.
             cursor = release['tag_name']
             return IngestResult('cvelist', FetchStatus.PARTIAL if errors else FetchStatus.COMPLETE,
                                 origin, cursor, stamp, records=records, errors=tuple(errors),
-                                record_validation_errors=validation_errors)
+                                record_validation_errors=validation_errors,
+                                nonempty_delta_day=stamp.date() if not snapshot and records and not errors else None)
         except (OSError, HTTPException, EOFError, ValueError, TypeError, KeyError, BadZipFile, RecursionError) as error:
             errors.append(f'{type(error).__name__}: {error}')
             status = FetchStatus.PARTIAL if records else FetchStatus.FAILED
@@ -543,6 +554,7 @@ class CveListSource:
                 path.unlink(missing_ok=True)
 
     def poll(self, now):
+        now = now.astimezone(timezone.utc)
         results = []
         active = self.http.github_token is not None
         if active:
@@ -566,15 +578,17 @@ class CveListSource:
                 cursor = f'cve_{datetime.fromisoformat(cutoff):%Y-%m-%d}_0000Z'
             releases, listing_exhausted = self._listing(cursor, now)
             latest = max(releases, key=lambda r: _stamp(r['tag_name']))
-            if cursor:
-                self._backfill_projection(releases, now)
             by_day = {}
             for release in sorted(releases, key=lambda r: _stamp(r['tag_name'])):
                 by_day[_stamp(release['tag_name']).date()] = release
             reconcile = False
+            waiting_for_eod = False
+            last_day = _stamp(latest['tag_name']).date()
             if cursor:
                 day = _stamp(cursor).date()
-                while day <= _stamp(latest['tag_name']).date():
+                if cursor.endswith('_at_end_of_day'):
+                    day += timedelta(days=1)
+                while day <= last_day:
                     if day < now.date():
                         tag = f'cve_{day}_at_end_of_day'
                         # A listed EOD is already the exact desired release.
@@ -588,6 +602,11 @@ class CveListSource:
                                 if problems:
                                     raise ValueError('; '.join(problems))
                                 by_day[day] = release
+                            elif now < _stamp(tag) + timedelta(seconds=1) + EOD_PUBLICATION_GRACE:
+                                # Catch up through yesterday's latest listed hour.
+                                waiting_for_eod = True
+                                last_day = day
+                                break
                             elif not listing_exhausted:
                                 reconcile = True
                                 break
@@ -595,6 +614,8 @@ class CveListSource:
                         reconcile = True
                         break
                     day += timedelta(days=1)
+                if not waiting_for_eod:
+                    self._backfill_projection(releases, now)
             if cursor is None or reconcile:
                 if reconcile:
                     self.store.set_meta('reconcile_at', now.isoformat())
@@ -624,7 +645,8 @@ class CveListSource:
                 # are caught up from the durable cutoff on the following poll.
                 chosen = [r for day, r in sorted(by_day.items()) if day == _stamp(snapshot_release['tag_name']).date()]
             else:
-                chosen = [r for day, r in sorted(by_day.items()) if _stamp(r['tag_name']) > _stamp(cursor)]
+                chosen = [r for day, r in sorted(by_day.items())
+                          if day <= last_day and _stamp(r['tag_name']) > _stamp(cursor)]
 
             def delta_order(candidate):
                 return (validate.release_asset(candidate['tag_name'], candidate['assets'])[1],
@@ -646,28 +668,14 @@ class CveListSource:
                         release, order = candidate, candidate_order
                 if cursor and not reconcile and _stamp(release['tag_name']) <= _stamp(cursor):
                     continue
-                stamp = _stamp(release['tag_name'])
-                coverage = order[0]
-                # The zero-entry exception is limited to an unambiguous
-                # midnight tag and asset. Counts include filtered releases, so
-                # a duplicate cannot disappear through draft/prerelease policy.
-                midnight = stamp == coverage == stamp.replace(hour=0, minute=0, second=0,
-                                                               microsecond=0)
-                # Literal ASCII spellings only: the shared parsers accept any
-                # Unicode digit, which int() folds to the same midnight.
-                ascii_day = re.fullmatch(r'cve_([0-9]{4}-[0-9]{2}-[0-9]{2})_0000Z', release['tag_name'])
-                first_release = (midnight and ascii_day is not None
-                                 and len(release['assets']) == 1
-                                 and re.fullmatch(re.escape(ascii_day[1]) + r'_delta_CVEs_at_0000Z\.zip',
-                                                  release['assets'][0].get('name') or '') is not None
-                                 and self._listing_tag_counts.get(release['tag_name']) == 1)
-                result = self._archive(release, Origin.DELTA, now,
-                                       first_release=first_release)
+                result = self._archive(release, Origin.DELTA, now)
                 results.append(result)
                 # A later complete ingest must never move the cursor past an
                 # earlier incomplete day in the same engine cycle.
                 if result.status != FetchStatus.COMPLETE:
                     break
+            if waiting_for_eod:
+                return results
             recovery_pending = self.store.connection.execute(
                 "SELECT 1 FROM health WHERE source='cvelist' AND state='unhealthy' UNION ALL "
                 "SELECT 1 FROM retry_queue WHERE source='cvelist' AND record_id='@fetch' LIMIT 1").fetchone()

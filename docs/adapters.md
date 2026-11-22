@@ -130,7 +130,7 @@ approval remain required before gate C can be met.
 
 ## Debian via OSV
 
-Debian (OSV) is off in v0.6.0: gate D is **not met**. The production
+Debian (OSV) is off in v0.6.1: gate D is **not met**. The production
 registry's publication clock remains unvalidated, so freshness is unknown
 until gate D establishes the export's publication semantics. An individual
 OSV query sample cannot satisfy that gate.

@@ -150,22 +150,28 @@ scheme = "dotted"
         self.assertEqual(self.store.connection.execute("SELECT value FROM cursors WHERE source='cvelist'").fetchone()[0], second['tag_name'])
         self.assertEqual(self.engine.run_cycle(source.poll(self.clock())).events, [])
 
-    def test_empty_first_delta_0100_and_later_and_nonempty_without_manifest_rejected(self):
+    def test_empty_hourly_delta_and_nonempty_without_manifest(self):
         self.cve_cursor()
         first = release(1)
         source, _ = self.cve_source([first], [delta_zip()])
         result, = source.poll(self.clock())
         self.addCleanup(result.records.close)
-        self.assertNotEqual(result.status, FetchStatus.COMPLETE)
-        for body in (delta_zip(), delta_zip(extra=('notes.txt', '0 changes'))):
-            with self.subTest(body=body):
+        self.assertEqual(result.status, FetchStatus.COMPLETE)
+        for zero_members in (True, False):
+            with self.subTest(zero_members=zero_members):
+                body = delta_zip() if zero_members else delta_zip(extra=('notes.txt', '0 changes'))
                 source, _ = self.cve_source([release(12), first], [body, delta_zip()])
-                self.assertNotEqual(source.poll(self.clock())[0].status, FetchStatus.COMPLETE)
+                if zero_members:
+                    self.assertEqual(source.poll(self.clock())[0].status, FetchStatus.COMPLETE)
+                else:
+                    self.assertNotEqual(source.poll(self.clock())[0].status, FetchStatus.COMPLETE)
         source, _ = self.cve_source([release(0)], [delta_zip(extra=('notes.txt', '0 changes'))])
         self.assertNotEqual(source.poll(self.clock())[0].status, FetchStatus.COMPLETE)
-        # A shortened listing cannot erase evidence in the durable cursor.
-        self.store.connection.execute("UPDATE cursors SET value=? WHERE source='cvelist'",
-                                      (first['tag_name'],))
+        # A shortened listing cannot erase evidence of committed same-day records.
+        source, _ = self.cve_source([first], [delta_zip((self.record,))])
+        committed, = source.poll(self.clock())
+        self.addCleanup(committed.records.close)
+        self.engine.run_cycle([committed])
         source, _ = self.cve_source([release(12)], [delta_zip()])
         result, = source.poll(self.clock())
         self.assertNotEqual(result.status, FetchStatus.COMPLETE)
@@ -193,7 +199,7 @@ scheme = "dotted"
                         "SELECT value FROM cursors WHERE source='cvelist'").fetchone()[0],
                         'cve_2099-04-02_at_end_of_day')
 
-    def test_empty_midnight_extra_asset_or_parse_error_rejected(self):
+    def test_empty_midnight_extra_asset_allowed_and_parse_error_rejected(self):
         self.cve_cursor()
         for kind in ('two-deltas', 'extra-asset', 'invalid-time', 'later-coverage'):
             with self.subTest(kind=kind):
@@ -211,7 +217,10 @@ scheme = "dotted"
                 result, = source.poll(self.clock())
                 if hasattr(result.records, 'close'):
                     self.addCleanup(result.records.close)
-                self.assertNotEqual(result.status, FetchStatus.COMPLETE)
+                if kind == 'extra-asset':
+                    self.assertEqual(result.status, FetchStatus.COMPLETE)
+                else:
+                    self.assertNotEqual(result.status, FetchStatus.COMPLETE)
 
     def test_empty_midnight_requires_ascii_tag_and_asset(self):
         # Integration review r3 (lane A): Unicode digits parse as a midnight stamp.
@@ -287,7 +296,7 @@ scheme = "dotted"
         scheduler.tick()
         self.assertEqual(len(calls), 2)
 
-    def test_truncated_listing_must_not_prove_first(self):
+    def test_truncated_listing_accepts_unambiguous_empty_delta(self):
         self.cve_cursor()
         last = release(12)
         source, opener = self.cve_source([last], [delta_zip()])
@@ -305,9 +314,9 @@ scheme = "dotted"
         self.engine.run_cycle([result])
         cursor = self.store.connection.execute("SELECT value, content_time FROM cursors WHERE source='cvelist'").fetchone()
         print(f'truncated listing: exhausted={exhausted}; empty midday={result.status.value}; cursor={tuple(cursor)}; health={assess("cvelist", self.store, self.clock(), self.config)}')
-        self.assertNotEqual(result.status, FetchStatus.COMPLETE, 'Incomplete listing is not evidence that a release is first')
-        # Exact midnight coverage is sufficient even without a complete listing;
-        # a midnight tag attached to later coverage is not.
+        self.assertEqual(result.status, FetchStatus.COMPLETE)
+        # Empty delta coverage must match its tag even on a capped listing.
+        self.cve_cursor()
         for asset_hour, accepted in ((0, True), (2, False)):
             with self.subTest(asset_hour=asset_hour):
                 midnight = release(0)
