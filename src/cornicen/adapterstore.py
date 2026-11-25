@@ -10,6 +10,7 @@ Adapters own decoding their wire formats and establishing container integrity.
 Reads staged JSONL and SQLite state; writes advisory state and staging files.
 This library has no process exit codes; the CLI uses 0 for success and 1 for errors.
 """
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import json
@@ -26,6 +27,7 @@ from cornicen.diagnostics import FixedDiagnostic
 
 _INTERNAL_REASONS = frozenset(('PARTIAL', 'FAILED', '304 without cached body',
     'unreadable staged container', 'container digest mismatch', 'unenumerated'))
+_INVALID_RETENTION = FixedDiagnostic('invalid retention summary')
 
 
 def safe_detail(error):
@@ -83,6 +85,9 @@ def stamp(value):
 
 def date_fields(source):
     """Return the source date contract, or the shared default."""
+    if source == 'synology':
+        return {'published': (True, 'rfc3339'), 'updated': (False, 'rfc3339'),
+                'withdrawn': (False, 'rfc3339')}
     return {'published': (False, 'rfc3339'), 'updated': (True, 'rfc3339'),
             'withdrawn': (False, 'rfc3339')} if source == 'debian' else None
 
@@ -123,6 +128,31 @@ class AdapterStore:
             self.db.execute('INSERT OR IGNORE INTO baseline_members VALUES (?,?)', (source,source_id))
 
     @staticmethod
+    def _validate_retention(summary):
+        from cornicen.feeddates import rfc3339
+        if (not isinstance(summary, dict)
+                or summary.keys() != {'ids', 'boundary', 'newest_ids', 'oldest', 'newest', 'observed_at'}
+                or any(not isinstance(summary[key], list)
+                       or any(not isinstance(value, str) for value in summary[key])
+                       or summary[key] != sorted(summary[key])
+                       for key in ('ids', 'boundary', 'newest_ids'))):
+            raise ValueError(_INVALID_RETENTION)
+        ids = set(summary['ids'])
+        for watermark, support in (('oldest', 'boundary'), ('newest', 'newest_ids')):
+            if not ids.issuperset(summary[support]) or (summary[watermark] is None) != (not summary[support]):
+                raise ValueError(_INVALID_RETENTION)
+        for key in ('oldest', 'newest', 'observed_at'):
+            value = summary[key]
+            if value is None and key != 'observed_at':
+                continue
+            if not isinstance(value, str) or not value.endswith(('Z', 'z', '+00:00', '-00:00')):
+                raise ValueError(_INVALID_RETENTION)
+            try:
+                rfc3339(value)
+            except ValueError:
+                raise ValueError(_INVALID_RETENTION) from None
+
+    @staticmethod
     def _outcome_flags(resource, source):
         """Validate optional flags before any member is staged or committed."""
         from cornicen.feeddates import rfc3339
@@ -140,8 +170,12 @@ class AdapterStore:
                 raise ValueError('invalid CSAF generation')
         if 'record_audit_oldest' in resource:
             rfc3339(resource['record_audit_oldest'])
-        return {key: resource[key] for key in ('coverage_complete', 'subrequest_failures',
-                'subrequest_http_errors', 'record_audit_oldest', generation_key) if key in resource}
+        keys = ('coverage_complete', 'subrequest_failures', 'subrequest_http_errors',
+                'record_audit_oldest', generation_key)
+        if source == 'synology' and 'retention' in resource:
+            AdapterStore._validate_retention(resource['retention'])
+            keys += ('retention',)
+        return {key: resource[key] for key in keys if key in resource}
 
     @staticmethod
     def _flag_classification(state, flags):
@@ -368,6 +402,16 @@ class AdapterStore:
             state = 'PARTIAL' if row['integrity']=='pending' else 'FAILED'
             self.retry(source,resource,tick,state)
             return state
+        flags = self._staged_flags(source, resource)
+        if source == 'synology' and 'retention' in flags:
+            try:
+                self._validate_retention(flags['retention'])
+            except ValueError as error:
+                with self.store.transaction():
+                    self.db.execute("UPDATE staged_containers SET integrity='failed' WHERE source=? AND resource=?",
+                                    (source, resource))
+                    self.retry(source, resource, tick, error)
+                return 'FAILED'
         path=Path(row['path'])
         typed = path.name.endswith('.typed.jsonl')
         index_path=path.with_suffix('.index')
@@ -426,65 +470,77 @@ class AdapterStore:
             index.execute('CREATE TABLE baseline(id TEXT PRIMARY KEY)')
             for baseline_row in self.db.execute('SELECT source_id FROM baseline_members WHERE source=?',(source,)):
                 index.execute('INSERT INTO baseline VALUES (?)',(baseline_row[0],))
-            flags = self._staged_flags(source, resource)
-            classification=self._flag_classification(initial_classification, flags)
-            # Pass two: validation and independent idempotent record transactions.
-            with path.open('rb') as stream:
-                for line in stream:
-                    raw=v.decode_json(line)
-                    identity,invalid=self._key(raw,typed)
-                    entry=index.execute('SELECT conflict,done FROM members WHERE id=?',(identity,)).fetchone()
-                    if entry[1]: continue
-                    index.execute('UPDATE members SET done=1 WHERE id=?',(identity,))
-                    if invalid or entry[0]:
-                        classification='PARTIAL'
-                        self.quarantine(source,identity,'invalid id' if invalid else 'same-ID conflict',tick)
-                        continue
-                    try:
-                        data=(raw['validated'] if typed else v.validate_advisory(raw,source=source,observed_at=tick,input_path=resource,date_fields=date_fields(source)).data)
-                        if data['source']!=source:
-                            raise ValueError(FixedDiagnostic('advisory source mismatch'))
-                    except (ValueError,TypeError,KeyError) as error:
-                        classification='PARTIAL'
-                        self.quarantine(source,identity,safe_detail(error),tick)
-                        self._observe_unknown(raw, source, resource, tick, typed=typed)
-                        continue
-                    try:
-                        with self.store.transaction():
-                            prior=self.db.execute('SELECT digest,revision FROM advisories WHERE source=? AND source_id=?',(source,identity)).fetchone()
-                            baseline=bool(index.execute('SELECT 1 FROM baseline WHERE id=?',(identity,)).fetchone())
-                            if prior is None or prior['digest']!=data['digest']:
-                                from cornicen.advisory import reconcile_facets, retracted
-                                data = reconcile_facets(self.db, data)
-                                revision=str(int(prior['revision'])+1) if prior else '1'
-                                self.db.execute('INSERT OR REPLACE INTO advisories VALUES (?,?,?,?,?,?,?,?,?)',
-                                    (source,identity,revision,data['digest'],canonical(data),data['observed_at'],data['published'],data['updated'],
-                                     'withdrawn' if retracted(data) else 'active'))
-                                callback = on_record or self.on_record
-                                if callback:
-                                    callback(data,baseline)
-                                else:
-                                    from cornicen.advisory import write_evidence
-                                    write_evidence(self.db, data, baseline)
-                            from cornicen.advisory import clear_shells
-                            # Owner-scoped acceptance, even when no callback ran.
-                            # Withdrawal never clears provisional markers.
-                            clear_shells(self.db, data)
-                            self.db.execute('DELETE FROM quarantine WHERE source=? AND source_id=?',(source,identity))
-                    except Exception as error:
-                        from cornicen.store import TransactionAborted
-                        if isinstance(error, TransactionAborted):
-                            raise
-                        classification='PARTIAL'
-                        self.quarantine(source,identity,safe_detail(error),tick)
-            index.commit()
-            from cornicen.sources.csaf_directory import state_for
-            state = state_for(self.store, source)
-            if state is not None and state.profile.generation_key in flags:
-                state.commit_generation(flags[state.profile.generation_key])
-            classification = self._flag_classification(classification, flags)
-            if finalize:
-                classification=self._finish_index(source,resource,tick,index,index_path,classification,checkpoint,accept=deferred is None,rebaseline=rebaseline)
+            committed = set() if source == 'synology' and 'retention' in flags else None
+            classification = self._flag_classification(initial_classification, flags)
+            attached = False
+            try:
+                # PARTIAL retention and the members it tracks must commit together.
+                with self.store.transaction() if committed is not None else nullcontext():
+                    # Pass two: validation and independent idempotent record transactions.
+                    with path.open('rb') as stream:
+                        for line in stream:
+                            raw=v.decode_json(line)
+                            identity,invalid=self._key(raw,typed)
+                            entry=index.execute('SELECT conflict,done FROM members WHERE id=?',(identity,)).fetchone()
+                            if entry[1]: continue
+                            index.execute('UPDATE members SET done=1 WHERE id=?',(identity,))
+                            if invalid or entry[0]:
+                                classification='PARTIAL'
+                                self.quarantine(source,identity,'invalid id' if invalid else 'same-ID conflict',tick)
+                                continue
+                            try:
+                                data=(raw['validated'] if typed else v.validate_advisory(raw,source=source,observed_at=tick,input_path=resource,date_fields=date_fields(source)).data)
+                                if data['source']!=source:
+                                    raise ValueError(FixedDiagnostic('advisory source mismatch'))
+                            except (ValueError,TypeError,KeyError) as error:
+                                classification='PARTIAL'
+                                self.quarantine(source,identity,safe_detail(error),tick)
+                                self._observe_unknown(raw, source, resource, tick, typed=typed)
+                                continue
+                            try:
+                                with self.store.transaction():
+                                    prior=self.db.execute('SELECT digest,revision FROM advisories WHERE source=? AND source_id=?',(source,identity)).fetchone()
+                                    baseline=bool(index.execute('SELECT 1 FROM baseline WHERE id=?',(identity,)).fetchone())
+                                    if prior is None or prior['digest']!=data['digest']:
+                                        from cornicen.advisory import reconcile_facets, retracted
+                                        data = reconcile_facets(self.db, data)
+                                        revision=str(int(prior['revision'])+1) if prior else '1'
+                                        self.db.execute('INSERT OR REPLACE INTO advisories VALUES (?,?,?,?,?,?,?,?,?)',
+                                            (source,identity,revision,data['digest'],canonical(data),data['observed_at'],data['published'],data['updated'],
+                                             'withdrawn' if retracted(data) else 'active'))
+                                        callback = on_record or self.on_record
+                                        if callback:
+                                            callback(data,baseline)
+                                        else:
+                                            from cornicen.advisory import write_evidence
+                                            write_evidence(self.db, data, baseline)
+                                    from cornicen.advisory import clear_shells
+                                    # Owner-scoped acceptance, even when no callback ran.
+                                    # Withdrawal never clears provisional markers.
+                                    clear_shells(self.db, data)
+                                    self.db.execute('DELETE FROM quarantine WHERE source=? AND source_id=?',(source,identity))
+                                if committed is not None:
+                                    committed.add(identity)
+                            except Exception as error:
+                                from cornicen.store import TransactionAborted
+                                if isinstance(error, TransactionAborted):
+                                    raise
+                                classification='PARTIAL'
+                                self.quarantine(source,identity,safe_detail(error),tick)
+                    index.commit()
+                    from cornicen.sources.csaf_directory import state_for
+                    state = state_for(self.store, source)
+                    if state is not None and state.profile.generation_key in flags:
+                        state.commit_generation(flags[state.profile.generation_key])
+                    classification = self._flag_classification(classification, flags)
+                    if finalize:
+                        self.db.execute('ATTACH DATABASE ? AS adapter_index', (str(index_path),))
+                        attached = True
+                        classification=self._finish_index(source,resource,tick,index,classification,checkpoint,
+                            accept=deferred is None,rebaseline=rebaseline,retention=flags.get('retention'),committed=committed)
+            finally:
+                if attached:
+                    self.db.execute('DETACH DATABASE adapter_index')
             if deferred is not None and classification=='COMPLETE':
                 deferred.append((resource,path,index_path))
             elif classification=='COMPLETE' and finalize:
@@ -507,37 +563,72 @@ class AdapterStore:
         checksum.update(b']')
         return checksum.hexdigest()
 
-    def _finish_index(self,source,resource,tick,index,index_path,classification,checkpoint,*,accept=True,rebaseline=False):
+    def _finish_index(self,source,resource,tick,index,classification,checkpoint,*,accept=True,rebaseline=False,
+                      retention=None,committed=None):
         # Missing previously accepted members are computable, never a flag.
-        self.db.execute('ATTACH DATABASE ? AS adapter_index',(str(index_path),))
-        try:
-            missing=self.db.execute('''SELECT 1 FROM manifest_members m
-                WHERE source=? AND resource=? AND NOT EXISTS
-                (SELECT 1 FROM adapter_index.members WHERE id=m.source_id)
-                AND NOT EXISTS (SELECT 1 FROM advisories a WHERE a.source=m.source
-                    AND a.source_id=m.source_id AND a.state='withdrawn') LIMIT 1''',(source,resource)).fetchone()
-            if self._independent(source):
-                self._clear_reappeared(source, resource)
-                # A PARTIAL publication can commit members without a manifest.
-                # Recovery must preserve their unresolved coverage as well.
-                missing = any(not self.db.execute(
-                    'SELECT 1 FROM adapter_index.members WHERE id=?', (identity,)).fetchone()
-                    for identity in self.known_members(source, resource))
-            gap=self.db.execute('SELECT 1 FROM gap_ledger WHERE source=? AND acknowledged_at IS NULL',(source,)).fetchone()
-            if (missing or gap) and not rebaseline and classification != 'FAILED': classification='PARTIAL'
-            if classification=='COMPLETE' and accept:
-                md=self._manifest_digest(index)
-                with self.store.transaction():
-                    self._write_manifest(source,resource,md,tick,'adapter_index.members')
-                    checkpoint('after_manifest')
-                    self.db.execute('DELETE FROM adapter_retries WHERE source=? AND resource=?',(source,resource))
-                    if self._independent(source):
-                        self._delete_stage_row(source, resource)
-                    self._advance_cursor(source,tick)
-                    self._complete_baseline(source,tick)
-            return classification
-        finally:
-            self.db.execute('DETACH DATABASE adapter_index')
+        missing=self.db.execute('''SELECT 1 FROM manifest_members m
+            WHERE source=? AND resource=? AND NOT EXISTS
+            (SELECT 1 FROM adapter_index.members WHERE id=m.source_id)
+            AND NOT EXISTS (SELECT 1 FROM advisories a WHERE a.source=m.source
+                AND a.source_id=m.source_id AND a.state='withdrawn') LIMIT 1''',(source,resource)).fetchone()
+        if self._independent(source):
+            self._clear_reappeared(source, resource)
+            # A PARTIAL publication can commit members without a manifest.
+            # Recovery must preserve their unresolved coverage as well.
+            missing = any(not self.db.execute(
+                'SELECT 1 FROM adapter_index.members WHERE id=?', (identity,)).fetchone()
+                for identity in self.known_members(source, resource))
+        gap=self.db.execute('SELECT 1 FROM gap_ledger WHERE source=? AND acknowledged_at IS NULL',(source,)).fetchone()
+        if (missing or gap) and not rebaseline and classification != 'FAILED': classification='PARTIAL'
+        if classification=='COMPLETE' and accept:
+            md=self._manifest_digest(index)
+            with self.store.transaction():
+                self._write_manifest(source,resource,md,tick,'adapter_index.members')
+                self._write_retention(source, retention)
+                checkpoint('after_manifest')
+                self.db.execute('DELETE FROM adapter_retries WHERE source=? AND resource=?',(source,resource))
+                if self._independent(source):
+                    self._delete_stage_row(source, resource)
+                self._advance_cursor(source,tick)
+                self._complete_baseline(source,tick)
+        elif classification=='PARTIAL' and committed is not None:
+            self._write_retention(source, retention, committed=committed)
+        return classification
+
+    def _write_retention(self, source, summary, *, committed=None):
+        """Write the staged observation at acceptance, or track PARTIAL members."""
+        if source != 'synology' or summary is None:
+            return
+        key = 'retention:synology'
+        withdrawn = {row[0] for row in self.db.execute(
+            "SELECT source_id FROM advisories WHERE source=? AND state='withdrawn'", (source,))}
+        if committed is None:
+            result = dict(summary, accepted=True)
+            removed = withdrawn.intersection(result['ids'])
+            if removed:
+                from cornicen.feeddates import rfc3339
+                rows = self.db.execute('''SELECT source_id,published FROM advisories
+                    WHERE source=? AND state!='withdrawn' AND source_id IN (SELECT value FROM json_each(?))
+                    AND published IS NOT NULL''',
+                    (source, canonical(result['ids'])))
+                dates = {identity: rfc3339(published) for identity, published in rows}
+                oldest = min(dates.values(), default=None)
+                newest = max(dates.values(), default=None)
+                result.update(oldest=oldest.utc() if oldest is not None else None,
+                              newest=newest.utc() if newest is not None else None,
+                              boundary=sorted(identity for identity, date in dates.items() if date == oldest),
+                              newest_ids=sorted(identity for identity, date in dates.items() if date == newest))
+            ids = set(result['ids'])
+        else:
+            result = json.loads(self.store.get_meta(key) or '{"accepted":false,"ids":[]}')
+            ids = set(result['ids']) | committed.intersection(summary['ids'])
+            if result['accepted']:
+                for watermark, support in (('oldest', 'boundary'), ('newest', 'newest_ids')):
+                    result[support] = sorted(set(result.get(support, ())) - withdrawn)
+                    if not result[support]:
+                        result[watermark] = None
+        result['ids'] = sorted(ids - withdrawn)
+        self.store.set_meta(key, canonical(result))
 
     def _write_manifest(self,source,resource,md,tick,table):
         # table is an internal attached index name, never adapter input.
@@ -601,6 +692,8 @@ class AdapterStore:
                         self._acknowledge_rebaseline(source,tick)
                     for resource,path,index_path in candidates:
                         self._write_manifest(source,resource,digests[resource],tick,'adapter_batch.members')
+                        self._write_retention(source, self._staged_flags(source, resource).get('retention')
+                                              if source == 'synology' else None)
                         self.db.execute('DELETE FROM adapter_retries WHERE source=? AND resource=?',(source,resource))
                     self._advance_cursor(source,tick)
                     self._complete_baseline(source,tick)
@@ -955,7 +1048,7 @@ class AdapterStore:
                         with self.store.transaction():
                             self.db.execute("DELETE FROM adapter_retries WHERE source=? AND resource='@dispatch'",(source,))
                 outcomes[source]=self.process(source,resources,tick,**options)
-                if source != 'debian' or not getattr(adapter, 'skipped', False):
+                if source not in ('debian', 'synology') or not getattr(adapter, 'skipped', False):
                     with self.store.transaction():
                         self.db.execute("DELETE FROM adapter_retries WHERE source=? AND resource='@dispatch'",(source,))
                 for resource in self.audits_due(source,tick):
@@ -1070,8 +1163,9 @@ class AdapterStore:
             path=resource['path']
             try:
                 flags = self._outcome_flags(resource, source)
-            except ValueError:
-                self.retry(source,path,tick,'FAILED')
+            except ValueError as error:
+                reason = error if error.args and error.args[0] is _INVALID_RETENTION else 'FAILED'
+                self.retry(source,path,tick,reason)
                 states.append('FAILED')
                 continue
             with self.store.transaction():

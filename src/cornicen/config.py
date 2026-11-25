@@ -25,6 +25,7 @@ from cornicen.diagnostics import FixedDiagnostic, file_error, toml_error, token_
 
 # Compressed transfer budgets, in bytes and total elapsed seconds.
 DOWNLOAD_BUDGETS = {
+    'synology': {'max_bytes': 8 * 1024**2, 'deadline_seconds': 120},
     'osv_debian': {'max_bytes': 256 * 1024**2, 'deadline_seconds': 900},
     'cisco_csaf': {'max_bytes': 16 * 1024**2, 'deadline_seconds': 60},
     'msrc_csaf': {'max_bytes': 16 * 1024**2, 'deadline_seconds': 60},

@@ -1,7 +1,7 @@
 # script-purpose: Interrupt replay transaction boundaries and reopen durable stores.
 # script-class: harness
 # script-trigger: tests/test_f4.py through the foundation harness.
-# script-tests: tests/test_f4.py, tests/replay_v11/test-crash-replay.py, tests/replay_v11/test-msrc-crash-classification.py, tests/test_task1_a.py, tests/test_task1_b2.py, tests/test_task2_b2.py, tests/test_task3_b2.py, tests/test_task4_b2.py
+# script-tests: tests/test_f4.py, tests/replay_v11/test-crash-replay.py, tests/replay_v11/test-msrc-crash-classification.py, tests/test_task1_a.py, tests/test_task1_b2.py, tests/test_task2_b2.py, tests/test_task3_b2.py, tests/test_task4_b2.py, tests/test_task6_b2.py
 """Read foundation timelines; write temporary SQLite stores and staging files.
 
 Library helper for unittest (exit 0 success, 1 failure). No production hooks.
@@ -36,6 +36,8 @@ class CrashRun:
     accounting: dict = None
     interrupted_accounting: list = None
     deliveries: list = None
+    survived_stages: int = 0
+    point_ticks: list = None
 
 
 def run(name, crash_index=None):
@@ -44,6 +46,8 @@ def run(name, crash_index=None):
     from cornicen.sources.github_advisories import GitHubState
     from tests.replay_v11.msrc_backend import backend_for, is_msrc, is_cisco
     from tests.replay_v11.osv_backend import DebianBackend
+    from tests.replay_v11.rss_backend import SynologyBackend, is_synology
+    synology = is_synology(name)
     debian = name.startswith('debian_')
     reference = run(name) if debian and crash_index is not None else None
     cisco = is_cisco(name)
@@ -53,7 +57,10 @@ def run(name, crash_index=None):
     points, durable = [], {}
     accounting, journal, accounting_writes, interrupted_accounting = {}, [], [], []
     deliveries = []
+    survived_stages = 0
     active = False
+    active_tick = None
+    point_ticks = []
     crashed = False
     transaction, queue = Store.transaction, Store.queue
     retry = AdapterStore.retry
@@ -69,7 +76,7 @@ def run(name, crash_index=None):
         attempts = (old[0] if old else 0) + 1
         wait = retry(adapter, source, resource, tick, error, **kwargs)
         key = source, resource
-        if not debian:
+        if not (debian or synology):
             witnessed[key] = witnessed.get(key, 0) + 1
             failures[adapter.directory, source, resource] = (
                 attempts, stamp(instant(tick) + timedelta(seconds=wait)), tick)
@@ -82,6 +89,7 @@ def run(name, crash_index=None):
         point = f'{kind}:{site}:{side}'
         index = len(points)
         points.append(point)
+        point_ticks.append(active_tick)
         if index == crash_index and not crashed:
             crashed = True
             raise Crash(point)
@@ -97,11 +105,16 @@ def run(name, crash_index=None):
                 else (('cisco_' if cisco else 'msrc_') + function if (msrc or cisco) and (file in ('msrc_csaf.py', 'cisco_csaf.py', 'csaf_directory.py') or function in ('stage_members','_accept_batch','_finish_index','rebaseline','_acknowledge_rebaseline')) else 'github_' + function if github and file == 'github_advisories.py' and function != 'set_hold' else 'state'))
         if debian and (file == 'osv_debian.py' or file == 'adapterstore.py'):
             kind = 'debian_' + function
+        if synology and (kind == 'state' or file == 'adapterstore.py'):
+            # _accept_batch covers the cursor and accepted retention summary.
+            # commit_staged covers the PARTIAL retention write in the same commit.
+            # observe_build covers synology:last_build and synology:diagnostics together.
+            kind = 'synology_' + function
         if kind != 'ack':
             hit(kind, site, 'before')
         with transaction(store) as db:
             yield db
-        if debian and file == 'adapterstore.py' and function == 'retry':
+        if (debian or synology) and file == 'adapterstore.py' and function == 'retry':
             values = frame.f_locals
             adapter, source, resource = values['self'], values['source'], values['resource']
             row = adapter.db.execute('SELECT attempts,next_attempt_at FROM adapter_retries WHERE source=? AND resource=?', (source, resource)).fetchone()
@@ -130,7 +143,7 @@ def run(name, crash_index=None):
         hit('enqueue', site, 'after')
         return result
 
-    class Backend(DebianBackend if debian else CsafBackend if (msrc or cisco) else GitHubBackend if github else ValidationBackend):
+    class Backend(SynologyBackend if synology else DebianBackend if debian else CsafBackend if (msrc or cisco) else GitHubBackend if github else ValidationBackend):
         def __init__(self, registry):
             super().__init__(registry)
             if github:
@@ -165,7 +178,8 @@ def run(name, crash_index=None):
                     self.store.connection.execute('SELECT * FROM adapter_retries')}
 
         def action(self, row):
-            nonlocal active
+            nonlocal active, active_tick, survived_stages
+            active_tick = row['t']
             active = 'cycle' in row or 'command' in row
             pending, ingests = deepcopy(self.pending), list(self.ingests)
             before = self.retry_counts()
@@ -182,6 +196,13 @@ def run(name, crash_index=None):
                     extra = count - before.get(key, 0)
                     assert 0 <= extra <= witnessed.get(key, 0), 'unwitnessed retry increment'
                     self.interrupted_retries[key] = self.interrupted_retries.get(key, 0) + extra
+                if synology:
+                    for stage in self.store.connection.execute(
+                            'SELECT path,digest FROM staged_containers'):
+                        path = Path(stage['path'])
+                        assert path.is_file(), f'missing staged file after process loss: {path}'
+                        assert sha256(path.read_bytes()).hexdigest() == stage['digest']
+                        survived_stages += 1
                 # Exception unwinding rolls back every open savepoint. Reopen the
                 # same file, recreate the engine, then retry interrupted inputs.
                 self.store.connection.close()
@@ -236,6 +257,8 @@ def run(name, crash_index=None):
                 assert values['next_attempt_at'] == deadline, 'retry backoff deadline'
                 assert instant(tick) <= self.clock(), 'failure beyond harness clock'
                 count = attempts - self.interrupted_retries.get(key, 0)
+                if synology and count == 0:
+                    count = attempts  # Same-tick restart honours a durable retry.
                 if debian and reference is not None:
                     expected = reference.durable[len(durable)]['adapter_retries']
                     expected_counts = {(r[expected['columns'].index('source')],
@@ -268,7 +291,7 @@ def run(name, crash_index=None):
     # BaseException unwinds; resume needs precisely those committed bytes.
     unlink = Path.unlink
     def process_unlink(path, *args, **kwargs):
-        if debian and active and isinstance(sys.exc_info()[1], Crash):
+        if (debian or synology) and active and isinstance(sys.exc_info()[1], Crash):
             return None
         return unlink(path, *args, **kwargs)
 
@@ -280,4 +303,4 @@ def run(name, crash_index=None):
             result = h.run_scenario(name)
     finally:
         h.register_backend(previous)
-    return CrashRun(result, durable, points, crashed, accounting, interrupted_accounting, deliveries)
+    return CrashRun(result, durable, points, crashed, accounting, interrupted_accounting, deliveries, survived_stages, point_ticks)

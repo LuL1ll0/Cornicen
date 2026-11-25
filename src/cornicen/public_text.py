@@ -14,11 +14,33 @@ import re
 import string
 import unicodedata
 
+from cornicen.synology_products import SYNOLOGY_PRODUCTS
 from cornicen.vocabulary import WORDS
 
 
 PUNCTUATION = '.,;:!?()[]{}<>"\''
 MARKER = '[redacted]'
+UNRECOGNISED_SUBJECT = 'unrecognised subject'
+UNRECOGNISED_TEMPLATE = 'unrecognised template'
+SYNOLOGY_GAP_REASONS = (
+    'observation interval exceeded',
+    'retention boundary lost',
+    'retention watermark moved',
+    'member lost',
+)
+# The generator sees product labels, the RSS payload field and the resource key.
+# Joining words inside product names stay public: existing diagnostics use them.
+# So do product-name words that were already public before the Synology adapter
+# (the source name itself, and words existing diagnostics print).
+_COMMON_WORDS = frozenset({'a', 'an', 'and', 'by', 'for', 'in', 'of', 'on', 'or', 'the', 'to', 'with',
+                           'active', 'backup', 'container', 'download', 'file', 'synology'})
+_NON_DIAGNOSTIC_WORDS = frozenset(
+    word
+    for alias, (_, product) in SYNOLOGY_PRODUCTS.items()
+    for name in (alias, product)
+    for word in re.findall(r'[^\W_]+', unicodedata.normalize('NFKC', name).casefold())
+    if word not in _COMMON_WORDS
+) | {'description', 'feed'}
 RECORD_ID_PREFIXES = ('Dead-letter records:', 'Missing stored record:',
                       'Declared record missing or invalid:')
 ISO = re.compile(r'[0-9]{4}-[0-9]{2}-[0-9]{2}(?:T[0-9]{2}:[0-9]{2}(?::[0-9]{2})?(?:\.[0-9]{1,6})?(?:Z|[+-][0-9]{2}:[0-9]{2})?)?')
@@ -72,6 +94,8 @@ def _allowed(token, inventory):
     if leading > 1 or trailing > 1:
         return False
     core = token.strip(PUNCTUATION)
+    if core.casefold() in _NON_DIAGNOSTIC_WORDS:
+        return False
     if re.fullmatch(r'[0-9]+', core) or ISO.fullmatch(core):
         return True
     return (core.isascii() and core.casefold() in (WORDS | BUILTIN_EXCEPTIONS)

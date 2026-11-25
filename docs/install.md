@@ -116,6 +116,17 @@ connection:
 
 These times exclude the download. A smaller or slower machine takes longer.
 
+**Synology RSS** is also disabled in this release because gate S is unmet.
+The live feed costs about 0.5 MB per day when enabled. This offline measurement
+used 5,000 invented advisories with two products and a 1 KiB description each,
+running the unchanged second poll in a fresh process against the same database.
+
+| | First day | Unchanged second day |
+|---|---:|---:|
+| Transaction entries, including savepoints | 15,019 | 5,019 |
+| Peak resident memory | about 135 MB | about 130 MB |
+| Database growth | about 38 MB | 0 bytes |
+
 Slower connections, disks and CPUs take longer. The database grows as new CVEs
 are published. `status` shows each source as healthy once it has been fetched.
 

@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
+<title>Synology Product Security Advisory</title>
+<link>https://www.synology.com/en-us/support/security</link>
+<description><![CDATA[Synology Product Security Advisory Feed.]]></description>
+<atom:link href="https://www.synology.com/api/rssfeed/security/en-us" rel="self" type="application/rss+xml"></atom:link>
+<lastBuildDate>Fri, 30 Oct 2026 09:00:00 +0800</lastBuildDate>
+<pubDate>Thu, 29 Oct 2026 21:12:54 +0800</pubDate>
+<item>
+<title>Synology-SA-99:01 Photo Station</title>
+<link>https://www.synology.com/en-us/support/security/Synology_SA_99_01</link>
+<description><![CDATA[A vulnerability allows remote authenticated users to inject arbitrary web script via a susceptible version of Synology Photo Station.
+
+CVE-2099-81001 is resolved in the current release.
+
+]]></description>
+<pubDate>Thu, 29 Oct 2026 21:12:54 +0800</pubDate>
+<author>security@synology.com (Synology Security Team)</author>
+<guid isPermaLink="true">https://www.synology.com/en-us/support/security/Synology_SA_99_01</guid>
+</item>
+<item>
+<title>Synology-SA-99:02 Example Library</title>
+<link>https://www.synology.com/en-us/support/security/Synology_SA_99_02</link>
+<description><![CDATA[None of Synology's products are affected by CVE-2099-81007, including DSM, because the affected library build is not shipped.
+
+]]></description>
+<pubDate>Tue, 27 Oct 2026 10:00:00 +0800</pubDate>
+<author>security@synology.com (Synology Security Team)</author>
+<guid isPermaLink="true">https://www.synology.com/en-us/support/security/Synology_SA_99_02</guid>
+</item>
+<item>
+<title>Synology-SA-99:03 DSM</title>
+<link>https://www.synology.com/en-us/support/security/Synology_SA_99_03</link>
+<description><![CDATA[CVE-2099-81002, CVE-2099-81003, CVE-2099-81004, CVE-2099-81006, CVE-2099-81008, CVE-2099-81009, CVE-2099-81010 and CVE-2099-81012 allow remote attackers to conduct denial-of-service attacks via a susceptible version of DiskStation Manager (DSM).
+
+]]></description>
+<pubDate>Mon, 26 Oct 2026 09:30:00 +0800</pubDate>
+<author>security@synology.com (Synology Security Team)</author>
+<guid isPermaLink="true">https://www.synology.com/en-us/support/security/Synology_SA_99_03</guid>
+</item>
+<item>
+<title>Synology-SA-99:04 DSM, PHP</title>
+<link>https://www.synology.com/en-us/support/security/Synology_SA_99_04</link>
+<description><![CDATA[Multiple vulnerabilities allow remote attackers to execute arbitrary code via susceptible versions of the following packages in DSM:
+
+Glacier Backup
+Hyper Backup
+Mail Station
+PHP 8.2
+
+CVE-2099-81017 is among them.
+
+]]></description>
+<pubDate>Fri, 23 Oct 2026 16:45:00 +0800</pubDate>
+<author>security@synology.com (Synology Security Team)</author>
+<guid isPermaLink="true">https://www.synology.com/en-us/support/security/Synology_SA_99_04</guid>
+</item>
+<item>
+<title>Synology-SA-99:05 Synology Assistant</title>
+<link>https://www.synology.com/en-us/support/security/Synology_SA_99_05</link>
+<description><![CDATA[Synology has released a security update for the Synology Assistant to address a vulnerability. CVE-2099-81005 allows local users to gain privileges via a susceptible version of Windows.
+
+]]></description>
+<pubDate>Wed, 21 Oct 2026 12:00:00 +0800</pubDate>
+<author>security@synology.com (Synology Security Team)</author>
+<guid isPermaLink="true">https://www.synology.com/en-us/support/security/Synology_SA_99_05</guid>
+</item>
+<item>
+<title>Synology-SA-99:06 SRM</title>
+<link>https://www.synology.com/en-us/support/security/Synology_SA_99_06</link>
+<description><![CDATA[The reported issue cannot be exploited via a susceptible version of DiskStation Manager (DSM) in its default configuration. CVE-2099-81016 is tracked for reference.
+
+]]></description>
+<pubDate>Mon, 19 Oct 2026 08:15:00 +0800</pubDate>
+<author>security@synology.com (Synology Security Team)</author>
+<guid isPermaLink="true">https://www.synology.com/en-us/support/security/Synology_SA_99_06</guid>
+</item>
+<item>
+<title>DSM 9.9-99999</title>
+<link>https://www.synology.com/en-us/support/security/hotfix_dsm_9_9_99999</link>
+<description><![CDATA[Description DSM 9.9-99999 addresses the vulnerabilities below and repairs systems affected by CVE-2099-81018.
+
+]]></description>
+<pubDate>Thu, 14 Nov 2013 00:00:00 +0800</pubDate>
+<author>security@synology.com (Synology Security Team)</author>
+<guid isPermaLink="true">https://www.synology.com/en-us/support/security/hotfix_dsm_9_9_99999</guid>
+</item>
+<item>
+<title>Synology-SA-99:08 Example Package Server</title>
+<link>https://www.synology.com/en-us/support/security/Synology_SA_99_08</link>
+<description><![CDATA[A vulnerability allows remote attackers to read arbitrary files via a susceptible version of Example Package Server. CVE-2099-81015 was reported privately.
+
+]]></description>
+<pubDate>Thu, 15 Oct 2026 14:20:00 +0800</pubDate>
+<author>security@synology.com (Synology Security Team)</author>
+<guid isPermaLink="true">https://www.synology.com/en-us/support/security/Synology_SA_99_08</guid>
+</item>
+<item>
+<title>Synology-SA-99:09 Surveillance Station</title>
+<link>https://www.synology.com/en-us/support/security/Synology_SA_99_09</link>
+<description><![CDATA[Synology has released a security update for the Surveillance Station to address multiple vulnerabilities.
+
+]]></description>
+<pubDate>Tue, 13 Oct 2026 11:11:11 +0800</pubDate>
+<author>security@synology.com (Synology Security Team)</author>
+<guid isPermaLink="true">https://www.synology.com/en-us/support/security/Synology_SA_99_09</guid>
+</item>
+<item>
+<title>Synology-SA-99:10 BeeStation OS</title>
+<link>https://www.synology.com/en-us/support/security/Synology_SA_99_10</link>
+<description><![CDATA[A vulnerability allows remote attackers to bypass access controls via a susceptible version of BeeStation OS. CVE-2099-81013 is fixed.
+
+]]></description>
+<pubDate>Fri, 09 Oct 2026 18:00:00 +0800</pubDate>
+<author>security@synology.com (Synology Security Team)</author>
+<guid isPermaLink="true">https://www.synology.com/en-us/support/security/Synology_SA_99_10</guid>
+</item>
+<item>
+<title>Synology-SA-99:11 DSM</title>
+<link>https://www.synology.com/en-us/support/security/Synology_SA_99_11</link>
+<description><![CDATA[A vulnerability allows remote attackers to execute arbitrary commands via a susceptible version of DSM. CVE-2099-81011 is exploited in the wild.
+
+]]></description>
+<pubDate>Wed, 07 Oct 2026 07:07:07 +0800</pubDate>
+<author>security@synology.com (Synology Security Team)</author>
+<guid isPermaLink="true">https://www.synology.com/en-us/support/security/Synology_SA_99_11</guid>
+</item>
+<item>
+<title>Synology-SA-99:12 SRM</title>
+<link>https://www.synology.com/en-us/support/security/Synology_SA_99_12</link>
+<description><![CDATA[A vulnerability allows man-in-the-middle attackers to obtain sensitive information via a susceptible version of Synology Router Manager (SRM). CVE-2099-81014 is resolved.
+
+]]></description>
+<pubDate>Sat, 03 Oct 2026 03:03:03 +0000</pubDate>
+<author>security@synology.com (Synology Security Team)</author>
+<guid isPermaLink="true">https://www.synology.com/en-us/support/security/Synology_SA_99_12</guid>
+</item>
+</channel>
+</rss>

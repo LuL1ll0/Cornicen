@@ -179,27 +179,64 @@ def _adapter_schema_present(store):
     return store is not None and store.get_meta('adapter_schema_version') is not None
 
 
+def _synology_notices(db, cve):
+    """Include evidence-free owners and owners retained through retraction."""
+    rows = db.execute("""SELECT a.source, a.json,
+        EXISTS(SELECT 1 FROM json_each(a.json, '$.cves') WHERE json_extract(value, '$.value') = ?) AS listed
+        FROM advisories a
+        WHERE listed OR EXISTS (
+            SELECT 1 FROM advisory_support s
+            WHERE s.source=a.source AND s.source_id=a.source_id AND s.identity=?
+        )
+        ORDER BY a.source, a.source_id""", (cve, cve)).fetchall()
+    notices = [json.loads(row['json']) for row in rows if row['source'] == 'synology' and row['listed']]
+    return notices, all(row['source'] == 'synology' for row in rows)
+
+
+def _print_synology_notices(notices, cve):
+    for notice in notices:
+        print('Synology advisory (no version data)')
+        print(f"  ID: {notice['source_id']}")
+        print(f"  Title: {notice['title']}")
+        print(f"  URL: {notice['url']}")
+        print(f"  Published: {notice['published']}")
+        names = ', '.join(p['name'].removeprefix('synology:') for p in notice['products'])
+        print('  Products: ' + (names or 'none recognised'))
+        if (notice.get('vendor_statement') == 'none_affected'
+                and cve in notice.get('statement_cves', ())):
+            print('  none affected (vendor statement)')
+
+
 def explain(store, watches, aliases, cve, watch_id):
     watch = next((watch for watch in watches if watch.id == watch_id), None)
     if watch is None:
         print('unknown watch ID: ' + watch_id)
         return 1
+    from cornicen import advisory
+    db = store.connection
+    row = db.execute('SELECT json FROM records WHERE id=?', (cve,)).fetchone()
+    notices = []
+    routed = False
+    if _adapter_schema_present(store):
+        routed = advisory.route(db, cve, watch, aliases) == 'advisory'
+        notices, synology_only = _synology_notices(db, cve)
+        if not routed and row is None and notices and synology_only:
+            _print_synology_notices(notices, cve)
+            return 0
     print(f'Current-file evaluation: {watch.id} {cve}; version={watch.version}; '
           f'scheme={watch.scheme.value}; alias_map_version={aliases.version}')
     pair = store.connection.execute(
         'SELECT * FROM pairs WHERE watch_id=? AND record_id=?', (watch_id, cve)).fetchone()
     print('Stored pair state: ' + (json.dumps(dict(pair), sort_keys=True) if pair else 'none'))
-    from cornicen import advisory
-    if _adapter_schema_present(store) and advisory.route(store.connection, cve, watch, aliases) == 'advisory':
-        result = advisory.resolve(store.connection, cve, watch, aliases,
-                                  record=_record(store.connection.execute('SELECT json FROM records WHERE id=?', (cve,)).fetchone())
-                                  if store.connection.execute('SELECT 1 FROM records WHERE id=?', (cve,)).fetchone() else None)
+    if routed:
+        result = advisory.resolve(db, cve, watch, aliases, record=_record(row) if row else None)
         print(f'Current decision: applicability={result.state.value}; confidence={result.confidence}')
         print('Evidence: ' + result.evidence)
+        _print_synology_notices(notices, cve)
         return 0
-    row = store.connection.execute('SELECT json FROM records WHERE id=?', (cve,)).fetchone()
     if row is None:
         print('Current decision: retained record unavailable; applicability unknown')
+        _print_synology_notices(notices, cve)
         return 1
     kev = store.connection.execute('SELECT json FROM kev WHERE cve=?', (cve,)).fetchone()
     result = resolve(_record(row), json.loads(kev[0]) if kev else None, watch, aliases)
@@ -209,6 +246,7 @@ def explain(store, watches, aliases, cve, watch_id):
         print(f'Current decision: applicability={result.state.value}; '
               f'exploited={str(result.exploited).lower()}; confidence={result.confidence}')
         print('Evidence: ' + result.evidence)
+    _print_synology_notices(notices, cve)
     return 0
 
 
@@ -321,6 +359,14 @@ def release_check_count(config, store=None):
         return 0
 
 
+def _status_source(source, store, now, config):
+    state, detail = assess(source, store, now, config)
+    if source == 'synology':
+        from cornicen.sources.synology_rss import SynologyState
+        detail = '; '.join((detail, *SynologyState(store).status_details()))
+    return state, detail
+
+
 def status_json(store, now, config):
     from cornicen.adapters import status
     result = dict(schema_version=1, available=False, container_healthy=False,
@@ -341,7 +387,7 @@ def status_json(store, now, config):
         sources = {'cvelist', 'kev', 'epss'}
         sources.update(active_sources(store, config))
         for source in sorted(sources):
-            state, detail = assess(source, store, now, config)
+            state, detail = _status_source(source, store, now, config)
             cursor = store.connection.execute(
                 'SELECT value,content_time FROM cursors WHERE source=?', (source,)).fetchone()
             result['sources'][source] = dict(
@@ -584,7 +630,7 @@ def main(argv=None):
             sources = {'cvelist', 'kev', 'epss'}
             sources.update(active_sources(store, config))
             for source in sorted(sources):
-                state, detail = assess(source, store, now(), config)
+                state, detail = _status_source(source, store, now(), config)
                 detail = safe_message(RuntimeError(detail), config.ntfy_token, config.github_token, config.deadman_url, config.webhook_url, config.webhook_secret)
                 print(f'{source}: {state}; {detail}')
             print('release checks: ' + str(release_check_count(config, store)))
@@ -662,6 +708,9 @@ def main(argv=None):
                                        config.ntfy_token if config else None,
                                        config.github_token if config else None,
                                        config.deadman_url if config else None, config.webhook_url if config else None, config.webhook_secret if config else None)
+        if (isinstance(error, sqlite3.DatabaseError)
+                and getattr(error, 'sqlite_errorcode', None) == sqlite3.SQLITE_NOTADB):
+            fixed = FixedDiagnostic('file is not a database')
         if isinstance(error, WatchlistError):
             if all(type(problem) is FixedDiagnostic for problem in error.public_problems):
                 fixed = '; '.join(error.public_problems)

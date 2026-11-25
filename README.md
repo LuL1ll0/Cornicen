@@ -15,7 +15,7 @@ Cornicen is for homelabs and small networks. You tell it what you run. It watche
   Email uses the ntfy server’s own forwarding; Cornicen stores no mail credentials.
 - **Silent first run.** The first bootstrap records what already matches and sends one summary; after that you hear only about changes.
 
-**Status:** version 0.6.1, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
+**Status:** version 0.7.0, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
 
 ## Contents
 
@@ -73,6 +73,7 @@ stored SSVC data; projection health reads `incomplete` until it finishes.
 | Microsoft CSAF — off until gate M | Budgeted download of every listed advisory, independent of watches; gate M not met | disabled |
 | Cisco CSAF — off until gate C | Budgeted download of the changes.csv/index.txt union, independent of watches; gate C not met | disabled |
 | Debian (OSV) — off until gate D | Whole Debian export, independent of watches; gate D not met | disabled |
+| Synology (RSS) — off until gate S | Whole security advisory feed, independent of watches; gate S not met | disabled |
 
 ## Quick start
 

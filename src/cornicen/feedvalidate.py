@@ -302,6 +302,18 @@ def validate_advisory(raw, *, source, observed_at, input_path='', date_fields=No
                 products=raw['products'], evidence=raw['evidence'], **{'dates': dates})
     if 'details' in raw:
         data['details'] = raw['details']
+    if source == 'synology':
+        from cornicen.synology import MAPPING_VERSION
+        for key, expected in (('vendor_statement', 'none_affected'), ('mapping_version', MAPPING_VERSION)):
+            if key in raw:
+                if raw[key] != expected:
+                    raise _error('advisory mapping failed')
+                data[key] = raw[key]
+        if 'vendor_statement' in data and 'statement_cves' in raw:
+            scope = raw['statement_cves']
+            if not _string_list(scope) or any(not re.fullmatch(r'CVE-[0-9]{4}-[0-9]{4,}', cve) for cve in scope):
+                raise _error('advisory mapping failed')
+            data['statement_cves'] = scope
     data['withdrawn'] = dates.get('withdrawn')
     if 'retraction' in raw:
         data['retraction'] = raw['retraction']

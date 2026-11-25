@@ -1,7 +1,7 @@
 # script-purpose: Run timestamped foundation oracles through test-only engine hooks.
 # script-class: harness
 # script-trigger: tests/test_replay_v11.py and unittest discovery.
-# script-tests: tests/replay_v11/test-harness.py, tests/test_f3b.py, tests/test_task1_b2.py, tests/test_task2_b2.py, tests/test_task3_b2.py, tests/test_task4_b2.py
+# script-tests: tests/replay_v11/test-harness.py, tests/test_f3b.py, tests/test_task1_b2.py, tests/test_task2_b2.py, tests/test_task3_b2.py, tests/test_task4_b2.py, tests/test_task6_b2.py
 """Read adjacent JSONL fixtures; write temporary SQLite databases and staged files.
 
 Usage: PYTHONPATH=src python3 -m unittest tests.test_replay_v11
@@ -66,7 +66,7 @@ def register_backend(factory):
 
 def scenario_names():
     return sorted(p.name.removesuffix('.input.jsonl') for p in SCENARIOS.glob('*.input.jsonl')
-                  if not p.name.startswith(('github_', 'synthetic_github_', 'cisco_', 'debian_')) and p.name.removesuffix('.input.jsonl') not in ('csaf','csaf_inventory','msrc_bootstrap'))
+                  if not p.name.startswith(('github_', 'synthetic_github_', 'cisco_', 'debian_', 'synology_')) and p.name.removesuffix('.input.jsonl') not in ('csaf','csaf_inventory','msrc_bootstrap'))
 
 
 def _rows(path):
@@ -76,7 +76,10 @@ def _rows(path):
     return read_jsonl(path)
 
 
-def validate_identities(rows):
+def validate_identities(rows, *, synology=False):
+    allowed_matches = {'examplecorp:widget', 'examplecorp:gadget'}
+    if synology:
+        allowed_matches.update(('synology:diskstation manager (dsm)', 'synology:synology photo station'))
     def walk(value):
         if isinstance(value, list):
             for item in value:
@@ -89,7 +92,7 @@ def validate_identities(rows):
                     for product in item:
                         if product.get('name') not in ('examplecorp:widget', 'examplecorp:gadget'):
                             raise ValueError('non-invented product')
-                if key == 'match' and any(p not in ('examplecorp:widget', 'examplecorp:gadget') for p in item):
+                if key == 'match' and any(p not in allowed_matches for p in item):
                     raise ValueError('non-invented watch identity')
                 if key == 'watchlist':
                     walk(tomllib.loads(item))
@@ -110,14 +113,14 @@ def validate_identities(rows):
         if token.startswith('examplecorp:') and token not in ('examplecorp:widget', 'examplecorp:gadget'):
             raise ValueError(f'non-invented product: {token}')
     for host in re.findall(r'https?://([^/\\"\s]+)', text):
-        if host != 'examplecorp.invalid':
+        if host != 'examplecorp.invalid' and not (synology and host == 'www.synology.com'):
             raise ValueError(f'non-invented host: {host}')
     for version in re.findall(r'"(?:version|last_affected|limit|first_fixed)":\s*"([^"]+)"', text):
-        if not re.fullmatch(r'\d+\.\d+\.\d+', version):
+        if not re.fullmatch(r'\d+\.\d+\.\d+', version) and not (synology and version == '7.9.0-99999'):
             raise ValueError(f'non-three-part version: {version}')
 
 
-def validate_timeline(rows):
+def validate_timeline(rows, *, synology=False):
     if not rows or 'watchlist' not in rows[0]:
         raise ValueError('first action must set watchlist')
     previous = None
@@ -130,7 +133,7 @@ def validate_timeline(rows):
             raise ValueError('t must be non-decreasing, including across cases')
         previous = now
         keys = set(row) - {'t'}
-        if 'adapter' in keys:
+        if 'adapter' in keys and not synology:
             if keys != {'adapter', 'result'} or row['adapter'] not in fixture_registry():
                 raise ValueError('invalid adapter action')
             result = row['result']
@@ -164,8 +167,12 @@ def validate_timeline(rows):
         elif action == 'seed':
             if not isinstance(value, dict):
                 raise ValueError('seed must describe initial state')
+        elif action == 'rss' and synology:
+            from tests.replay_v11.rss_backend import validate_script
+            validate_script(value)
+            pending = True
         elif action == 'command':
-            if value != ['adapter', 'rebaseline', 'fixture_a']:
+            if value != ['adapter', 'rebaseline', 'synology' if synology else 'fixture_a']:
                 raise ValueError('unsupported command')
         elif action == 'pairs' and isinstance(value, list):
             pass
@@ -185,7 +192,7 @@ def validate_timeline(rows):
             raise ValueError(f'invalid action: {action}')
     if pending or not cycles:
         raise ValueError('unconsumed inputs or no cycles')
-    validate_identities(rows)
+    validate_identities(rows, synology=synology)
     return rows
 
 
@@ -196,7 +203,12 @@ def load_timeline(name):
         from tests.replay_v11.osv_backend import validate_rows as validate_debian
         return validate_debian(rows)
     from tests.replay_v11.msrc_backend import is_csaf, is_cisco, validate_rows as validate_msrc
-    return validate_msrc(rows, 'cisco' if is_cisco(name) else 'msrc') if is_csaf(name) else validate_rows(rows) if is_github(name) else validate_timeline(rows)
+    from tests.replay_v11.rss_backend import is_synology
+    if is_csaf(name):
+        return validate_msrc(rows, 'cisco' if is_cisco(name) else 'msrc')
+    if is_github(name):
+        return validate_rows(rows)
+    return validate_timeline(rows, synology=is_synology(name))
 
 
 def load_expected(name, timeline=None):
@@ -209,7 +221,11 @@ def load_expected(name, timeline=None):
             if row.get('lifted_by') != 'F4' or (not isinstance(row.get('state'), dict) and not (is_msrc(name) and {'watch','record','reasons','urgency'} <= set(row))):
                 raise ValueError('invalid GitHub expectation')
         return rows
-    debian = name.startswith('debian_')
+    from tests.replay_v11.rss_backend import is_synology, STATE_FIELDS as RSS_FIELDS
+    synology = is_synology(name)
+    extra_fields = RSS_FIELDS if synology else set()
+    if name.startswith('debian_'):
+        extra_fields = {'requests', 'request_trace', 'evidence_rows', 'freshness_detail', 'retry_detail'}
     timeline = timeline if timeline is not None else load_timeline(name)
     points = set()
     case = 'main'
@@ -232,15 +248,15 @@ def load_expected(name, timeline=None):
         utc(row['t'])
         keys = set(row) - {'case', 'lifted_by', 'snapshot'}
         if 'state' in row:
-            if keys != {'t', 'state'} or not isinstance(row['state'], dict) or not row['state'] or set(row['state']) - (STATE_FIELDS | ({'requests', 'request_trace', 'evidence_rows', 'freshness_detail', 'retry_detail'} if debian else set())):
+            if keys != {'t', 'state'} or not isinstance(row['state'], dict) or not row['state'] or set(row['state']) - (STATE_FIELDS | extra_fields):
                 raise ValueError('invalid state assertion')
             validate_state(row['state'])
         elif keys != {'t', 'watch', 'record', 'reasons', 'urgency'} or row['urgency'] not in ('normal', 'urgent', 'health') or not isinstance(row['reasons'], list):
             raise ValueError('invalid notification assertion')
-    if debian:
+    if name.startswith('debian_'):
         from tests.replay_v11.osv_backend import validate_identities as validate_debian_identities
         validate_debian_identities(rows)
-    else: validate_identities(rows)
+    else: validate_identities(rows, synology=synology)
     return rows
 
 
@@ -313,7 +329,12 @@ def run_scenario(name):
                 from tests.replay_v11.github_backend import is_github, GitHubBackend
                 from tests.replay_v11.msrc_backend import is_csaf as is_msrc, backend_for
                 from tests.replay_v11.osv_backend import DebianBackend
-                backend = (BACKEND_FACTORY or (DebianBackend if name.startswith('debian_') else backend_for(name) if is_msrc(name) else GitHubBackend if is_github(name) else ValidationBackend))(fixture_registry())
+                from tests.replay_v11.rss_backend import SynologyBackend, is_synology
+                default = (SynologyBackend if is_synology(name) else
+                           DebianBackend if name.startswith('debian_') else
+                           backend_for(name) if is_msrc(name) else
+                           GitHubBackend if is_github(name) else ValidationBackend)
+                backend = (BACKEND_FACTORY or default)(fixture_registry())
             backend.action(row)
             if 'cycle' in row or 'command' in row or 'restart' in row:
                 key = (case, row['t'])

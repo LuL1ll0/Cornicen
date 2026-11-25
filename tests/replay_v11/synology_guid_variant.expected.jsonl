@@ -1,0 +1,6 @@
+{"#": "Spec §8 Synology oracle. Two items differing only in GUID and a clean next scheduled poll."}
+{"lifted_by": "F4", "t": "2099-01-01T00:00:00Z", "state": {"classification": {"synology": "PARTIAL"}, "cursor": {}, "quarantine_rows": [{"source_id": "Synology_SA_99_01", "reason": "same-ID conflict"}], "advisory_rows": {}, "evidence_rows": [], "events": [], "retention_summary": {"accepted": false, "ids": []}}}
+{"lifted_by": "F4", "t": "2099-01-02T00:00:00Z", "state": {"classification": {"synology": "COMPLETE"}, "quarantine_rows": []}}
+{"lifted_by": "F4", "t": "2099-01-01T00:00:00Z", "watch": "", "record": "synology", "reasons": ["unhealthy"], "urgency": "health"}
+{"lifted_by": "F4", "t": "2099-01-02T00:00:00Z", "watch": "", "record": "baseline:synology", "reasons": ["baseline"], "urgency": "normal"}
+{"lifted_by": "F4", "t": "2099-01-02T00:00:00Z", "watch": "", "record": "synology", "reasons": ["healthy"], "urgency": "health"}

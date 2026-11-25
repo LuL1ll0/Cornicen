@@ -165,7 +165,7 @@ class Task3B2Tests(unittest.TestCase):
         from cornicen.adapterfactories import production_factories
         from cornicen.adapters import REGISTRY
         from cornicen import __version__
-        self.assertEqual(__version__, '0.6.1')
+        self.assertEqual(__version__, '0.7.0')
         self.assertEqual(REGISTRY['cisco'].gate, 'not met')
         expected = [dict(method='GET', url='https://www.cisco.com/.well-known/csaf/'+path,
                          headers={'User-agent':'Cornicen/test'})

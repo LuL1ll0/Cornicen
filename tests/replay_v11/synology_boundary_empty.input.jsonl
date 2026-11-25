@@ -1,0 +1,5 @@
+{"#": "Spec §8 Synology oracle. Fresh store with a literal empty body."}
+{"t": "2099-01-01T00:00:00Z", "watchlist": "[[watch]]\nid=\"w\"\nname=\"Invented Synology watch\"\nmatch=[\"synology:diskstation manager (dsm)\",\"synology:synology photo station\"]\nversion=\"7.9.0-99999\"\nscheme=\"debian\"\n"}
+{"t": "2099-01-01T00:00:00Z", "rss": {"broken": "empty"}}
+{"t": "2099-01-01T00:00:00Z", "cycle": true}
+{"t": "2099-01-01T00:00:00Z", "restart": true}

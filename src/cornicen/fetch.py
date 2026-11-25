@@ -29,6 +29,7 @@ from cornicen.config import SecretToken, download_budgets as _download_budgets
 MAX_BODY_BYTES = 64 * 1024 * 1024
 CHUNK_BYTES = 1024 * 1024
 SOURCE_HOSTS = {
+    'synology': frozenset({'www.synology.com'}),
     'osv_debian': frozenset({'osv-vulnerabilities.storage.googleapis.com'}),
     'cisco_csaf': frozenset({'www.cisco.com'}),
     'msrc_csaf': frozenset({'msrc.microsoft.com'}),
