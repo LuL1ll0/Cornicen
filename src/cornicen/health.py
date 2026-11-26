@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 
+from cornicen.gap_protocol import NO_OVERDUE, SOURCE as GAP_SOURCE
 from cornicen.validate import error_detail
 
 
@@ -43,6 +44,8 @@ def assess(source, store, now, config):
         skipped = int(store.get_meta('projection_skipped_records') or 0)
         return 'healthy', f'complete; {skipped} records skipped' if skipped > 0 else 'complete'
     row = store.connection.execute('SELECT state,detail FROM health WHERE source=?', (source,)).fetchone()
+    if source == GAP_SOURCE:
+        return (row['state'], row['detail']) if row else ('healthy', NO_OVERDUE)
     if row and row['state'] == 'unhealthy':
         detail = row['detail'] or 'Incomplete fetch'
         last_error = store.get_meta('last_error:' + source)

@@ -1,4 +1,7 @@
-"""One process, source-ordered minute cycles and atomic inventory reloads."""
+"""Read source and inventory state, write cycle state, and emit minute heartbeats.
+
+Library API; run returns 0 on orderly shutdown and reports cycle failures.
+"""
 
 from datetime import date, datetime, timedelta, timezone
 import json
@@ -15,6 +18,7 @@ from cornicen.counts import REPORT_KEYS, report_counts
 from cornicen.github import github_status
 from cornicen.health import assess, active_sources
 from cornicen.public_text import prepare_inventory, public_text, public_token
+from cornicen.sources.cvelist_gap import ADAPTER, SOURCE as GAP_SOURCE, GapAudit
 from cornicen.store import TransactionAborted
 from cornicen.watchlist import load_document, WatchlistError
 
@@ -101,6 +105,8 @@ class Scheduler:
 
     def __init__(self, engine, sources, clock=None, output=print, monotonic=None):
         self.engine, self.sources = engine, sources
+        gap_audit = getattr(sources.get('cvelist'), ADAPTER, None)
+        self.gap_audit = gap_audit if isinstance(gap_audit, GapAudit) else None
         self.release_worker = None
         self.release_job = None
         self.release_outcome = []
@@ -372,8 +378,16 @@ class Scheduler:
                     next_poll[name] = elapsed + interval.total_seconds()
             self.component = 'engine'
             self._refresh_acceptance_holds()
-            report = (self.engine.run_cycle(ingests, release_checks=False)
-                      if self.engine.release_checker is not None else self.engine.run_cycle(ingests))
+            gap = {}
+            if self.gap_audit is not None:
+                def audit():
+                    gap[GAP_SOURCE] = self.gap_audit.tick(self.engine.store, self.engine._health, self.clock())
+
+                report = self.engine.run_cycle(ingests, release_checks=self.engine.release_checker is None,
+                                               after_ingest=audit)
+            else:
+                report = (self.engine.run_cycle(ingests, release_checks=False)
+                          if self.engine.release_checker is not None else self.engine.run_cycle(ingests))
             if next_poll.get('epss') != self.next_poll.get('epss'):
                 # Use the committed date: failed ingests must not defer retries.
                 delay = self._epss_current_date_delay(now)
@@ -424,7 +438,9 @@ class Scheduler:
             health_details = {}
             withheld = 0
             for name, verdict in health.items():
-                key = public_token(name, inventory)
+                # The audit has a fixed machine field name. Only its detail
+                # goes through the same text and inventory boundary.
+                key = name if name == GAP_SOURCE else public_token(name, inventory)
                 if key is None:
                     withheld += 1
                     continue
@@ -433,6 +449,7 @@ class Scheduler:
                     inventory)
             deadman = self._deadman_status(self.clock())
             self.output(json.dumps({'time': now.isoformat(), 'sources': statuses,
+                                    **gap,
                                     'deadman': deadman,
                                     'health_details': health_details,
                                     'health_details_withheld': withheld,

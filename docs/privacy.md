@@ -5,15 +5,17 @@
 ## What leaves the host
 
 - **Matching is local.** Cornicen downloads whole public datasets (CVE List, KEV, EPSS bulk). These bulk requests send no product name, version or CVE ID to a data source.
+- **The CVE List coverage check reads public commit history and selected raw files.** Raw requests name public CVE paths selected by the first commit of the day, independently of watches or local matches. They carry no token. Audit output reports only counts, dates and fixed diagnostics.
 - **Notifications carry your data to the channel you configure.** An alert names the product and version it matched. If your ntfy server is someone else's, they see that. Self-host ntfy for end-to-end privacy.
 - **Dead-man pings are opt-in.** `CORNICEN_DEADMAN_URL` or `CORNICEN_DEADMAN_URL_FILE` enables a GET to your monitor after completed cycles, at most once per `deadman_interval_minutes` (default 5). It sends no product, version, watch or CVE data: no body or added query, and User-Agent `Cornicen` without a version. The monitor sees your network address and ping timing. The URL is a secret, redacted alongside tokens and excluded from status, health details and logs. Redaction includes fragment-free, percent-decoded and encoded forms, userinfo, host, path, query, and path segments and query values of at least six characters; longer forms are removed first. Keep it outside TOML.
 - **No telemetry, analytics or Cornicen self-update check.** This page lists every host contacted by default.
-- **Latest-release checks are opt-in per watch.** Only a watch with `latest_release = "github:example-org/widget"` enables a daily request to `api.github.com/repos/example-org/widget/releases/latest`. There is no default list; without the field nothing is checked. The request carries the repository path only, never the watched version. This reveals the upstream repository of software you run to GitHub. With the optional GitHub token, these checks are tied to the operator's GitHub account, not only an IP address. GitHub advisories and per-CVE lookups remain unshipped.
+- **Latest-release checks are opt-in per watch.** Only a watch with `latest_release = "github:example-org/widget"` enables a daily request to `api.github.com/repos/example-org/widget/releases/latest`. There is no default list; without the field nothing is checked. The request carries the repository path only, never the watched version. This reveals the upstream repository of software you run to GitHub. With the optional GitHub token, these checks are tied to the operator's GitHub account, not only an IP address. GitHub advisories and watch-driven per-CVE lookups remain unshipped.
 - Runs as non-root, read-only root filesystem, writable volume only for SQLite, watch list mounted read-only. No inbound port. The ntfy token comes from an environment variable or file; the optional GitHub token comes from a file only. Neither token belongs in the shareable TOML.
 - User-Agent configurable, default `Cornicen/<version> (+<repo URL>)`.
 
 Default source traffic goes to `github.com`, `api.github.com`,
-`objects.githubusercontent.com`, and `release-assets.githubusercontent.com` for CVE List releases; `www.cisa.gov` for KEV;
+`objects.githubusercontent.com`, and `release-assets.githubusercontent.com` for CVE List releases;
+`raw.githubusercontent.com` for CVE List coverage files; `www.cisa.gov` for KEV;
 and `epss.empiricalsecurity.com` for EPSS. Notifications go to your ntfy server
 (the config loader defaults to `ntfy.sh`; the example requires you to set a
 server). Every public-source request, redirect, pagination link and asset URL

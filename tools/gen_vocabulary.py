@@ -1,4 +1,11 @@
-"""Freeze words from public source literals; no runtime source tree is needed."""
+"""script-purpose: Freeze the generic diagnostic vocabulary from source literals.
+script-class: generator
+script-trigger: Manual regeneration and the vocabulary gate.
+script-tests: tools/test-gen-vocabulary.py
+
+Read Cornicen source and write vocabulary.py, or compare it with --check.
+Exit 0 on success, 1 for stale generated output, or 2 for invalid arguments.
+"""
 
 import argparse
 import ast
@@ -21,6 +28,12 @@ def generate(root=ROOT):
     words = {name.casefold() for name in EXCEPTIONS}
     for path in sorted((root / 'src/cornicen').rglob('*.py')):
         if path.name == 'vocabulary.py':
+            continue
+        # Structured audit output has fixed text and typed fields. Its
+        # protocol must not broaden the generic diagnostic allowlist.
+        if path.relative_to(root / 'src/cornicen').as_posix() in {
+            'gap_protocol.py', 'sources/cvelist_gap.py',
+        }:
             continue
         tree = ast.parse(path.read_text(encoding='utf-8'))
         docstrings = set()

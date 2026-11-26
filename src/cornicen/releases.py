@@ -1,4 +1,11 @@
-"""Opt-in release checks; upstream text stays in private state and digest bodies."""
+# script-purpose: Check for new releases of watched software.
+# script-class: pipeline-tool
+# script-trigger: The poll scheduler after notification delivery.
+# script-tests: tests/test_latest_releases.py, tests/test_release_worker.py, tests/test_cvelist_gap.py
+"""Read release responses and watches; write release metadata, health, and events.
+
+Library API with no process exit codes.
+"""
 
 from copy import copy
 from datetime import datetime, timedelta
@@ -202,9 +209,9 @@ class ReleaseState:
         # overwrite those newer values with a stale snapshot.
         retry_keys = ('github_retry_at', 'github_retry_mode')
         if all(github.store.get_meta(k) == self.original.get(k) for k in retry_keys):
-            for key in retry_keys:
-                if self.meta.get(key) != self.original.get(key):
-                    github.store.set_meta(key, self.meta[key])
+            deadline, mode = (self.meta.get(key) for key in retry_keys)
+            if deadline is not None and (deadline, mode) != tuple(self.original.get(k) for k in retry_keys):
+                github._set_retry(datetime.fromisoformat(deadline), mode)
         for key, value in self.meta.items():
             if key in retry_keys:
                 continue

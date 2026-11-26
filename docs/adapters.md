@@ -130,7 +130,7 @@ approval remain required before gate C can be met.
 
 ## Debian via OSV
 
-Debian (OSV) is off in v0.8.0: gate D is **not met**. The production
+Debian (OSV) is off in v0.9.0: gate D is **not met**. The production
 registry's publication clock remains unvalidated, so freshness is unknown
 until gate D establishes the export's publication semantics. An individual
 OSV query sample cannot satisfy that gate.
@@ -173,7 +173,7 @@ publication clock.
 
 ## Synology RSS
 
-Synology RSS is off in v0.8.0 because gate S is **not met**. When enabled, it
+Synology RSS is off in v0.9.0 because gate S is **not met**. When enabled, it
 makes one unconditional GET a day (about 0.5 MB) for the whole security
 advisory feed. It never fetches advisory pages. The request discloses your IP
 address and an interest in Synology, but nothing about which products you watch.

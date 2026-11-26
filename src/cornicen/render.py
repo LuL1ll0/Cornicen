@@ -1,7 +1,7 @@
 # script-purpose: Render plain notification text for delivery adapters.
 # script-class: pipeline-tool
 # script-trigger: Notification delivery and digest rendering.
-# script-tests: tests/test_render_urgency.py, tests/test_f3a.py, tests/test_task1_a.py
+# script-tests: tests/test_render_urgency.py, tests/test_f3a.py, tests/test_task1_a.py, tests/test_cvelist_gap.py
 """Read notifications; return text without writing files. Library API, no exit codes."""
 
 from datetime import datetime, timezone
@@ -11,6 +11,9 @@ import unicodedata
 
 from cornicen.model import Notification
 from cornicen.public_text import epss_crossing_text
+from cornicen.gap_protocol import DAYS_OPEN, NOTICE_INCOMPLETE, OLDEST_OPEN, SOURCE as GAP_SOURCE
+from cornicen.gap_protocol import valid_health_component
+from cornicen.sources.cvelist_gap import health_detail, iso_day
 
 
 _EOL = 'unsupported by the vendor — fixes unlikely; isolate or replace'
@@ -18,6 +21,7 @@ _EOL = 'unsupported by the vendor — fixes unlikely; isolate or replace'
 _HEALTH_MESSAGES = {
     'acceptance': 'acceptance self-test failed',
     'cvelist': 'CVE List ingest failed',
+    GAP_SOURCE: NOTICE_INCOMPLETE,
     'kev': 'KEV fetch failed',
     'epss': 'EPSS fetch failed',
     'releases': 'Release fetch failed',
@@ -32,8 +36,10 @@ _HEALTH_REASONS = frozenset(('failed', 'incomplete', 'stale', 'future-dated',
                              'rejected', 'missing', 'recovered'))
 
 
-def health_body(component, state, error=None, reason=None, since=None):
+def health_body(component, state, error=None, reason=None, since=None, *, days_open=None, oldest_open=None):
     """Allow only operational metadata across the notifier boundary."""
+    if not valid_health_component(component):
+        component = 'component'
     state = 'healthy' if state == 'healthy' else 'unhealthy'
     body = {'record_id': component, 'state': state,
             'detail': 'component recovered' if state == 'healthy' else
@@ -49,7 +55,11 @@ def health_body(component, state, error=None, reason=None, since=None):
                 timezone.utc).strftime('%Y-%m-%dT%H:%MZ')
         except ValueError:
             pass
-    if isinstance(error, str) and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]{0,99}', error):
+    if component == GAP_SOURCE:
+        oldest = iso_day(oldest_open)
+        if state == 'unhealthy' and type(days_open) is int and days_open > 0 and oldest is not None:
+            body.update(days_open=days_open, oldest_open=oldest.isoformat())
+    elif isinstance(error, str) and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]{0,99}', error):
         body['error'] = error
     return body
 
@@ -84,12 +94,15 @@ def render(n: Notification) -> tuple[str, str, int, list[str]]:
         title = f'Cornicen: {n.record_id}'
         detail = body.get('detail', ' · '.join(n.reasons))
         if state:
-            body = health_body(n.record_id, state, reason=body.get('reason'), since=body.get('since'))
+            body = health_body(n.record_id, state, reason=body.get('reason'), since=body.get('since'),
+                               days_open=body.get(DAYS_OPEN), oldest_open=body.get(OLDEST_OPEN))
             title = f'Cornicen: {body["record_id"]}'
             title += ' recovered' if state == 'healthy' else ' unhealthy'
             detail = f'{body["record_id"]}: recovered' if state == 'healthy' else (
                 f'{body["record_id"]}: unhealthy — {body["reason"]}'
                 + (f' since {body["since"]}' if 'since' in body else ''))
+            if DAYS_OPEN in body:
+                detail = health_detail(body[DAYS_OPEN], body[OLDEST_OPEN])
         return title, detail, 5 if state == 'unhealthy' else 3, ['information_source']
     name, product, version = _inventory(n)
     if body.get('release_behind'):

@@ -15,7 +15,7 @@ Cornicen is for homelabs and small networks. You tell it what you run. It watche
   Email uses the ntfy server’s own forwarding; Cornicen stores no mail credentials.
 - **Silent first run.** The first bootstrap records what already matches and sends one summary; after that you hear only about changes.
 
-**Status:** version 0.8.0, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
+**Status:** version 0.9.0, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
 
 ## Contents
 
@@ -96,6 +96,20 @@ the channel's size limit.
 | Cisco CSAF — off until gate C | Budgeted download of the changes.csv/index.txt union, independent of watches; gate C not met | disabled |
 | Debian (OSV) — off until gate D | Whole Debian export, independent of watches; gate D not met | disabled |
 | Synology (RSS) — off until gate S | Whole security advisory feed, independent of watches; gate S not met | disabled |
+
+### CVE List coverage check
+
+On its first poll, Cornicen registers only the previous closed UTC day, even
+if it starts midday. Later polls register each newly closed UTC day.
+
+Once a closed UTC day is covered by the CVE List cursor, Cornicen compares the
+files touched by that day's first commit with their upstream versions at the end
+of the day. `cornicen status` and the heartbeat show what's absent or stale in
+the local store for open days and completed days among the last 14 closed UTC
+dates. The check does not repair records, move the cursor, or prove
+which release missed a record. Only days that go unchecked for three days or
+expire raise a health notice. A typical day takes three GitHub API calls plus a
+few raw file reads and needs no token.
 
 ## Quick start
 

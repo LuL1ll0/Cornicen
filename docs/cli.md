@@ -158,6 +158,22 @@ accept warnings. Malformed accept entries reject the entire file with a labelled
 Deploy 0.1.6 before installing a watch file containing `[[accept]]`; v0.1.5
 rejects that table. See [accept entry format and limits](watch-lists.md#accept-entries).
 
+## CVE List coverage
+
+`cornicen status` reports the CVE List coverage check separately from feed
+health. Its counts distinguish records that are absent locally from records
+that are stale vs end of day. The per-day result shows the content time of the
+asset that covered the day. The activation poll registers the previous closed
+UTC day, even if it runs midday, and does not backfill older days. Later polls
+register each newly closed UTC day.
+Counts include open days and completed days among the last 14 closed UTC dates.
+The check does not write records.
+
+`cornicen gap ack DATE` clears an expired day without fetching or checking it.
+Use a UTC date in `YYYY-MM-DD` format. The command exits 1 if no expired day
+matches. Health is reassessed on the next poll. Expired days also clear on
+their own 14 days after expiry.
+
 ## Minute heartbeat
 
 Each successful minute cycle logs one JSON line. Existing keys `time`, `sources`,
@@ -178,7 +194,7 @@ withheld exception type names become `Exception`. The `run` startup failure line
 uses the same filter, with loaded watches when available. Before watch loading
 succeeds it uses no inventory. Argument errors for `run` print only a fixed usage
 line to stderr and exit 2. Operator commands retain their detailed output.
-Two additional objects expose aggregate monitoring values:
+Additional objects expose aggregate monitoring values:
 
 - `report`: `affected`, `exploited_unknown`, `open`, `dead_letters` and `accepted`
   are integer counts matching the unfiltered text report Summary. Active accepts
@@ -191,6 +207,10 @@ Two additional objects expose aggregate monitoring values:
   integer UTC epoch seconds. These four values are null without valid stored
   rate-limit metadata. Values come from the last stored GitHub response, with no
   additional request. A status failure emits `auth: "unknown"` and four nulls.
+- `cvelist_gap`: integers for `days_complete`, `days_open`, `days_undecided`,
+  `days_expired`, `found_stale`, `found_absent`, `covered`, `deleted`, and
+  `invalid`. Open days include expired days that have not cleared. Record
+  counts are per day, so the same record can count on more than one day.
 
 The new objects contain no watch IDs, products, CVE IDs or diagnostic free text.
 

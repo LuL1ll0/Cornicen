@@ -1,7 +1,7 @@
 # script-purpose: Evaluate local feed evidence and deliver durable notifications.
 # script-class: pipeline-tool
 # script-trigger: Cornicen scheduler cycles and local command paths.
-# script-tests: tests/test_engine.py, tests/test_f3a.py, tests/test_f3b.py, tests/test_r11_differential.py, tests/test_r11_shells.py, tests/test_r11_integration.py, tests/test_task1_b1.py, tests/test_task1_b2.py, tests/test_task3_a.py, tests/test_task4_a.py
+# script-tests: tests/test_engine.py, tests/test_f3a.py, tests/test_f3b.py, tests/test_r11_differential.py, tests/test_r11_shells.py, tests/test_r11_integration.py, tests/test_task1_b1.py, tests/test_task1_b2.py, tests/test_task3_a.py, tests/test_task4_a.py, tests/test_cvelist_gap.py
 """Read feed results and stored evidence; write SQLite state and notification outbox.
 
 Library API with no process exit codes; callers report operational failures.
@@ -20,6 +20,8 @@ from cornicen import applicability, cnascope, validate
 from cornicen import accept, advisory, unknowns
 from cornicen.applicability import Result, State
 from cornicen.config import Config
+from cornicen.gap_protocol import DAYS_OPEN, HEALTH_EPISODE, OLDEST_OPEN, SOURCE as GAP_SOURCE
+from cornicen.gap_protocol import health_component
 from cornicen.identity import AliasMap
 from cornicen.model import FetchStatus, IngestResult, Notification, Notifier, Origin
 from cornicen.render import health_body, render
@@ -743,7 +745,7 @@ class Engine:
             self.store.set_meta('kev_initialized', '1')
         self.db.execute('DELETE FROM meta WHERE k=?', ('pending_ingest:' + source,))
 
-    def _health(self, source, state, detail, reason=None):
+    def _health(self, source, state, detail, reason=None, *, health_fields=None):
         error = (redact_tokens(type(detail).__name__, self.config.ntfy_token, self.config.github_token, self.config.deadman_url, self.config.webhook_url, self.config.webhook_secret)
                  if isinstance(detail, Exception) else None)
         detail = safe_message(detail if error else RuntimeError(detail), self.config.ntfy_token, self.config.github_token, self.config.deadman_url, self.config.webhook_url, self.config.webhook_secret)
@@ -757,10 +759,11 @@ class Engine:
                         (source, state, self._now().isoformat(), detail))
         if old is None and state == 'healthy':
             return
-        episode_key = f'health_episode:{source}'
+        episode_key = HEALTH_EPISODE if source == GAP_SOURCE else f'health_episode:{source}'
         episode = int(self.store.get_meta(episode_key) or '0') + 1
         self.store.set_meta(episode_key, episode)
-        self._event('', source, state, episode, health_body(source, state, error, reason, self._now().isoformat()), True)
+        self._event('', source, state, episode, health_body(
+            source, state, error, reason, self._now().isoformat(), **(health_fields or {})), True)
         self.report.health_changes.append((source, state))
 
     def _ingest(self, ingest):
@@ -1040,17 +1043,23 @@ class Engine:
 
     def _revalidate(self, row, persist=True):
         body = json.loads(row['body_json'])
+        if row['urgency'] == 'health':
+            component = health_component(row['pair_key'], body.get('record_id'))
+            if component is None:
+                if persist:
+                    self.db.execute('DELETE FROM outbox WHERE id=?', (row['id'],))
+                return None
+            reasons = json.loads(row['reasons_json'])
+            state = 'healthy' if reasons == ['healthy'] else 'unhealthy'
+            body = health_body(component, state, body.get('error'),
+                               body.get('reason'), body.get('since') or row['due_at'],
+                               days_open=body.get(DAYS_OPEN), oldest_open=body.get(OLDEST_OPEN))
+            if not persist:
+                return dict(row, body_json=json.dumps(body))
+            self.db.execute('UPDATE outbox SET body_json=? WHERE id=?',
+                            (json.dumps(body), row['id']))
+            return self.db.execute('SELECT * FROM outbox WHERE id=?', (row['id'],)).fetchone()
         if not body.get('watch_id'):
-            if row['urgency'] == 'health':
-                reasons = json.loads(row['reasons_json'])
-                state = 'healthy' if reasons == ['healthy'] else 'unhealthy'
-                body = health_body(body['record_id'], state, body.get('error'),
-                                   body.get('reason'), body.get('since') or row['due_at'])
-                if not persist:
-                    return dict(row, body_json=json.dumps(body))
-                self.db.execute('UPDATE outbox SET body_json=? WHERE id=?',
-                                (json.dumps(body), row['id']))
-                return self.db.execute('SELECT * FROM outbox WHERE id=?', (row['id'],)).fetchone()
             return row
         if body.get('release_behind'):
             from cornicen.releases import release_behind
@@ -1206,7 +1215,7 @@ class Engine:
                 ready.append(row)
         return ready
 
-    def run_cycle(self, ingests: Sequence[IngestResult], *, release_checks=True) -> CycleReport:
+    def run_cycle(self, ingests: Sequence[IngestResult], *, release_checks=True, after_ingest=None) -> CycleReport:
         self.report = self._pending_report
         self._pending_report = CycleReport()
         self._health_verdicts = {}
@@ -1233,6 +1242,8 @@ class Engine:
                             {'record_id': 'baseline', 'detail': f'baseline: {count} historical matches, {exploited} exploited — run `cornicen report`'}, True)
         with self.store.transaction():
             self._acceptance_lapses()
+        if after_ingest is not None:
+            after_ingest()
         if not release_checks:
             self._flush()
             return self.report

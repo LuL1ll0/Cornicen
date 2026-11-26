@@ -1,7 +1,7 @@
 # script-purpose: Run Cornicen and expose its local state and maintenance commands.
 # script-class: pipeline-tool
 # script-trigger: The cornicen command entry point.
-# script-tests: tests/test_cli.py, tests/test_f2a.py, tests/test_f3a.py, tests/test_r11_differential.py
+# script-tests: tests/test_cli.py, tests/test_cvelist_gap.py, tests/test_f2a.py, tests/test_f3a.py, tests/test_r11_differential.py
 """Operator commands; read configuration, watches and the local database.
 
 Run and maintenance commands write database state; diagnostics read stored state.
@@ -40,6 +40,7 @@ from cornicen.public_text import public_text, public_token
 from cornicen.render import _clean_reason
 from cornicen.scheduler import Scheduler, redact_tokens, safe_message
 from cornicen.sources.cvelist import CveListSource
+from cornicen.sources import cvelist_gap
 from cornicen.sources.epss import EpssSource
 from cornicen.sources.kev import KevSource
 from cornicen.store import Store
@@ -397,6 +398,8 @@ def status_json(store, now, config):
         result.update(available=True, container_healthy=container_healthy(store, now, config),
                       baseline_complete=bool(store.get_meta('baseline_complete')),
                       reconcile_at=store.get_meta('reconcile_at'))
+        if store.get_meta(cvelist_gap.DAYS) is not None:
+            result[cvelist_gap.SOURCE] = cvelist_gap.status(store, now or datetime.now(timezone.utc))
     print(json.dumps(result, sort_keys=True))
     return 0 if result['available'] else 1
 
@@ -532,6 +535,8 @@ def _parser():
     comparison.add_argument('right')
     comparison.add_argument('--scheme', choices=[scheme.value for scheme in Scheme], required=True)
     commands.add_parser('status').add_argument('--json', action='store_true')
+    gap = commands.add_parser(cvelist_gap.COMMAND).add_subparsers(required=True)
+    gap.add_parser(cvelist_gap.ACK).add_argument('date')
     explanation = commands.add_parser('explain')
     explanation.add_argument('cve')
     explanation.add_argument('--watch', required=True)
@@ -629,13 +634,19 @@ def main(argv=None):
             _coverage_notice(eol_ids, file=notice_file)
             return 1
         try:
-            store = Store(config.db_path, read_only=args.command not in ('run', 'adapter'))
+            store = Store(config.db_path, read_only=args.command not in ('run', 'adapter', cvelist_gap.COMMAND))
         except (OSError, sqlite3.Error):
             if args.command == 'db':
                 raise ValueError(file_error('database', PermissionError())) from None
             raise
         if args.command == 'run':
             store.migrate()
+        if args.command == cvelist_gap.COMMAND:
+            if not cvelist_gap.ack(store, args.date):
+                print(cvelist_gap.ACK_NOT_FOUND)
+                return 1
+            print(cvelist_gap.ACK_OK + args.date)
+            return 0
         if args.command == 'adapter':
             from cornicen.adapters import REGISTRY
             from cornicen.adapterstore import AdapterStore
@@ -657,6 +668,9 @@ def main(argv=None):
                 state, detail = _status_source(source, store, now(), config)
                 detail = safe_message(RuntimeError(detail), config.ntfy_token, config.github_token, config.deadman_url, config.webhook_url, config.webhook_secret)
                 print(f'{source}: {state}; {detail}')
+            if store.get_meta(cvelist_gap.DAYS) is not None:
+                for line in cvelist_gap.status_lines(cvelist_gap.status(store, now())):
+                    print(line)
             print('release checks: ' + str(release_check_count(config, store)))
             if _adapter_schema_present(store):
                 from cornicen.adapters import status_lines

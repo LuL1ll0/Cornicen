@@ -1,7 +1,7 @@
 # script-purpose: Fetch bounded public resources under per-source transport policies.
 # script-class: pipeline-tool
 # script-trigger: Public feed and adapter HTTP requests.
-# script-tests: tests/test_task1_b1.py, tests/test_task2_b1.py, tests/test_task3_b1.py, tests/test_task4_b1.py
+# script-tests: tests/test_cvelist_gap.py, tests/test_task1_b1.py, tests/test_task2_b1.py, tests/test_task3_b1.py, tests/test_task4_b1.py
 """Bounded public-feed HTTP, with source policy enforced at every request hop.
 
 Reads public HTTP responses and configuration; writes requested temporary downloads.
@@ -24,6 +24,7 @@ from urllib.parse import urljoin, urlsplit
 from urllib.request import HTTPRedirectHandler, HTTPSHandler, ProxyHandler, Request, build_opener
 
 from cornicen.config import SecretToken, download_budgets as _download_budgets
+from cornicen.gap_protocol import BodyTooLarge, RAW_HOST, REDIRECT_REFUSAL, RedirectRefused
 
 
 MAX_BODY_BYTES = 64 * 1024 * 1024
@@ -35,7 +36,7 @@ SOURCE_HOSTS = {
     'msrc_csaf': frozenset({'msrc.microsoft.com'}),
     'github_advisories': frozenset({'api.github.com'}),
     'cvelist': frozenset({'api.github.com', 'github.com', 'objects.githubusercontent.com',
-                         'release-assets.githubusercontent.com'}),
+                         'release-assets.githubusercontent.com', RAW_HOST}),
     'kev': frozenset({'www.cisa.gov'}),
     'epss': frozenset({'epss.empiricalsecurity.com'}),
 }
@@ -142,9 +143,10 @@ class _Deadline:
 
 
 class _HTTPSConnection(HTTPSConnection):
-    def __init__(self, *args, resolver, deadline, **kwargs):
+    def __init__(self, *args, resolver, deadline, before_dispatch=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._deadline = deadline
+        self._before_dispatch = before_dispatch
         self._create_connection = partial(_connect_public, resolver=resolver, deadline=deadline)
 
     def connect(self):
@@ -162,11 +164,23 @@ class _HTTPSConnection(HTTPSConnection):
             self.close()
             raise
 
+    def send(self, data):
+        if self._before_dispatch is not None:
+            if self.sock is None:
+                self.connect()
+            # DNS and the TLS handshake may have blocked. Check just before
+            # sending the first HTTP bytes, not before opening the connection.
+            self._deadline.check()
+            self._before_dispatch()
+            self._before_dispatch = None
+        return super().send(data)
+
 
 class _HTTPSHandler(HTTPSHandler):
-    def __init__(self, resolver, deadline):
+    def __init__(self, resolver, deadline, before_dispatch=None):
         super().__init__()
-        self.connection = partial(_HTTPSConnection, resolver=resolver, deadline=deadline)
+        self.connection = partial(_HTTPSConnection, resolver=resolver, deadline=deadline,
+                                  before_dispatch=before_dispatch)
 
     def https_open(self, request):
         return self.do_open(self.connection, request, context=self._context)
@@ -205,7 +219,7 @@ class Http:
             last_modified: str | None = None, to_file: bool = False, *,
             source: str | None = None, budget: str | None = None,
             max_bytes: int | None = None, deadline_seconds: int | None = None,
-            on_response=None, validate_hop=None) -> Response:
+            on_response=None, validate_hop=None, follow_redirects=True, before_dispatch=None) -> Response:
         _destination(url, source)
         budget = budget or ('cvelist_delta' if source == 'cvelist' else source)
         permitted = {'cvelist_snapshot', 'cvelist_delta'} if source == 'cvelist' else {source}
@@ -223,15 +237,17 @@ class Http:
             with _Deadline(deadline_seconds, self.clock) as deadline:
                 # Ignore environment proxies: they would resolve/connect on our behalf.
                 opener = self.opener if self.opener is not None else build_opener(
-                    ProxyHandler({}), _Redirects(), _HTTPSHandler(self.resolver, deadline))
-                result = self._get(url, etag, last_modified, to_file, source, max_bytes, deadline, opener, on_response, validate_hop)
+                    ProxyHandler({}), _Redirects(), _HTTPSHandler(self.resolver, deadline, before_dispatch))
+                result = self._get(url, etag, last_modified, to_file, source, max_bytes,
+                                   deadline, opener, on_response, validate_hop, follow_redirects, before_dispatch)
             return result
         except BaseException:
             if result is not None and result.path is not None:
                 result.path.unlink(missing_ok=True)
             raise
 
-    def _get(self, url, etag, last_modified, to_file, source, max_bytes, deadline, opener, on_response, validate_hop):
+    def _get(self, url, etag, last_modified, to_file, source, max_bytes, deadline, opener,
+             on_response, validate_hop, follow_redirects, before_dispatch):
         for _ in range(11):
             host = _destination(url, source)
             if self.opener is not None:
@@ -254,6 +270,9 @@ class Http:
                 headers['If-Modified-Since'] = last_modified
             request = Request(url, headers=headers)
             try:
+                if self.opener is not None and before_dispatch is not None:
+                    deadline.check()
+                    before_dispatch()
                 opened = (opener.open if hasattr(opener, 'open') else opener)(
                     request, timeout=min(60, deadline.remaining()))
             except HTTPError as error:
@@ -262,8 +281,13 @@ class Http:
                 deadline.check()
                 status = response.status if response.status is not None else response.code
                 received = {key.lower(): value for key, value in response.headers.items()}
+                links = [value for key, value in response.headers.items() if key.lower() == 'link']
+                if len(links) > 1:
+                    received['link'] = ', '.join(links)
                 if on_response is not None:
                     on_response(host, status, received)
+                if not follow_redirects and 300 <= status < 400:
+                    raise RedirectRefused(REDIRECT_REFUSAL)
                 if status in (301, 302, 303, 307, 308):
                     if not received.get('location'):
                         raise ValueError('Redirect has no Location')
@@ -309,5 +333,5 @@ class Http:
                 return
             total += len(chunk)
             if total > limit:
-                raise ValueError('HTTP response body size limit exceeded')
+                raise BodyTooLarge('HTTP response body size limit exceeded')
             target.write(chunk)

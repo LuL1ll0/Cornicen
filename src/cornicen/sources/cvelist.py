@@ -1,4 +1,11 @@
-"""CVE List releases: nested snapshot archives and cumulative daily deltas."""
+# script-purpose: Read CVE List snapshot archives and cumulative daily deltas.
+# script-class: pipeline-tool
+# script-trigger: Poll scheduler and release checks.
+# script-tests: tests/test_cvelist_source.py, tests/test_cvelist_gap.py, tests/test_github_token.py
+"""Read release metadata and archives; stage temporary downloads and update fetch metadata.
+
+Library API with no process exit codes.
+"""
 
 from array import array
 from bisect import bisect_right
@@ -26,6 +33,7 @@ from cornicen.fetch import Response
 from cornicen.model import FetchStatus, IngestResult, Origin
 from cornicen.scheduler import redact_tokens
 from cornicen.sources import CVE_ID, data_directory
+from cornicen.sources.cvelist_gap import AUDIT_RATE, DELTA_RATE, GapAudit
 from cornicen.store import PROJECTION_REVISION, TransactionAborted, project_record
 
 RELEASES_URL = 'https://api.github.com/repos/CVEProject/cvelistV5/releases'
@@ -162,6 +170,7 @@ _stamp = validate.release_stamp
 class CveListSource:
     def __init__(self, http, store, github_token_problem=None, *, ntfy_token=None, deadman_url=None, webhook_url=None, webhook_secret=None):
         self.http, self.store = http, store
+        self.gap_audit = GapAudit(http)
         self._listing_tag_counts = {}
         self._redaction_tokens = (http.github_token, ntfy_token, deadman_url, webhook_url, webhook_secret)
         self.directory = data_directory(http, store)
@@ -252,70 +261,21 @@ class CveListSource:
             if owned is not None and hasattr(owned.records, 'close'):
                 owned.records.close()
 
-    def _rate_limit(self, host, status, headers, now):
-        if host != 'api.github.com':
-            return
-        try:
-            values = {key: int(headers['x-ratelimit-' + key])
-                      for key in ('limit', 'remaining', 'reset')}
-            values['reset'] = datetime.fromtimestamp(values['reset'], timezone.utc).isoformat()
-        except (KeyError, ValueError, TypeError, OverflowError, OSError):
-            return
-        values['observed_at'] = now.astimezone(timezone.utc).isoformat()
-        self.store.set_meta('github_rate_limit', json.dumps(values))
+    def _live_admission(self):
+        # Release checks can use a copy with its own transport and metadata.
+        if self.http is self.gap_audit.http:
+            return self.gap_audit.admission
 
-    def _cache_get(self, url):
-        return self.store.connection.execute('SELECT * FROM http_cache WHERE url=?', (url,)).fetchone()
+    def _set_retry(self, retry, mode):
+        admission = self._live_admission()
+        if admission is not None:
+            admission.set_backoff(retry)
+        self.store.set_meta('github_retry_at', retry.isoformat())
+        self.store.set_meta('github_retry_mode', mode)
 
-    def _cache_put(self, url, etag, link, body, used_at):
-        self.store.connection.execute('INSERT OR REPLACE INTO http_cache VALUES (?,?,?,?,?)',
-                                      (url, etag, link, body, used_at))
-
-    def _cache_touch(self, url, used_at):
-        self.store.connection.execute('UPDATE http_cache SET used_at=? WHERE url=?', (used_at, url))
-
-    def _cache_delete(self, url):
-        self.store.connection.execute('DELETE FROM http_cache WHERE url=?', (url,))
-
-    def _get(self, url, now, allowed=(), *, deadline_at=None, **kwargs):
-        active = self.http.github_token is not None
-        cacheable = active and urlsplit(url).hostname == 'api.github.com' and not kwargs.get('to_file')
-        row = None
-        if cacheable:
-            row = self._cache_get(url)
-            if row:
-                kwargs['etag'] = row['etag']
-        if deadline_at is not None:
-            remaining = int(deadline_at - self.http.clock())
-            if remaining <= 0:
-                raise TimeoutError('HTTP transfer deadline exceeded')
-            kwargs['deadline_seconds'] = min(remaining, self.http.download_budgets['cvelist_delta']['deadline_seconds'])
-        response = self.http.get(url, source='cvelist',
-                                 on_response=lambda host, status, headers: self._rate_limit(host, status, headers, now),
-                                 **kwargs)
-        api = urlsplit(response.url or url).hostname == 'api.github.com'
-        if response.status == 401 and active and api:
-            self.http.github_token = None
-            self.store.set_meta('github_auth', 'token rejected')
-            logging.getLogger(__name__).warning('GitHub token rejected (HTTP 401); using unauthenticated access')
-            return self._get(url, now, allowed=allowed, deadline_at=deadline_at,
-                             **{key: value for key, value in kwargs.items() if key != 'etag'})
-        headers = {key.lower(): value for key, value in response.headers.items()}
-        if cacheable and response.url == url:
-            if response.status == 304:
-                if row is None:
-                    raise ValueError('HTTP 304 without cached body')
-                self._cache_touch(url, now.isoformat())
-                response = Response(200, {'link': row['link'] or ''}, zlib.decompress(row['body']), None, response.url)
-            elif response.status == 200:
-                etag = headers.get('etag', '')
-                if 1 <= len(etag) <= 256 and all(32 <= ord(char) <= 126 for char in etag):
-                    self._cache_put(url, etag, headers.get('link'), zlib.compress(response.body), now.isoformat())
-                else:
-                    self._cache_delete(url)
-            elif response.status == 404:
-                self._cache_delete(url)
-        if response.status == 429 or (response.status == 403 and headers.get('x-ratelimit-remaining') == '0'):
+    def _observe_response(self, host, status, headers, now, mode, ticket):
+        admission = self._live_admission()
+        if status == 429 or (status == 403 and headers.get('x-ratelimit-remaining') == '0'):
             deadlines = []
             try:
                 deadlines.append(datetime.fromtimestamp(float(headers.get('x-ratelimit-reset')), timezone.utc))
@@ -335,8 +295,101 @@ class CveListSource:
             previous = self.store.get_meta('github_retry_at')
             if previous:
                 retry = max(retry, datetime.fromisoformat(previous))
-            self.store.set_meta('github_retry_at', retry.isoformat())
-            self.store.set_meta('github_retry_mode', ('token' if active else 'none') if api else 'any')
+            self._set_retry(retry, mode if host == 'api.github.com' else 'any')
+        if host != 'api.github.com':
+            return
+        try:
+            values = {key: int(headers['x-ratelimit-' + key])
+                      for key in ('limit', 'remaining', 'reset')}
+            values['reset'] = datetime.fromtimestamp(values['reset'], timezone.utc).isoformat()
+        except (KeyError, ValueError, TypeError, OverflowError, OSError):
+            return
+        values['observed_at'] = now.astimezone(timezone.utc).isoformat()
+        if 0 <= values['remaining'] <= values['limit']:
+            rate = dict(values, mode=mode)
+            observed = self.gap_audit.admission.finish(ticket, rate)
+            if admission is not None and observed is not None:
+                self.store.connection.execute('DELETE FROM meta WHERE k=?', (AUDIT_RATE,))
+                self.store.set_meta(DELTA_RATE, json.dumps(rate))
+        self.store.set_meta('github_rate_limit', json.dumps(values))
+
+    def _cache_get(self, url):
+        return self.store.connection.execute('SELECT * FROM http_cache WHERE url=?', (url,)).fetchone()
+
+    def _cache_put(self, url, etag, link, body, used_at):
+        self.store.connection.execute('INSERT OR REPLACE INTO http_cache VALUES (?,?,?,?,?)',
+                                      (url, etag, link, body, used_at))
+
+    def _cache_touch(self, url, used_at):
+        self.store.connection.execute('UPDATE http_cache SET used_at=? WHERE url=?', (used_at, url))
+
+    def _cache_delete(self, url):
+        self.store.connection.execute('DELETE FROM http_cache WHERE url=?', (url,))
+
+    def _get(self, url, now, allowed=(), *, deadline_at=None, **kwargs):
+        token = self.http.github_token
+        active = token is not None
+        cacheable = active and urlsplit(url).hostname == 'api.github.com' and not kwargs.get('to_file')
+        row = None
+        if cacheable:
+            row = self._cache_get(url)
+            if row:
+                kwargs['etag'] = row['etag']
+        if deadline_at is not None:
+            remaining = int(deadline_at - self.http.clock())
+            if remaining <= 0:
+                raise TimeoutError('HTTP transfer deadline exceeded')
+            kwargs['deadline_seconds'] = min(remaining, self.http.download_budgets['cvelist_delta']['deadline_seconds'])
+        admission = self.gap_audit.admission
+        ticket = host = None
+
+        def hop(destination):
+            nonlocal host
+            host = urlsplit(destination).hostname
+
+        def dispatch():
+            nonlocal ticket
+            if host == 'api.github.com':
+                ticket = admission.dispatch_priority(now, token)
+
+        def observed(host, status, headers):
+            try:
+                self._observe_response(host, status, headers, now, 'token' if active else 'none', ticket)
+            finally:
+                admission.finish(ticket)
+
+        try:
+            response = self.http.get(url, source='cvelist', validate_hop=hop,
+                                     before_dispatch=dispatch, on_response=observed, **kwargs)
+        finally:
+            admission.finish(ticket)
+        api = urlsplit(response.url or url).hostname == 'api.github.com'
+        if response.status == 401 and active and api:
+            admission = self._live_admission()
+            if admission is None:
+                self.http.github_token = None
+            else:
+                admission.drop_token()
+                self.store.connection.execute('DELETE FROM meta WHERE k IN (?, ?)', (AUDIT_RATE, DELTA_RATE))
+            self.store.set_meta('github_auth', 'token rejected')
+            logging.getLogger(__name__).warning('GitHub token rejected (HTTP 401); using unauthenticated access')
+            return self._get(url, now, allowed=allowed, deadline_at=deadline_at,
+                             **{key: value for key, value in kwargs.items() if key != 'etag'})
+        headers = {key.lower(): value for key, value in response.headers.items()}
+        if cacheable and response.url == url:
+            if response.status == 304:
+                if row is None:
+                    raise ValueError('HTTP 304 without cached body')
+                self._cache_touch(url, now.isoformat())
+                response = Response(200, {'link': row['link'] or ''}, zlib.decompress(row['body']), None, response.url)
+            elif response.status == 200:
+                etag = headers.get('etag', '')
+                if 1 <= len(etag) <= 256 and all(32 <= ord(char) <= 126 for char in etag):
+                    self._cache_put(url, etag, headers.get('link'), zlib.compress(response.body), now.isoformat())
+                else:
+                    self._cache_delete(url)
+            elif response.status == 404:
+                self._cache_delete(url)
         if response.status != 200 and response.status not in allowed:
             if response.path is not None:
                 response.path.unlink(missing_ok=True)
@@ -565,6 +618,7 @@ class CveListSource:
         if deferred and mode not in ('any', 'token' if active else 'none'):
             self.store.connection.execute("DELETE FROM meta WHERE k IN ('github_retry_at','github_retry_mode')")
             deferred = None
+        self.gap_audit.admission.set_backoff(datetime.fromisoformat(deferred) if deferred else None)
         if deferred and now < datetime.fromisoformat(deferred):
             return results
         try:
