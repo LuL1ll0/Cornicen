@@ -20,7 +20,7 @@ import tomllib
 import zlib
 
 from cornicen.applicability import resolve, State
-from cornicen import accept
+from cornicen import accept, unknowns
 from cornicen import acceptance
 from cornicen.config import load_config
 from cornicen.diagnostics import (FixedDiagnostic, alias_diagnostic, file_error,
@@ -401,7 +401,8 @@ def status_json(store, now, config):
     return 0 if result['available'] else 1
 
 
-REPORT_GROUPS = ('baseline-affected', 'baseline-exploited', 'open', 'not-affected', 'dead-letters')
+DEFAULT_REPORT_GROUPS = ('baseline-affected', 'baseline-exploited', 'open', 'not-affected', 'dead-letters')
+REPORT_GROUPS = (*DEFAULT_REPORT_GROUPS, 'unknown')
 
 
 def report(store, args, eol_ids=(), config=None, now=None):
@@ -434,7 +435,7 @@ def report(store, args, eol_ids=(), config=None, now=None):
         ('Dead letters', 'SELECT source,record_id,attempts FROM dead_letters'),
     )
     selected = []
-    for (group, (label, query)) in zip(REPORT_GROUPS, groups):
+    for (group, (label, query)) in zip(DEFAULT_REPORT_GROUPS, groups):
         if args.group and group not in args.group:
             continue
         params = ()
@@ -444,16 +445,32 @@ def report(store, args, eol_ids=(), config=None, now=None):
             query += ' AND watch_id IN (' + ','.join('?' for _ in args.watch) + ')'
             params = tuple(args.watch)
         selected.append((group, label, query, params))
+    unknown_selected = 'unknown' in (args.group or ())
+    unknown_items = []
+    unknown_accepted = 0
+    if unknown_selected:
+        watch_ids = {watch.id.casefold() for watch in watches}
+        if args.watch:
+            watch_ids.intersection_update(watch.casefold() for watch in args.watch)
+        for row in unknowns.rows(store.connection, watch_ids):
+            entry = annotation(row)
+            unknown_accepted += entry is not None and entry['state'] == 'active'
+            unknown_items.append(dict(
+                watch_id=row['watch_id'], record_id=row['record_id'], state=row['state'],
+                alias_map_version=row['alias_map_version'], accepted=entry,
+                reason=unknowns.classify(row['evidence'])))
     if args.format == 'text':
         totals = report_counts(store.connection, watches, entries, now,
                                config.timezone if config else 'UTC',
                                groups=args.group, watch_ids=args.watch)
         count_keys = ('affected', 'exploited_unknown', 'open', 'not_affected', 'dead_letters')
-        keys_by_group = dict(zip(REPORT_GROUPS, count_keys))
+        keys_by_group = dict(zip(DEFAULT_REPORT_GROUPS, count_keys))
         counts = [f'{label}: {totals[keys_by_group[group]]}'
                   for group, label, query, params in selected]
+        if unknown_selected:
+            counts.append(f'Unknown (not alerting): {len(unknown_items) - unknown_accepted}')
         if accepted:
-            counts.append(f"Accepted (not alerting): {totals['accepted']}")
+            counts.append(f"Accepted (not alerting): {totals['accepted'] + unknown_accepted}")
         print('Summary: ' + '; '.join(counts))
         _coverage_notice(eol_ids)
     else:
@@ -471,6 +488,13 @@ def report(store, args, eol_ids=(), config=None, now=None):
                 item['accepted'] = annotation(row)
             if args.format == 'jsonl':
                 item.update(schema_version=1, group=group)
+            print(json.dumps(item, sort_keys=True))
+    if unknown_selected:
+        if args.format == 'text':
+            print('Unknown applicability (not alerting):')
+        for item in unknown_items:
+            if args.format == 'jsonl':
+                item.update(schema_version=1, group='unknown')
             print(json.dumps(item, sort_keys=True))
     return 0
 

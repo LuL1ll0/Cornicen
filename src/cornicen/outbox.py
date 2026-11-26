@@ -8,7 +8,7 @@ import json
 from cornicen.model import Notification
 
 
-def deliver(store, notifier, clock, ready, *, revalidate=None):
+def deliver(store, notifier, clock, ready, *, revalidate=None, unknown_section=None):
     """Send due rows, acknowledging all digest members in one transaction."""
     db, sent = store.connection, 0
     normal, groups = [], []
@@ -30,7 +30,8 @@ def deliver(store, notifier, clock, ready, *, revalidate=None):
                 continue
             is_normal = lambda r: r['urgency'] == 'normal' and json.loads(r['body_json']).get('watch_id')
             if any(bool(is_normal(row)) != (rows is normal) for row in current):
-                sent += deliver(store, notifier, clock, current, revalidate=revalidate)
+                sent += deliver(store, notifier, clock, current, revalidate=revalidate,
+                                unknown_section=unknown_section)
                 continue
             rows[:] = current
             if rows is normal:
@@ -49,6 +50,13 @@ def deliver(store, notifier, clock, ready, *, revalidate=None):
                 n.record_id if len(items) == 1 else 'digest',
                 n.reasons if len(items) == 1 else ('digest',), 'normal',
                 {'items': [asdict(item) for item in items]})
+            if unknown_section is not None:
+                try:
+                    section = unknown_section()
+                except Exception:
+                    section = {'unavailable': True}
+                if section is not None:
+                    n.body['applicability'] = section
         # Network I/O must never hold a database transaction or touch ingest retries.
         try:
             delivered = notifier.send(n)

@@ -333,7 +333,16 @@ https://www.cve.org/CVERecord?id=CVE-2026-1234
 Multi-item digests begin with a summary such as `12 items on 4 watches: 9 new matches, 2 KEV added, 1 correction`.
 Counts come from each item's reasons (a coalesced item can count in several kinds).
 Only present kinds appear, in fixed order: new matches, KEV added, correction,
-acceptance lapsed. Single-item digests retain their existing text.
+acceptance lapsed. Single-item digests keep their existing text before the optional section.
+
+A normal digest, including a release-only digest, may end with an unknown
+applicability section. It counts pairs whose stored state is unknown and whose
+stored exploited flag is clear, on current watches and outside active accepts.
+Reasons are best-effort labels, not raw evidence. The section lists up to eight
+watches and three IDs per watch. Text notifiers shorten or omit it to preserve
+the digest items within their delivery limits. It never triggers a send on its
+own. Use `cornicen report --group unknown` to see all qualifying rows, including
+those with active accepts.
 
 Each watch block starts with `<watch name> (<product> <version>): N items`.
 Blocks sort by their highest item severity, then highest EPSS, descending, then
@@ -437,7 +446,8 @@ All commands accept the global `--config PATH`. Existing commands are `run`,
 - `report [--watch WATCH_ID ...] [--group GROUP ...] [--format {text,jsonl}]`:
   intersect the selected watches and groups. Repeat either filter to select
   multiple values. Groups are `baseline-affected`, `baseline-exploited`, `open`,
-  `not-affected` and `dead-letters`, in that order. Watch filters exclude dead
+  `not-affected` and `dead-letters`, in that order by default. The `unknown`
+  group is included only when explicitly selected. Watch filters exclude dead
   letters because those rows have no watch ID. Text (the default) keeps the
   existing headings and reports filtered counts. JSONL emits only row objects,
   adding `schema_version: 1` and `group` to the existing fields, ordered within

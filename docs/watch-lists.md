@@ -90,7 +90,8 @@ that replace files atomically make changes visible in an existing container.
 - **Dead letters** — records that exhausted retries.
 
 Pair items include their alias map version. Groups do not overlap; unknown pairs
-without known exploitation are omitted.
+without known exploitation are omitted from the default report. Use
+`cornicen report --group unknown` to list them for the current watches.
 `status` reports source health, a sanitised last source error, and reconciliation. `healthcheck` exits 0 when
 healthy and 1 otherwise, including when the database is unavailable.
 Run locally on Python 3.11+ with `PYTHONPATH=src python3 -m cornicen --config

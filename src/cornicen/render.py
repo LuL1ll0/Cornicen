@@ -162,6 +162,37 @@ def _clean_reason(reason):
                             for char in reason).split())[:160]
 
 
+def unknown_section_candidates(data):
+    """Yield complete sections, largest watch list first."""
+    if not data:
+        return
+    if data.get('unavailable'):
+        yield 'Unknown applicability: not available'
+        return
+
+    def why(counts):
+        return ', '.join(f'{n} {label}' for label, n in counts)
+
+    total, watches = data['total'], data['watches']
+    heading = [f'Unknown applicability (not alerting): {total} pairs on {watches} watches',
+               'Why: ' + why(data['why'])]
+    blocks = []
+    for watch in data['list']:
+        ids = '  ' + ', '.join(watch['ids'])
+        if watch['more']:
+            ids += f" and {watch['more']} more"
+        blocks.append(f"{watch['name']} ({watch['product']} {watch['version']}): "
+                      f"{watch['count']} — {why(watch['why'])}\n" + ids)
+    for count in range(len(blocks), -1, -1):
+        lines = heading + blocks[:count]
+        more = watches - count
+        if more:
+            lines.append(f'and {more} more watches: cornicen report --group unknown')
+        text = '\n'.join(lines)
+        if len(text.encode('utf-8')) <= 2048:
+            yield text
+
+
 def _epss_score(item):
     return (item.body.get('epss') or {}).get('score', -1)
 

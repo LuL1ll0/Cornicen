@@ -108,7 +108,7 @@ class F4Tests(unittest.TestCase):
         self.assertTrue(all(not hasattr(entry, 'factory') for entry in adapters.REGISTRY.values()))
 
     def test_release_version_pinned(self):
-        self.assertEqual(__version__, '0.7.0')
+        self.assertEqual(__version__, '0.8.0')
 
     def test_cli_status_lists_six_and_pins_f06_adapters(self):
         from tests.test_goal_features_a import GoalFeaturesATests

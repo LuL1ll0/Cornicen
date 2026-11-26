@@ -7,7 +7,7 @@ import re
 import time
 
 from cornicen.notify.ntfy import post
-from cornicen.render import render
+from cornicen.render import render, unknown_section_candidates
 
 
 MARKER = '\n[truncated]'
@@ -35,16 +35,40 @@ def _cve_ids_from_item(item):
     return _cve_ids(Notification(**item))
 
 
+def _discord(text):
+    return re.sub(r'([\\`*_{}\[\]()<>~|])', r'\\\1', text)
+
+
+def _slack(text):
+    return text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+
+def _fits(title, body, shape):
+    if len(body.encode('utf-8')) > 8000:
+        return False
+    text = title + '\n' + body
+    if shape == 'discord':
+        return len(_discord(text).encode('utf-16-le')) <= 4000
+    if shape == 'slack':
+        return len(_slack(text).encode('utf-8')) <= 4000
+    return True
+
+
 def payload(n, shape):
     title, body, priority, _ = render(n)
     title = _clip(title, 256)
+    for candidate in unknown_section_candidates(n.body.get('applicability')):
+        combined = body + '\n\n' + candidate
+        if _fits(title, combined, shape):
+            body = combined
+            break
     # Conservative local budgets for services without a field-specific limit.
     body = _clip(body, 8000)
     text = title + '\n' + body
     if shape == 'discord':
-        return {'content': _clip(re.sub(r'([\\`*_{}\[\]()<>~|])', r'\\\1', text), 4000, 'utf-16-le'), 'allowed_mentions': {'parse': []}}
+        return {'content': _clip(_discord(text), 4000, 'utf-16-le'), 'allowed_mentions': {'parse': []}}
     if shape == 'slack':
-        return {'text': _clip(text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'), 4000)}
+        return {'text': _clip(_slack(text), 4000)}
     if shape == 'matrix':
         return {'msgtype': 'm.text', 'body': text, 'm.mentions': {}}
     if shape == 'gotify':

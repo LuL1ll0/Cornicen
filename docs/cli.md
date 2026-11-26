@@ -30,7 +30,12 @@ cornicen watch check --file /config/draft.toml --strict --days 90
 - `report [--watch WATCH_ID ...] [--group GROUP ...] [--format {text,jsonl}]`:
   intersect the selected watches and groups. Repeat either filter to select
   multiple values. Groups are `baseline-affected`, `baseline-exploited`, `open`,
-  `not-affected` and `dead-letters`, in that order. Watch filters exclude dead
+  `not-affected` and `dead-letters`, in that order. Add `--group unknown` to
+  list unknown applicability on current watches where the stored exploited flag
+  is clear. This opt-in group adds a best-effort reason to each row and matches
+  watch IDs without regard to case. Active accepts are listed with their
+  annotation and counted separately from other unknown pairs.
+  Watch filters exclude dead
   letters because those rows have no watch ID. Text (the default) keeps the
   existing headings and reports filtered counts. JSONL emits only row objects,
   adding `schema_version: 1` and `group` to the existing fields, ordered within

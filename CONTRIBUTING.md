@@ -4,7 +4,7 @@ Bug reports, fixes and documentation improvements are welcome.
 
 ## Before you start
 
-- **Questions and bugs:** open a [GitHub Issue](https://github.com/LuL1ll0/cornicen/issues). Use a fictional watch list; never post your real inventory.
+- **Questions and bugs:** open a [GitHub Issue](https://github.com/LuL1ll0/Cornicen/issues). Use a fictional watch list; never post your real inventory.
 - **Security vulnerabilities:** report them privately, as described in [SECURITY.md](SECURITY.md).
 - **Larger changes:** open an issue describing the change before writing code, so we can agree on the approach first. Not sure what to work on? Ask in an issue. The design is in [docs/spec.md](docs/spec.md).
 

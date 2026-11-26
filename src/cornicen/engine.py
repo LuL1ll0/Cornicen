@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo
 
 import cornicen
 from cornicen import applicability, cnascope, validate
-from cornicen import accept, advisory
+from cornicen import accept, advisory, unknowns
 from cornicen.applicability import Result, State
 from cornicen.config import Config
 from cornicen.identity import AliasMap
@@ -1181,7 +1181,10 @@ class Engine:
         ready = self.db.execute('''SELECT * FROM outbox INDEXED BY outbox_ready WHERE sent_at IS NULL
             AND max(due_at,coalesce(next_attempt_at,due_at))<=? ORDER BY id''', (now,)).fetchall()
         self.report.sent += deliver(self.store, self.notifier, self._now, ready,
-                                    revalidate=self._delivery_rows)
+                                    revalidate=self._delivery_rows,
+                                    unknown_section=lambda: unknowns.section(
+                                        self.db, self.watches, self.accepts, self._now(),
+                                        self.config.timezone))
 
     def _refresh_pending(self, row_id):
         row = self.db.execute('SELECT * FROM outbox WHERE id=? AND sent_at IS NULL', (row_id,)).fetchone()

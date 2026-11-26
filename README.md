@@ -1,6 +1,6 @@
 # Cornicen
 
-[![gate](https://github.com/LuL1ll0/cornicen/actions/workflows/gate.yml/badge.svg?branch=main)](https://github.com/LuL1ll0/cornicen/actions/workflows/gate.yml)
+[![gate](https://github.com/LuL1ll0/Cornicen/actions/workflows/gate.yml/badge.svg?branch=main)](https://github.com/LuL1ll0/Cornicen/actions/workflows/gate.yml)
 
 Self-hosted CVE alerter for homelabs: matches CVE List, KEV and EPSS locally and alerts via ntfy.
 
@@ -15,7 +15,7 @@ Cornicen is for homelabs and small networks. You tell it what you run. It watche
   Email uses the ntfy server’s own forwarding; Cornicen stores no mail credentials.
 - **Silent first run.** The first bootstrap records what already matches and sends one summary; after that you hear only about changes.
 
-**Status:** version 0.7.0, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
+**Status:** version 0.8.0, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
 
 ## Contents
 
@@ -61,6 +61,28 @@ impact decisions when available. Missing points say `unknown`; without an
 assessment the line says `SSVC: not assessed`. SSVC alone does not alert on an
 unknown applicability result. On upgrade, a one-time full snapshot refreshes
 stored SSVC data; projection health reads `incomplete` until it finishes.
+
+Some matches can't be decided: the CNA's versions don't compare under your
+scheme, only the product name matched, or a vendor advisory lists no versions.
+Those don't alert. Instead, the daily digest ends with a short section that
+counts them by watch and says why, in Cornicen's own words (fictional values):
+
+```text
+Unknown applicability (not alerting): 14 pairs on 3 watches
+Why: 9 version compare unknown, 3 vendor advisory, 2 product only
+Example reverse proxy (nginx 1.25.3): 9 — 9 version compare unknown
+  CVE-2026-4400, CVE-2026-4311, CVE-2026-4302 and 6 more
+Example storage box (example os 4.0.0-example): 3 — 3 vendor advisory
+  CVE-2026-5101, CVE-2026-5102, CVE-2026-5103
+Example player (fictional player 8.2.90): 2 — 2 product only
+  CVE-2026-6001, CVE-2026-6002
+```
+
+The section rides only on a digest that is going out anyway, so it never sends
+a message by itself. It shows up to eight watches and three CVEs each, and is
+shortened or left out where it would push a message that currently fits past
+the channel's size limit.
+`cornicen report --group unknown` lists every such pair at any time.
 
 ## Where the data comes from
 
@@ -136,7 +158,7 @@ All of these run inside the container (`docker compose exec cornicen python -m c
 |---|---|
 | `status` / `status --json` | Source health, last error, coverage; JSON for monitoring |
 | `healthcheck` | Exit 0 if healthy, 1 if not (used by the container health check) |
-| `report` | Everything that matched, grouped; filter with `--watch`, `--group`, `--format jsonl` |
+| `report` | Everything that matched, grouped; filter with `--watch`, `--group`, `--format jsonl`. `--group unknown` (opt-in) lists matches whose applicability is unknown, with the reason |
 | `explain CVE --watch ID` | Why one CVE did or didn't match one watch |
 | `watch check` | Validate the watch list and show matches and near misses; `--file`, `--strict` |
 | `outbox list` | Notifications waiting to be sent; `--failed` for retries |
@@ -184,7 +206,8 @@ Cornicen only knows what the CVE List, KEV and EPSS publish, and CNA data is inc
 - **Not covered:** anything without a CVE record (a blog post, a GitHub issue), Apple (no official machine-readable feed), and Raspberry Pi-specific packages or firmware.
 - **GitHub rate limit:** without a token, GitHub allows 60 API requests an hour per IP address. An [optional GitHub token](docs/install.md#github-token-optional) raises the primary allowance to 5,000 an hour. Anything else on your network calling GitHub without a token draws on the same allowance. If it runs out, the CVE List source reports unhealthy until the hour resets.
 - **Plex:** no machine-readable advisory feed was found, so coverage comes from CVE records alone. Latest-release checks support GitHub releases only, which Plex does not publish, so a Plex latest-version check is still planned.
-- **Planned:** vendor advisory feeds, each off until it passes its own gate; NVD enrichment.
+- **Built but off:** the GitHub repository advisory, Microsoft, Cisco, Debian and Synology adapters, each until it passes its own gate. **Planned:** NVD enrichment.
+- **Unknown-applicability reasons are best-effort.** They are read from the stored evidence text, so an unusual CNA record can show a less specific reason (`CNA says unknown` or `other`). A CNA record can never show as a vendor advisory.
 
 ## Privacy
 
@@ -204,7 +227,7 @@ When the Debian adapter is enabled (not in this release: gate D is unmet), it do
 
 ## Getting help
 
-Ask questions and report bugs in [GitHub Issues](https://github.com/LuL1ll0/cornicen/issues). Don't paste your real watch list into a public issue; a fictional one that reproduces the problem is enough. Report security vulnerabilities privately, as described in [SECURITY.md](SECURITY.md).
+Ask questions and report bugs in [GitHub Issues](https://github.com/LuL1ll0/Cornicen/issues). Don't paste your real watch list into a public issue; a fictional one that reproduces the problem is enough. Report security vulnerabilities privately, as described in [SECURITY.md](SECURITY.md).
 
 ## Development
 

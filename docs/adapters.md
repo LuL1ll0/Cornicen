@@ -130,7 +130,7 @@ approval remain required before gate C can be met.
 
 ## Debian via OSV
 
-Debian (OSV) is off in v0.7.0: gate D is **not met**. The production
+Debian (OSV) is off in v0.8.0: gate D is **not met**. The production
 registry's publication clock remains unvalidated, so freshness is unknown
 until gate D establishes the export's publication semantics. An individual
 OSV query sample cannot satisfy that gate.
@@ -173,7 +173,7 @@ publication clock.
 
 ## Synology RSS
 
-Synology RSS is off in v0.7.0 because gate S is **not met**. When enabled, it
+Synology RSS is off in v0.8.0 because gate S is **not met**. When enabled, it
 makes one unconditional GET a day (about 0.5 MB) for the whole security
 advisory feed. It never fetches advisory pages. The request discloses your IP
 address and an interest in Synology, but nothing about which products you watch.
@@ -184,8 +184,9 @@ if a tick arrives just before its 24-hour poll interval.
 The feed does not provide affected or fixed version ranges. All Synology
 applicability evidence is unknown and supplies no fix. `cornicen explain`
 shows retained Synology advisories, including recognised products and any
-scoped vendor statement. The digest does not yet have a section for ordinary
-unknown pairs. The existing exploited-unknown exception still applies when a
+scoped vendor statement. Ordinary unknown pairs can appear in the optional
+digest section under `vendor advisory`, a reason shared with other sources.
+The existing exploited-unknown exception still applies when a
 listed CVE is in KEV and the watched product matches.
 
 Gate S requires a publisher retention contract or a complete archive covering

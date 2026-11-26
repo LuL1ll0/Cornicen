@@ -9,7 +9,7 @@ from urllib.error import HTTPError
 from urllib.parse import quote
 from urllib.request import HTTPHandler, HTTPSHandler, HTTPRedirectHandler, Request, build_opener
 
-from cornicen.render import render
+from cornicen.render import render, unknown_section_candidates
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -187,12 +187,18 @@ class NtfyNotifier:
     def send(self, n):
         try:
             title, text, priority, tags = render(n)
+            body = text.encode('utf-8')
+            for candidate in unknown_section_candidates(n.body.get('applicability')):
+                combined = (text + '\n\n' + candidate).encode('utf-8')
+                if len(body) > 4096 or len(combined) <= 4096:
+                    body = combined
+                    break
             headers = {'Title': title, 'Priority': str(priority), 'Tags': ','.join(tags),
                        'X-Cornicen-Event': n.key,
                        'Content-Type': 'text/plain; charset=utf-8'}
             if self.token is not None:
                 headers['Authorization'] = 'Bearer ' + self.token.reveal()
-            status = self.http_post(self.url, text.encode('utf-8'), headers)
+            status = self.http_post(self.url, body, headers)
             return 200 <= status < 300
         except Exception:
             # Even an HTTP implementation's exception can contain credentials.
