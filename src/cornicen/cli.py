@@ -1,7 +1,7 @@
 # script-purpose: Run Cornicen and expose its local state and maintenance commands.
 # script-class: pipeline-tool
 # script-trigger: The cornicen command entry point.
-# script-tests: tests/test_cli.py, tests/test_cvelist_gap.py, tests/test_f2a.py, tests/test_f3a.py, tests/test_r11_differential.py
+# script-tests: tests/test_cli.py, tests/test_cvelist_gap.py, tests/test_f2a.py, tests/test_f3a.py, tests/test_r11_differential.py, tests/test_package_matching.py
 """Operator commands; read configuration, watches and the local database.
 
 Run and maintenance commands write database state; diagnostics read stored state.
@@ -44,7 +44,8 @@ from cornicen.sources import cvelist_gap
 from cornicen.sources.epss import EpssSource
 from cornicen.sources.kev import KevSource
 from cornicen.store import Store
-from cornicen.watchlist import collisions, load_watchlist, load_document, WatchlistError
+from cornicen.watchlist import (collisions, load_watchlist, load_document, package_key,
+                               package_only, validate_watch_transition, WatchlistError)
 from cornicen.versions import Scheme, compare
 
 
@@ -52,12 +53,11 @@ EOL_COVERAGE_NOTICE = ('coverage limited: the vendor issues no advisories for un
                        'absence of alerts is not evidence of safety')
 
 
-def _eol_ids(config):
-    try:
-        return [watch.id for watch in load_watchlist(config.watchlist_path) if watch.eol]
-    except (OSError, ValueError, WatchlistError):
-        # Inventory diagnostics must remain available if the watch file cannot be loaded.
-        return []
+def _eol_ids(config, document=None, watch_ids=None):
+    if document is None:
+        document = _diagnostic_document(config, None)
+    return [watch.id for watch in (document[0] if document else ())
+            if watch.eol and (not watch_ids or watch.id in watch_ids)]
 
 
 _notice_printed = False
@@ -92,9 +92,20 @@ def _active(result):
 
 
 def _near(record, watch, aliases):
-    entries = record.get('containers', {}).get('cna', {}).get('affected', [])
+    containers = record.get('containers', {})
+    cna = containers.get('cna') if isinstance(containers, dict) else None
+    entries = cna.get('affected') if isinstance(cna, dict) else None
+    if not isinstance(entries, list):
+        return False
     identities = set().union(*(aliases.expand(i) for i in watch.match))
+    selectors = {(s.collection_url, s.package_name) for s in watch.package}
+    names = {name for _, name in selectors}
     for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        key = package_key(entry) if selectors else None
+        if key is not None and key not in selectors and key[1] in names:
+            return True
         vendor, product = entry.get('vendor', ''), entry.get('product', '')
         if not isinstance(vendor, str) or not isinstance(product, str):
             continue
@@ -132,7 +143,7 @@ def watch_check(store, watches, aliases, days, now):
             continue
         kev = store.connection.execute('SELECT json FROM kev WHERE cve=?', (row['id'],)).fetchone()
         for watch in watches:
-            result = resolve(record, json.loads(kev[0]) if kev else None, watch, aliases)
+            result = resolve(record, json.loads(kev[0]) if kev else None, watch, aliases, packages=True)
             if _active(result):
                 matched[watch.id].append(row['id'])
             elif result is not None or _near(record, watch, aliases):
@@ -169,7 +180,7 @@ def replay(store, watches, aliases, path):
         row = store.connection.execute('SELECT json FROM records WHERE id=?', (cve,)).fetchone()
         kev = store.connection.execute('SELECT json FROM kev WHERE cve=?', (cve,)).fetchone()
         record = _record(row) if row else {'cveMetadata': {'cveId': cve}}
-        matched = _active(resolve(record, json.loads(kev[0]) if kev else None, watch, aliases))
+        matched = _active(resolve(record, json.loads(kev[0]) if kev else None, watch, aliases, packages=True))
         print(f'{watch.id} {cve}: {"matched" if matched else "not matched"}')
         success &= matched
     return 0 if success else 1
@@ -219,7 +230,7 @@ def explain(store, watches, aliases, cve, watch_id):
     notices = []
     routed = False
     if _adapter_schema_present(store):
-        routed = advisory.route(db, cve, watch, aliases) == 'advisory'
+        routed = Engine.route_for(db, cve, watch, aliases) == 'advisory'
         notices, synology_only = _synology_notices(db, cve)
         if not routed and row is None and notices and synology_only:
             _print_synology_notices(notices, cve)
@@ -230,7 +241,8 @@ def explain(store, watches, aliases, cve, watch_id):
         'SELECT * FROM pairs WHERE watch_id=? AND record_id=?', (watch_id, cve)).fetchone()
     print('Stored pair state: ' + (json.dumps(dict(pair), sort_keys=True) if pair else 'none'))
     if routed:
-        result = advisory.resolve(db, cve, watch, aliases, record=_record(row) if row else None)
+        result = advisory.resolve(db, cve, watch, aliases,
+                                  record=_record(row) if row else None)
         print(f'Current decision: applicability={result.state.value}; confidence={result.confidence}')
         print('Evidence: ' + result.evidence)
         _print_synology_notices(notices, cve)
@@ -240,7 +252,7 @@ def explain(store, watches, aliases, cve, watch_id):
         _print_synology_notices(notices, cve)
         return 1
     kev = store.connection.execute('SELECT json FROM kev WHERE cve=?', (cve,)).fetchone()
-    result = resolve(_record(row), json.loads(kev[0]) if kev else None, watch, aliases)
+    result = resolve(_record(row), json.loads(kev[0]) if kev else None, watch, aliases, packages=True)
     if result is None:
         print('Current decision: identity miss; no identity match')
     else:
@@ -275,8 +287,25 @@ def outbox_list(store, failed):
     return 0
 
 
-def _accepted(config, store, now):
-    watches, entries = load_document(config.watchlist_path)
+_ACCEPTS_UNREADABLE = 'accepted: not applied (watch list unreadable)'
+
+
+def _diagnostic_document(config, store):
+    if config is None:
+        return ()
+    # A list R-P17 rejects, or cannot check without the store, reads as unreadable (v0.8.0 output).
+    try:
+        document = load_document(config.watchlist_path)
+        if store is None and any(package_only(watch) for watch in document[0]):
+            return ()
+        validate_watch_transition(store, document[0])
+        return document
+    except WatchlistError:
+        return ()
+
+
+def _accepted(document, config, store, now):
+    watches, entries = document
     by_id = {watch.id.casefold(): watch for watch in watches}
     result = []
     for entry in entries:
@@ -324,7 +353,7 @@ def _accept_warnings(store, watches, entries, aliases, now, config):
             row = store.connection.execute('SELECT json FROM records WHERE id=?', (entry.cve,)).fetchone()
             kev = store.connection.execute('SELECT json FROM kev WHERE cve=?', (entry.cve,)).fetchone()
             if row is None or not _active(resolve(_record(row), json.loads(kev[0]) if kev else None,
-                                                  by_id[entry.watch.casefold()], aliases)):
+                                                  by_id[entry.watch.casefold()], aliases, packages=True)):
                 warnings.append(f'{label}: matches nothing')
     for warning in warnings:
         print('accept warning: ' + warning)
@@ -350,12 +379,14 @@ def github_status_line(store):
     return 'github: ' + descriptions[state['auth']] + '; ' + detail
 
 
-def release_check_count(config, store=None):
+def release_check_count(config, store=None, *, document=None):
     try:
         applied = store.get_meta('applied_watches') if store else None
         if applied is not None:
             return sum(bool(w.get('latest_release')) for w in json.loads(applied))
-        return sum(w.latest_release is not None for w in load_document(config.watchlist_path)[0])
+        if document is None:
+            document = _diagnostic_document(config, store)
+        return sum(w.latest_release is not None for w in document[0]) if document else 0
     except (WatchlistError, AttributeError, ValueError, TypeError):
         return 0
 
@@ -368,22 +399,18 @@ def _status_source(source, store, now, config):
     return state, detail
 
 
-def status_json(store, now, config):
+def status_json(store, now, config, *, document=None):
     from cornicen.adapters import status
+    if document is None:
+        document = _diagnostic_document(config, store)
     result = dict(schema_version=1, available=False, container_healthy=False,
                   sources={}, adapters=status(config.adapters if config else None), baseline_complete=False, reconcile_at=None, github=github_status(store),
-                  release_checks=release_check_count(config, store))
+                  release_checks=release_check_count(config, store, document=document))
     if store is not None and not _adapter_schema_present(store):
         result.pop('adapters')
-    eol_ids = _eol_ids(config) if config else []
+    eol_ids = _eol_ids(config, document)
     if eol_ids:
         result['eol_coverage_limited'] = eol_ids
-    if config is not None:
-        try:
-            entries = _accepted(config, store, now or datetime.now(timezone.utc))
-            result['accepted'] = entries
-        except WatchlistError:
-            pass
     if store is not None:
         sources = {'cvelist', 'kev', 'epss'}
         sources.update(active_sources(store, config))
@@ -400,6 +427,9 @@ def status_json(store, now, config):
                       reconcile_at=store.get_meta('reconcile_at'))
         if store.get_meta(cvelist_gap.DAYS) is not None:
             result[cvelist_gap.SOURCE] = cvelist_gap.status(store, now or datetime.now(timezone.utc))
+    # v0.8.0: an unreadable list leaves `accepted` out and writes nothing to stderr.
+    if config is not None and document:
+        result['accepted'] = _accepted(document, config, store, now or datetime.now(timezone.utc))
     print(json.dumps(result, sort_keys=True))
     return 0 if result['available'] else 1
 
@@ -408,19 +438,20 @@ DEFAULT_REPORT_GROUPS = ('baseline-affected', 'baseline-exploited', 'open', 'not
 REPORT_GROUPS = (*DEFAULT_REPORT_GROUPS, 'unknown')
 
 
-def report(store, args, eol_ids=(), config=None, now=None):
+def report(store, args, eol_ids=(), config=None, now=None, *, document=None):
     accepted = None
     watches, entries = (), ()
     now = now or datetime.now(timezone.utc)
     if config is not None:
-        try:
-            watches, entries = load_document(config.watchlist_path)
+        if document is None:
+            document = _diagnostic_document(config, store)
+            eol_ids = _eol_ids(config, document, args.watch)
+        if document:
+            watches, entries = document
             by_id = {watch.id.casefold(): watch for watch in watches}
             accepted = [dict(accept.detail(entry), watch_id=entry.watch, cve=entry.cve,
                              state=accept.state(entry, by_id, now, config.timezone))
                         for entry in entries]
-        except WatchlistError:
-            pass
     by_pair = {(e['watch_id'].casefold(), e['cve']): e for e in accepted or ()}
 
     def annotation(row):
@@ -479,8 +510,7 @@ def report(store, args, eol_ids=(), config=None, now=None):
     else:
         _coverage_notice(eol_ids, file=sys.stderr)
     if config is not None and accepted is None:
-        print('accepted: not applied (watch list unreadable)',
-              file=sys.stderr)
+        print(_ACCEPTS_UNREADABLE, file=sys.stderr)
     for group, label, query, params in selected:
         if args.format == 'text':
             print(label + ':')
@@ -572,6 +602,7 @@ def main(argv=None):
     _notice_printed = False
     eol_ids = []
     notice_file = None
+    document = None
     try:
         if args.command == 'version':
             scheme = Scheme(args.scheme)
@@ -604,15 +635,12 @@ def main(argv=None):
             aliases = AliasMap.load(extra=config.aliases_path)
             if Path(config.db_path).is_file():
                 store = Store(config.db_path, read_only=True)
+            validate_watch_transition(store, watches)
             watch_check(store, watches, aliases, args.days, now())
             warnings = _accept_warnings(store, watches, accepts, aliases, now(), config)
             return 1 if args.strict and (aliases.warnings or collisions(watches, aliases) or warnings) else 0
-        if args.command == 'report' or (args.command == 'status' and not args.json):
-            eol_ids = _eol_ids(config)
-            if args.command == 'report':
-                eol_ids = [watch_id for watch_id in eol_ids
-                           if not args.watch or watch_id in args.watch]
-                notice_file = sys.stderr if args.format == 'jsonl' else None
+        if args.command == 'report':
+            notice_file = sys.stderr if args.format == 'jsonl' else None
         if args.command == 'selftest':
             if config.acceptance_list_path is None:
                 raise ValueError('Acceptance self-test is not configured')
@@ -630,6 +658,8 @@ def main(argv=None):
                 return status_json(None, now(), config)
             if args.command == 'db':
                 raise FileNotFoundError(file_error('database', FileNotFoundError()))
+            if args.command in ('status', 'report'):
+                eol_ids = _eol_ids(config, watch_ids=getattr(args, 'watch', None))
             print('unhealthy: database unavailable')
             _coverage_notice(eol_ids, file=notice_file)
             return 1
@@ -638,7 +668,13 @@ def main(argv=None):
         except (OSError, sqlite3.Error):
             if args.command == 'db':
                 raise ValueError(file_error('database', PermissionError())) from None
+            if args.command == 'report' or (args.command == 'status' and not args.json):
+                eol_ids = _eol_ids(config, watch_ids=getattr(args, 'watch', None))
             raise
+        if args.command in ('status', 'report'):
+            document = _diagnostic_document(config, store)
+            if args.command == 'report' or not args.json:
+                eol_ids = _eol_ids(config, document, getattr(args, 'watch', None))
         if args.command == 'run':
             store.migrate()
         if args.command == cvelist_gap.COMMAND:
@@ -661,7 +697,7 @@ def main(argv=None):
             return 0 if healthy else 1
         if args.command == 'status':
             if args.json:
-                return status_json(store, now(), config)
+                return status_json(store, now(), config, document=document)
             sources = {'cvelist', 'kev', 'epss'}
             sources.update(active_sources(store, config))
             for source in sorted(sources):
@@ -671,7 +707,7 @@ def main(argv=None):
             if store.get_meta(cvelist_gap.DAYS) is not None:
                 for line in cvelist_gap.status_lines(cvelist_gap.status(store, now())):
                     print(line)
-            print('release checks: ' + str(release_check_count(config, store)))
+            print('release checks: ' + str(release_check_count(config, store, document=document)))
             if _adapter_schema_present(store):
                 from cornicen.adapters import status_lines
                 adapter_lines = status_lines(config.adapters)
@@ -684,16 +720,16 @@ def main(argv=None):
                 print(github_status_line(store))
             print('container: ' + ('healthy' if container_healthy(store, now(), config) else 'unhealthy'))
             print('reconcile: ' + (store.get_meta('reconcile_at') or 'none'))
-            try:
-                _accepted_text(_accepted(config, store, now()))
-            except WatchlistError:
+            if document:
+                _accepted_text(_accepted(document, config, store, now()))
+            else:
                 print('accepted: not checked (watch list unreadable)')
             _coverage_notice(eol_ids)
             return 0
         if args.command == 'outbox':
             return outbox_list(store, args.failed)
         if args.command == 'report':
-            return report(store, args, eol_ids, config, now())
+            return report(store, args, eol_ids, config, now(), document=document)
         if args.command == 'db':
             backup(store.connection, args.output)
             print('SQLite backup created: ' + str(args.output))
@@ -718,7 +754,7 @@ def main(argv=None):
                                   'kev': KevSource(http), 'epss': EpssSource(http, store)}).run()
     except Exception as error:
         if args.command == 'status' and args.json:
-            return status_json(None, None, config)
+            return status_json(None, None, config, document=document)
         if (args.command == 'watch' and isinstance(error, WatchlistError)
                 and (args.file is not None or args.strict
                      or any(problem.startswith('accept entry ') for problem in error.problems))):

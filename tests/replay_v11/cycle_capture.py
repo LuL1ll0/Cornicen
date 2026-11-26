@@ -39,17 +39,28 @@ def frozen_projection(database, scenario):
     return without_writer_version(database, version, scenario)
 
 
-def current_projection(actual, schema, scenario):
+def current_projection(actual, schema, scenario, *, expected_revision='3'):
     from cornicen import __version__
     from tests.replay_v11 import harness as h
-    return without_writer_version(h.project_frozen(actual, schema), __version__, scenario)
+    projected = without_writer_version(h.project_frozen(actual, schema), __version__, scenario)
+    meta = projected['tables'].get('meta')
+    if meta is not None:
+        key, value = (meta['columns'].index(name) for name in ('k', 'v'))
+        for row in meta['rows']:
+            if row[key] == 'applied_matching_revision':
+                if row[value] != expected_revision:
+                    raise AssertionError(
+                        f'{scenario}: applied_matching_revision: {row[value]!r} != {expected_revision!r}')
+                # R-P8 changes this cell only. Keep using the authenticated v2 hash.
+                row[value] = '2'
+    return projected
 
 
 def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
 
-def capture_cycles(mode='absent', check=None):
+def capture_cycles(mode='absent', check=None, *, expected_revision='3'):
     from cornicen.engine import Engine
     from tests.replay import harness as v1
     from tests.replay_v11 import harness as h
@@ -71,7 +82,7 @@ def capture_cycles(mode='absent', check=None):
             actual = h.dump_database(engine.store.connection)
             keys = [k for k in actual['meta_keys'] if k != 'adapter_schema_version']
             schema = dict(frozen['database'], meta_keys=keys)
-            projected = current_projection(actual, schema, name)
+            projected = current_projection(actual, schema, name, expected_revision=expected_revision)
             observed = dict(meta_keys=digest(keys), database=digest(projected),
                             notifications=digest(engine.notifier.delivered))
             if check:
@@ -105,4 +116,5 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--capture', action='store_true', required=True)
     parser.parse_args()
-    print(json.dumps({'cycles': capture_cycles()}, separators=(',', ':'), sort_keys=True))
+    print(json.dumps({'cycles': capture_cycles(expected_revision='2')},
+                     separators=(',', ':'), sort_keys=True))

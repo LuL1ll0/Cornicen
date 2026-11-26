@@ -1,7 +1,7 @@
 # script-purpose: Evaluate local feed evidence and deliver durable notifications.
 # script-class: pipeline-tool
 # script-trigger: Cornicen scheduler cycles and local command paths.
-# script-tests: tests/test_engine.py, tests/test_f3a.py, tests/test_f3b.py, tests/test_r11_differential.py, tests/test_r11_shells.py, tests/test_r11_integration.py, tests/test_task1_b1.py, tests/test_task1_b2.py, tests/test_task3_a.py, tests/test_task4_a.py, tests/test_cvelist_gap.py
+# script-tests: tests/test_engine.py, tests/test_f3a.py, tests/test_f3b.py, tests/test_r11_differential.py, tests/test_r11_shells.py, tests/test_r11_integration.py, tests/test_task1_b1.py, tests/test_task1_b2.py, tests/test_task3_a.py, tests/test_task4_a.py, tests/test_cvelist_gap.py, tests/test_package_matching.py
 """Read feed results and stored evidence; write SQLite state and notification outbox.
 
 Library API with no process exit codes; callers report operational failures.
@@ -29,7 +29,8 @@ from cornicen.store import record_ssvc
 from cornicen.scheduler import redact_tokens, safe_message
 from cornicen.outbox import deliver
 from cornicen.store import Store, TransactionAborted
-from cornicen.watchlist import Watch, GitHubSelector, OsvSelector
+from cornicen.watchlist import (Watch, GitHubSelector, OsvSelector, PackageSelector, package_only,
+                               product_label, validate_watch_transition)
 from cornicen.versions import Scheme
 
 
@@ -99,26 +100,30 @@ class Engine:
         self._attempted_records = set()
         self._identity_version = None
         with store.transaction():
+            validate_watch_transition(store, watches)
+            saved = store.get_meta('applied_watches')
             if store.get_meta('bootstrap_started_at') is None:
                 store.set_meta('bootstrap_started_at', self._now().isoformat())
             store.set_meta('alias_map_version', aliases.version)
-            saved = store.get_meta('applied_watches')
             canonical = self._canonical_watches(watches)
             aliases_hash = aliases.fingerprint()
             saved_aliases_hash = store.get_meta('applied_aliases_hash')
             aliases_changed = saved_aliases_hash != aliases_hash
             revision_changed = (store.get_meta('applied_matching_revision')
                                 != str(applicability.MATCHING_REVISION))
-            if saved is None and not self.db.execute('SELECT 1 FROM records UNION SELECT 1 FROM pairs LIMIT 1').fetchone():
+            if (saved is None
+                    and not self.db.execute('SELECT 1 FROM records UNION SELECT 1 FROM pairs LIMIT 1').fetchone()):
                 self._save_watches()
             elif saved != canonical or aliases_changed or revision_changed:
                 # Missing metadata on an older DB requires a full re-match too.
+                definitions = json.loads(saved) if saved is not None else None
                 self.watches = tuple(Watch(**dict(w, match=tuple(map(tuple, w['match'])),
                     product_only=tuple(w['product_only']), scheme=Scheme(w['scheme']),
                     github=tuple(GitHubSelector(**g) for g in w.get('github', [])),
                     osv=tuple(OsvSelector(**o) for o in w.get('osv', [])),
+                    package=tuple(PackageSelector(**p) for p in w.get('package', [])),
                     platform=tuple(w['platform'][k] for k in ('vendor', 'product')) if w.get('platform') else None))
-                    for w in json.loads(saved)) if saved else ()
+                    for w in definitions) if definitions is not None else ()
                 previous_ids = ({row[0] for row in self.db.execute('SELECT DISTINCT watch_id FROM pairs')}
                                 if saved is None else None)
                 self.reload_watches(watches, force_all=revision_changed, previous_ids=previous_ids)
@@ -219,7 +224,7 @@ class Engine:
                             github=[asdict(g) for g in sorted(w.github,
                                 key=lambda g: (g.repository, g.ecosystem, g.package))]).items()
                             if (k not in ('latest_release', 'release_tag_prefix', 'platform') or v is not None)
-                            and (k not in ('github', 'osv') or v)}
+                            and (k not in ('github', 'osv', 'package') or v)}
                            for w in sorted(watches, key=lambda w: w.id)],
                           sort_keys=True, separators=(',', ':'))
 
@@ -270,7 +275,7 @@ class Engine:
             and type(value.get('baseScore')) in (float, int)), default=None) if isinstance(metrics, list) else None
         severity = score if score is not None else 0
         body = {'severity': severity, 'watch_id': watch.id, 'record_id': record_id, 'name': watch.name,
-                'product': watch.match[0][1] if watch.match else watch.product_only[0],
+                'product': product_label(watch),
                 'version': watch.version, 'eol': watch.eol, 'state': result.state.value,
                 'evidence': result.evidence, 'confidence': result.confidence,
                 'kev': self._json_row('kev', 'cve', record_id),
@@ -297,9 +302,15 @@ class Engine:
         return body
 
     def route(self, identity, watch):
-        return advisory.route(self.db, identity, watch, getattr(self, 'aliases', None),
+        return self.route_for(self.db, identity, watch, getattr(self, 'aliases', None),
             getattr(self, 'evidence_scopes', {}).get(watch.id),
             getattr(self, 'scope_equivalences', ()))
+
+    @staticmethod
+    def route_for(db, identity, watch, aliases, scope=None, equivalents=()):
+        if package_only(watch):
+            return 'v1'
+        return advisory.route(db, identity, watch, aliases, scope, equivalents)
 
     def _advisory_matches(self, identity, watch):
         return advisory.matching_rows(self.db, identity, watch, self.aliases,
@@ -529,7 +540,7 @@ class Engine:
                 result = Result(State.NOT_AFFECTED, bool(kev), 'CNA record rejected', 'high')
             else:
                 result = applicability.resolve(record, kev, watch, self.aliases,
-                                                self._watch_identities[watch.id], identities)
+                                                self._watch_identities[watch.id], identities, True)
             if result is None:
                 if old is None:
                     continue
@@ -920,7 +931,31 @@ class Engine:
             EXISTS (SELECT 1 FROM incoming_{table} AS new LEFT JOIN {table} AS old USING(cve)
                     WHERE new.cve={record_id} AND (old.cve IS NULL OR {changed})) {removed})''')
 
+    def _remove_watches(self, watch_ids, active_ids):
+        """Drop the watches' live state, retaining sent notification history."""
+        for watch_id in watch_ids:
+            for pair in self.db.execute('SELECT record_id FROM pairs WHERE watch_id=?', (watch_id,)).fetchall():
+                self._drop_activation(watch_id, pair['record_id'])
+                key = 'advisory_history:' + json.dumps([watch_id, pair['record_id']], separators=(',', ':'))
+                self.db.execute('DELETE FROM meta WHERE k=?', (key,))
+            self.db.execute('DELETE FROM pairs WHERE watch_id=?', (watch_id,))
+            self.db.execute('DELETE FROM affected_latches WHERE watch_id=?', (watch_id,))
+            self.db.execute('DELETE FROM epss_crossings WHERE watch_id=?', (watch_id,))
+            # A history key can outlive its pair.
+            self.db.execute("""DELETE FROM meta WHERE k GLOB 'advisory_history:*'
+                AND json_extract(substr(k,18), '$[0]')=?""", (watch_id,))
+        for row in self.db.execute('SELECT * FROM outbox WHERE sent_at IS NULL').fetchall():
+            body = json.loads(row['body_json'])
+            watch_id = body.get('watch_id')
+            if watch_id and watch_id not in active_ids:
+                for reason in json.loads(row['reasons_json']):
+                    episode = body.get('episode', 1) - int(reason == 'correction')
+                    key = f"{body['watch_id']}|{body['record_id']}|{reason}|{episode}"
+                    self.db.execute('DELETE FROM events WHERE key=?', (key,))
+                self.db.execute('DELETE FROM outbox WHERE id=?', (row['id'],))
+
     def reload_watches(self, watches: tuple[Watch, ...], *, force_all=False, previous_ids=None) -> None:
+        validate_watch_transition(self.store, watches, previous=self.watches)
         old_watches = self.watches
         previous = {watch.id: watch for watch in self.watches}
         # An older database may retain only the owners, not watch definitions.
@@ -930,9 +965,8 @@ class Engine:
             if watch is None:
                 return None
             # Preserve existing reload behavior for CVE configuration and labels.
-            return (watch.name, watch.match, watch.product_only, watch.version, watch.scheme, watch.eol, watch.github, watch.platform, watch.osv)
-        changed = tuple(watch for watch in watches if force_all or alias_changed
-                        or matching_fields(previous.get(watch.id)) != matching_fields(watch))
+            return (watch.name, watch.match, watch.product_only, watch.version, watch.scheme,
+                    watch.eol, watch.github, watch.platform, watch.osv, watch.package)
         self.watches = watches
         self._cache_watch_identities()
         last_report = self.report
@@ -940,6 +974,8 @@ class Engine:
         completed = False
         try:
             with self.store.transaction():
+                changed = tuple(watch for watch in watches if force_all or alias_changed
+                                or matching_fields(previous.get(watch.id)) != matching_fields(watch))
                 # Re-matching is transactional; only run_cycle releases queued work.
                 # Initial-catalog KEV rows wait for CNA records; only explicitly
                 # eligible KEV-only rows have a synthetic evaluation context.
@@ -958,28 +994,14 @@ class Engine:
                         self.store.set_meta('matching_revision_retry:' + record_id, '1')
                     self._isolated('watchlist', record,
                         lambda record=record, record_id=record_id: self._rematch_record(
-                            record, record_id, watches=changed, revision_corrections=force_all), key=record_id)
+                            record, record_id, watches=changed, revision_corrections=force_all),
+                        key=record_id)
                 pending = self.db.execute("SELECT 1 FROM retry_queue WHERE source='watchlist' UNION ALL SELECT 1 FROM dead_letters WHERE source='watchlist' LIMIT 1").fetchone()
                 self._health('watchlist', 'unhealthy' if pending else 'healthy',
                              'Re-match failed; retry pending' if pending else 'Watchlist re-match complete',
                              'incomplete' if pending else 'recovered')
                 active_ids = {watch.id for watch in watches}
-                for watch_id in previous_ids - active_ids:
-                    for pair in self.db.execute('SELECT record_id FROM pairs WHERE watch_id=?', (watch_id,)).fetchall():
-                        self._drop_activation(watch_id, pair['record_id'])
-                        key = 'advisory_history:' + json.dumps([watch_id, pair['record_id']], separators=(',', ':'))
-                        self.db.execute('DELETE FROM meta WHERE k=?', (key,))
-                    self.db.execute('DELETE FROM pairs WHERE watch_id=?', (watch_id,))
-                    self.db.execute('DELETE FROM affected_latches WHERE watch_id=?', (watch_id,))
-                    self.db.execute('DELETE FROM epss_crossings WHERE watch_id=?', (watch_id,))
-                for row in self.db.execute('SELECT * FROM outbox WHERE sent_at IS NULL').fetchall():
-                    body = json.loads(row['body_json'])
-                    if body.get('watch_id') and body['watch_id'] not in active_ids:
-                        for reason in json.loads(row['reasons_json']):
-                            episode = body.get('episode', 1) - int(reason == 'correction')
-                            key = f"{body['watch_id']}|{body['record_id']}|{reason}|{episode}"
-                            self.db.execute('DELETE FROM events WHERE key=?', (key,))
-                        self.db.execute('DELETE FROM outbox WHERE id=?', (row['id'],))
+                self._remove_watches(previous_ids - active_ids, active_ids)
                 self.db.execute('UPDATE outbox SET dirty=1 WHERE sent_at IS NULL')
                 self._save_watches()
             completed = True
@@ -1070,7 +1092,7 @@ class Engine:
                 if persist:
                     self.db.execute('DELETE FROM outbox WHERE id=?', (row['id'],))
                 return None
-            body.update(name=watch.name, version=watch.version)
+            body.update(name=watch.name, version=watch.version, product=product_label(watch))
             if persist:
                 self.db.execute('UPDATE outbox SET body_json=? WHERE id=?',
                                 (json.dumps(body), row['id']))

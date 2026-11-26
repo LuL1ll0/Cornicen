@@ -10,15 +10,18 @@ Library API with no process exit codes; invalid inputs raise exceptions.
 
 from dataclasses import dataclass
 from datetime import date, datetime
+import json
 from pathlib import Path
 import tomllib
 import re
+from string import hexdigits
 import unicodedata
 
 from cornicen.accept import Accept
 from cornicen.diagnostics import FixedDiagnostic, file_error, toml_error
 
-from cornicen.identity import AliasMap, Identity, _parse_identity, is_placeholder, normalise_identity
+from cornicen.identity import (AliasMap, Identity, IDENTITY_IGNORABLES, _parse_identity,
+                               is_placeholder, normalise_identity)
 from cornicen.versions import Scheme, compare, parse_constraint
 
 
@@ -33,6 +36,73 @@ class GitHubSelector:
 class OsvSelector:
     ecosystem: str
     package: str
+
+
+@dataclass(frozen=True)
+class PackageSelector:
+    collection_url: str
+    package_name: str
+
+
+def normalise_collection_url(value):
+    """Check and fold a collection identifier without parsing away delimiters."""
+    if (not isinstance(value, str) or not 1 <= len(value) <= 500
+            or not value.isascii() or not value.isprintable() or ' ' in value):
+        return None
+    scheme, separator, tail = value.partition('://')
+    scheme = scheme.lower()
+    if not separator or scheme not in ('http', 'https'):
+        return None
+    end = next((i for i, char in enumerate(tail) if char in '/?#'), len(tail))
+    host, rest = tail[:end], tail[end:]
+    for label in host.split('.'):
+        if (not 1 <= len(label) <= 63 or label.startswith('-') or label.endswith('-')
+                or not all(char.isalnum() or char == '-' for char in label)):
+            return None
+    if any(char == '%' and (i + 2 >= len(rest) or rest[i + 1] not in hexdigits
+                           or rest[i + 2] not in hexdigits) for i, char in enumerate(rest)):
+        return None
+    if '?' not in rest and '#' not in rest:
+        rest = rest.rstrip('/')
+    return scheme + separator + host.lower() + rest
+
+
+def normalise_package_name(value):
+    if not isinstance(value, str):
+        return ''
+    value = ''.join(char for char in value if char not in IDENTITY_IGNORABLES)
+    # NFC without adding a Unicode form name to the public word vocabulary.
+    return ' '.join(unicodedata.normalize('NFKC'.replace('K', ''), value).casefold().split())
+
+
+def package_key(entry):
+    """Return the CNA's package tuple, or None if the entry has no package identity."""
+    collection = entry.get('collectionURL')
+    if isinstance(collection, str):
+        collection = normalise_collection_url(collection.strip())
+    name = normalise_package_name(entry.get('packageName'))
+    return (collection, name) if isinstance(collection, str) and name else None
+
+
+def _package_selectors(entries):
+    if not isinstance(entries, list) or len(entries) > 20:
+        raise ValueError(FixedDiagnostic('package must be an array of at most 20 selectors'))
+    result = []
+    for entry in entries:
+        if not isinstance(entry, dict) or entry.keys() != {'collection_url', 'package_name'}:
+            raise ValueError(FixedDiagnostic('package selector requires collection_url and package_name'))
+        collection = normalise_collection_url(entry['collection_url'])
+        if collection is None:
+            raise ValueError(FixedDiagnostic('package collection_url is invalid'))
+        name = entry['package_name']
+        if (not isinstance(name, str) or not 1 <= len(name.strip()) <= 200
+                or any(unicodedata.category(char) in ('Cc', 'Cf') for char in name)):
+            raise ValueError(FixedDiagnostic('package package_name is invalid'))
+        selector = PackageSelector(collection, normalise_package_name(name))
+        if selector in result:
+            raise ValueError(FixedDiagnostic('duplicate package selector'))
+        result.append(selector)
+    return tuple(result)
 
 
 def _osv_selectors(entries):
@@ -97,6 +167,15 @@ class Watch:
     github: tuple[GitHubSelector, ...] = ()
     platform: tuple[str, str] | None = None
     osv: tuple[OsvSelector, ...] = ()
+    package: tuple[PackageSelector, ...] = ()
+
+
+def product_label(watch):
+    if watch.match:
+        return watch.match[0][1]
+    if watch.product_only:
+        return watch.product_only[0]
+    return watch.package[0].package_name
 
 
 class WatchlistError(Exception):
@@ -104,6 +183,47 @@ class WatchlistError(Exception):
         self.problems = problems
         self.public_problems = public_problems or problems
         super().__init__("; ".join(problems))
+
+
+def package_only(watch):
+    return bool(watch.package and not (watch.match or watch.product_only))
+
+
+def validate_watch_transition(store, watches, *, previous=None):
+    """Check package-only IDs against active or saved definitions and stored state."""
+    candidates = [(number, watch.id) for number, watch in enumerate(watches, 1)
+                  if package_only(watch)]
+    if not candidates:
+        return
+    tables = set()
+    if store is not None:
+        # SQLite table names are case-insensitive.
+        tables = {row[0].casefold() for row in store.connection.execute(
+            'SELECT name FROM sqlite_master WHERE type = ?', ('table',))}
+    if previous is None:
+        saved = store.get_meta('applied_watches') if 'meta' in tables else None
+        previous_only = {w['id']: bool(w.get('package') and not (w['match'] or w['product_only']))
+                         for w in json.loads(saved or '[]')}
+    else:
+        previous_only = {w.id: package_only(w) for w in previous}
+
+    # Older stores may not yet have all the watch-state tables.
+    sources = dict.fromkeys(('pairs', 'events', 'delivery_coverage', 'coverage_inheritance',
+                             'affected_latches', 'epss_crossings'), 'watch_id = :watch_id')
+    sources['outbox'] = "json_extract(body_json,'$.watch_id')= :watch_id"
+    sources['meta'] = ("k GLOB 'advisory_history:*' "
+                       "AND json_extract(substr(k,18), '$[0]') = :watch_id")
+    query = ' UNION ALL '.join(f'SELECT 1 FROM {table} WHERE {predicate}'
+                              for table, predicate in sources.items() if table in tables)
+    problems = []
+    for number, watch_id in candidates:
+        if previous_only.get(watch_id):
+            continue
+        if query and store.connection.execute(
+                query + ' LIMIT 1', {'watch_id': watch_id}).fetchone() is not None:
+            problems.append(FixedDiagnostic(f'watch entry {number}: package only watch requires a new id'))
+    if problems:
+        raise WatchlistError(problems)
 
 
 def _validation_error(problems, public_problems=None):
@@ -167,8 +287,11 @@ def _watch(entry: dict) -> Watch:
             raise ValueError(FixedDiagnostic("platform requires non-placeholder vendor and product strings"))
         platform = tuple(normalise_identity(value[k]) for k in ('vendor', 'product'))
     github = _github_selectors(entry.get('github', []))
-    if not identities and not products:
-        raise ValueError(FixedDiagnostic("match or product_only must declare at least one identity"))
+    package = _package_selectors(entry.get('package', []))
+    if not identities and not products and not package:
+        raise ValueError(FixedDiagnostic("match, product_only or package must declare at least one identity"))
+    if not identities and not products and (github or osv):
+        raise ValueError(FixedDiagnostic('github and osv require match or product_only'))
     eol = entry.get("eol", False)
     if not isinstance(eol, bool):
         raise ValueError(FixedDiagnostic("eol must be a boolean"))
@@ -183,7 +306,7 @@ def _watch(entry: dict) -> Watch:
             or latest is None):
         raise ValueError(FixedDiagnostic("release_tag_prefix is invalid"))
     return Watch(watch_id, name, identities, tuple(map(normalise_identity, products)),
-                 version, scheme, eol, latest, prefix, github, platform, osv)
+                 version, scheme, eol, latest, prefix, github, platform, osv, package)
 
 
 def load_document_text(text: str):
@@ -208,7 +331,7 @@ def load_document_text(text: str):
         try:
             if not isinstance(entry, dict):
                 raise ValueError(FixedDiagnostic("entry must be a table"))
-            unknown = entry.keys() - {"id", "name", "match", "product_only", "version", "scheme", "eol", "latest_release", "release_tag_prefix", "github", "platform", "osv"}
+            unknown = entry.keys() - {"id", "name", "match", "product_only", "version", "scheme", "eol", "latest_release", "release_tag_prefix", "github", "platform", "osv", "package"}
             if unknown:
                 problems.extend(f"{label}: unknown key" for key in sorted(unknown))
                 public_problems.extend(FixedDiagnostic(f"watch entry {number}: unknown key") for _ in unknown)
@@ -298,7 +421,7 @@ def load_watchlist(path: Path) -> tuple[Watch, ...]:
 
 
 def collisions(watches, aliases: AliasMap | None = None) -> list[str]:
-    """Report exact identities and explicit loose product claims that overlap."""
+    """Report overlapping exact, loose product and package claims."""
     watches = tuple(watches)
     reports = []
     for index, left in enumerate(watches):
@@ -312,6 +435,9 @@ def collisions(watches, aliases: AliasMap | None = None) -> list[str]:
                      | set(left.product_only) & {p for _, p in right_ids}
                      | set(right.product_only) & {p for _, p in left_ids})
             claims = sorted(f"{v}:{p}" for v, p in exact) + sorted(loose)
+            packages = set(left.package) & set(right.package)
+            claims.extend(f"package {url} {name}" for url, name in sorted(
+                (selector.collection_url, selector.package_name) for selector in packages))
             if claims:
                 reports.append(f"{left.id} and {right.id} claim {', '.join(claims)}")
     return reports

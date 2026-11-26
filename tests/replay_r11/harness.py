@@ -508,8 +508,13 @@ def differences(actual, expected):
     for got, want in zip(actual['snapshots'], expected['snapshots']):
         for field in ('pairs', 'events', 'outbox', 'notifications', 'rendered',
                       'affected_latches', 'epss_crossings', 'meta', 'health'):
-            if got[field] != want[field]:
-                result.append(f"tick {want['index']} {want['t']} " + first_delta(got[field], want[field], field))
+            expected_field = want[field]
+            if field == 'meta':
+                # R-P8 advances only the applied revision in the frozen v0.8.0 oracle.
+                expected_field = [dict(row, v='3') if row == {'k': 'applied_matching_revision', 'v': '2'}
+                                  else row for row in expected_field]
+            if got[field] != expected_field:
+                result.append(f"tick {want['index']} {want['t']} " + first_delta(got[field], expected_field, field))
         for route in got['routes']:
             if route['route'] == 'v1':
                 continue

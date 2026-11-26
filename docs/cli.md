@@ -88,6 +88,7 @@ order, and EOL remains the leading warning. Urgency and digest ordering do not c
   its sanitized validation errors. `--strict` exits 1 for identity collisions or alias-map
   warnings; default warnings exit 0. Invalid files exit 1 in either mode.
   Neither mode rewrites the active file or persists validation problems.
+  `watch check` previews CVE List evidence only and can differ from a live pair decided by vendor advisories.
 
 `status`, text `report`, and `watch check` print this line for each `eol = true`
 watch, prefixed with its watch ID:

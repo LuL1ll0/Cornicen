@@ -229,7 +229,7 @@ class RealUpgradeTests(unittest.TestCase):
         self.assertEqual(self.pair()['state'], 'affected')
         with patch.object(Engine, '_rematch_record', side_effect=AssertionError('unexpected rematch')):
             self.restart()
-        self.assertEqual(self.store.get_meta('applied_matching_revision'), '2')
+        self.assertEqual(self.store.get_meta('applied_matching_revision'), '3')
 
     def test_colliding_watch_ids_get_separate_stored_pairs(self):
         engine = self.old_start()

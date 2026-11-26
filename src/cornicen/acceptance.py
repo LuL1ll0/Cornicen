@@ -69,7 +69,7 @@ def load_watches(path, entries):
         watches = []
         for number, entry in enumerate(raw, 1):
             if not isinstance(entry, dict) or entry.keys() - {
-                    'id', 'name', 'match', 'product_only', 'version', 'scheme', 'eol'}:
+                    'id', 'name', 'match', 'product_only', 'version', 'scheme', 'eol', 'package'}:
                 raise ValueError
             watches.append(_watch(entry))
         by_id = {watch.id: watch for watch in watches}
@@ -109,7 +109,7 @@ def evaluate(store, entries, watches, aliases):
         raw = row[0]
         record = json.loads(zlib.decompress(raw) if isinstance(raw, bytes) else raw)
         kev = store.connection.execute('SELECT json FROM kev WHERE cve=?', (cve,)).fetchone()
-        result = resolve(record, json.loads(kev[0]) if kev else None, watches[watch_id], aliases)
+        result = resolve(record, json.loads(kev[0]) if kev else None, watches[watch_id], aliases, packages=True)
         state = result.state if result else None
         outcomes.append(Outcome(watch_id, cve,
                                 'pass' if state == State.AFFECTED else 'regression',

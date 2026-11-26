@@ -4,8 +4,9 @@
 
 ## Watch entries and matching rules
 
-Each `[[watch]]` needs a stable `id`, display `name`, vendor-scoped `match`
-identities, `version`, and comparison `scheme`. Changing a name keeps its identity;
+Each `[[watch]]` needs a stable `id`, display `name`, at least one identity
+in `match`, `product_only` or `package`, a `version`, and a comparison `scheme`.
+Changing a name keeps its identity;
 changing a version re-matches stored records. Use `semver`, numeric `dotted`,
 `debian`, CPython `python`, or equality-only `opaque`. Comparator ranges such as
 `">=1.0.0, <2.0.0"` are supported. Declare `eol = true` for unsupported versions.
@@ -17,7 +18,7 @@ human notice to stderr. `watch check --file` reports the candidate file's EOL wa
 
 `product_only` is an explicit loose match across vendors and caps applicability at
 unknown. Prefer scoped identities. Identity normalisation removes U+00AD, U+200B, U+200E, U+200F, U+202A–U+202E, U+2060, U+2066–U+2069 and U+FEFF before NFKC, casefolding and whitespace collapse. It preserves U+200C/U+200D, variation selectors, Hangul fillers and U+034F. Opaque versions use plain NFKC, casefolding and whitespace collapse without this removal set. Punctuation is kept. Placeholder products never match;
-a placeholder vendor can match a real product only through `product_only`.
+a placeholder vendor can match a real product by name only through `product_only`.
 For CPython use `python`, which orders three numeric components and optional
 `aN`, `bN` or `rcN` pre-releases. Other PEP 440 forms remain unknown.
 Synology DSM build/update strings can use `debian`.
@@ -58,7 +59,9 @@ docker compose exec cornicen python -m cornicen report
 ```
 
 `watch check` validates the whole file, reports collisions including aliases,
-and prints matched and near-miss CVEs per watch. Matches are affected or unknown
+and prints matched and near-miss CVEs per watch.
+`watch check` previews CVE List evidence only and can differ from a live pair decided by vendor advisories.
+Matches are affected or unknown
 with exploitation evidence. Near misses include excluded or unknown versions
 and shared vendor or product names. The window uses the CVE publication time,
 falling back to local ingestion time. It performs no fetches; an empty database
@@ -205,6 +208,46 @@ records completed results on a later tick, in its own transaction. After ten
 seconds an unfinished check makes `releases` unhealthy; CVE ingestion and delivery
 continue. A running check is never duplicated, even if DNS never returns. A
 restart retries any check whose results were not committed.
+
+## CNA package selectors
+
+Set `package` to an array of up to 20 inline tables. Each table contains
+`collection_url` and `package_name`, matching the CNA's `collectionURL` and
+`packageName`. A package-only watch cannot use `github` or `osv` selectors.
+See the [package watch example](../README.md#watch-lists).
+
+Cornicen never fetches the collection URL. It checks that the identifier is
+1–500 ASCII characters without spaces or controls. It accepts HTTP and HTTPS
+with a hostname made of dot-separated labels of up to 63 letters, digits or
+hyphens. Labels cannot start or end with a hyphen. Usernames, ports and IPv6
+literals are not accepted. Percent signs must start two-digit hex escapes.
+The scheme and host are lowercased. Trailing slashes are ignored only if
+there is no query or fragment. The path, query and fragment otherwise keep
+their spelling and case, including an empty `?` or `#` delimiter.
+
+A package name must be 1–200 characters after trimming and cannot contain
+control or format characters. Names such as `null` are allowed. For comparison
+Cornicen removes the identity-ignorable characters listed above, applies NFC
+without compatibility folding, folds case, and collapses whitespace. Duplicate
+selectors after normalisation are rejected.
+
+Only the highest matching tier decides a plain CNA result. In order, the tiers
+are exact vendor and product, package with no usable vendor or product, loose
+product name, and package with a usable vendor and product. The second tier
+evaluates the CNA's versions like an exact match. The fourth reports presence
+only and leaves applicability unknown because those versions describe the
+named product's builds. KEV still uses its existing identity rules.
+
+Package selectors do not affect vendor-advisory decisions. If a watch also
+has a legacy identity and takes the advisory route for a record, only that
+route's existing evidence rules apply. Combining package evidence with
+vendor-advisory precedence is deferred.
+
+Cornicen uses package selectors only on the plain CVE List route.
+A package-only watch needs an ID that has never been used, unless it was already package-only.
+On a rejected reload, the current list stays active.
+
+The acceptance self-test previews CVE List evidence only and can differ from a live pair decided by vendor advisories.
 
 ## GitHub selectors
 

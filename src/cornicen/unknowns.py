@@ -6,6 +6,7 @@ import unicodedata
 from cornicen import accept, adapters
 from cornicen.render import _clean_reason
 from cornicen.versions import Scheme
+from cornicen.watchlist import product_label
 
 
 _COMPARE = {
@@ -27,6 +28,8 @@ def classify(evidence) -> str:
         return 'other'
     if evidence.startswith('Product-only identity match'):
         return 'product only'
+    if evidence.startswith('Package identity match only'):
+        return 'package only'
     if evidence == 'Invalid CNA record metadata':
         return 'malformed record'
     if evidence == 'No matching scoped evidence; applicability unknown':
@@ -96,7 +99,7 @@ def section(db, watches, entries, now, timezone) -> dict | None:
     blocks = []
     for watch_id in sorted(groups, key=lambda key: (-len(groups[key]), key))[:8]:
         watch, members = by_id[watch_id], groups[watch_id]
-        product = watch.match[0][1] if watch.match else watch.product_only[0]
+        product = product_label(watch)
         ordered = sorted(members, key=lambda item: (item[1] is None, -(item[1] or 0), item[0]))
         blocks.append(dict(name=_clean_reason(watch.name), product=_clean_reason(product),
                            version=_clean_reason(watch.version), count=len(members),

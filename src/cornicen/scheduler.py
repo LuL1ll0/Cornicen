@@ -20,7 +20,7 @@ from cornicen.health import assess, active_sources
 from cornicen.public_text import prepare_inventory, public_text, public_token
 from cornicen.sources.cvelist_gap import ADAPTER, SOURCE as GAP_SOURCE, GapAudit
 from cornicen.store import TransactionAborted
-from cornicen.watchlist import load_document, WatchlistError
+from cornicen.watchlist import load_document, validate_watch_transition, WatchlistError
 
 
 ACCEPTANCE_RETRY = timedelta(hours=1)
@@ -158,6 +158,7 @@ class Scheduler:
             watches, accepts = load_document(self.engine.config.watchlist_path)
             if self._stamp() != stamp:
                 raise WatchlistError(['Watchlist changed while reading'])
+            validate_watch_transition(self.engine.store, watches, previous=self.engine.watches)
         except WatchlistError:
             # Never persist parser errors: they may include private inventory.
             with self.engine.store.transaction():

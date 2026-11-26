@@ -86,7 +86,7 @@ class B1Tests(unittest.TestCase):
         self.assertEqual(watchlist._watch(BASE | dict(latest_release='github:ExampleCorp/Widget-Engine')).github, ())
         text = '[[watch]]\nid="w"\nname="Widget"\nmatch=["examplecorp:widget"]\nversion="1.5"\nscheme="dotted"\ngithub=[{repository="examplecorp/widget-engine",ecosystem="other",package="Widget Engine"}]'
         self.assertEqual(watchlist.load_watchlist_text(text)[0].github[0].package, 'Widget Engine')
-        with self.assertRaisesRegex(ValueError, '^match or product_only must declare at least one identity$'):
+        with self.assertRaisesRegex(ValueError, '^match, product_only or package must declare at least one identity$'):
             watchlist._watch(BASE | dict(match=[], github=[SEL]))
         self.assertFalse(any(e.effective(True) for e in adapters.REGISTRY.values()))
 

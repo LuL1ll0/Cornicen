@@ -75,6 +75,11 @@ def _inventory(watches):
         values.extend(watch.platform or ())
         values.extend(part for selector in watch.osv for part in (selector.ecosystem, selector.package))
         values.extend(part for identity in watch.match for part in identity)
+        for selector in watch.package:
+            tail = selector.collection_url.partition('://')[2]
+            resource, _, fragment = tail.partition('#')
+            path, _, query = resource.partition('?')
+            values.extend((selector.package_name, *path.split('/'), query, fragment))
         for value in values:
             value = unicodedata.normalize('NFKC', _strip(value)).casefold()
             if not value:

@@ -15,7 +15,7 @@ Cornicen is for homelabs and small networks. You tell it what you run. It watche
   Email uses the ntfy server’s own forwarding; Cornicen stores no mail credentials.
 - **Silent first run.** The first bootstrap records what already matches and sends one summary; after that you hear only about changes.
 
-**Status:** version 0.9.0, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
+**Status:** version 0.10.0, pre-1.0 and maintained. Changes land on `main`; the version is in `pyproject.toml`.
 
 ## Contents
 
@@ -150,6 +150,22 @@ eol = true                   # optional: the vendor no longer supports this vers
 ```
 
 CNAs spell vendors and products inconsistently, so check what actually matches. After the first bootstrap, `watch check --days 90` shows matches and near misses for each watch, so you can find the spelling a CNA uses. Cornicen re-reads the file when it changes, and re-checks edited watches against the CVEs it has stored. Alias changes are re-checked at the next start.
+
+Use `package` to match the collection URL and package name a CNA lists. Cornicen checks the version if either the vendor or the product is missing or unusable. When the entry names both, its versions describe that product's builds, so Cornicen reports that the package was named but leaves applicability unknown. Cornicen uses package selectors only on the plain CVE List route, never when vendor advisories decide a pair.
+
+A package-only watch needs an ID that has never been used, unless it was already package-only.
+
+```toml
+[[watch]]
+id = "example-console-host"
+name = "Example Console on a test host"
+package = [
+  { collection_url = "https://git.example.invalid/example-console", package_name = "example-console" },
+  { collection_url = "https://packages.example.invalid/browser/", package_name = "example-console" },
+]
+version = "41.7"
+scheme = "dotted"
+```
 
 Mark a version the vendor no longer supports with `eol = true`. Its alerts then lead with "unsupported by the vendor — fixes unlikely; isolate or replace", and `status`, `report` and `watch check` flag it as coverage limited: vendors stop publishing advisories for unsupported versions, so a quiet EOL watch is not a safe one.
 

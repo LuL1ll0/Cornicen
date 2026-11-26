@@ -14,6 +14,7 @@ import json
 
 from cornicen.versions import compare
 from cornicen.store import TransactionAborted
+from cornicen.watchlist import product_label
 
 
 def release_behind(watch, tag):
@@ -162,7 +163,7 @@ class ReleaseChecker:
                 if result == 1:
                     record_id = 'release:' + sha256((repository + '\0' + tag).encode()).hexdigest()
                     body = dict(record_id=record_id, watch_id=watch.id, name=watch.name,
-                                product=watch.match[0][1] if watch.match else watch.product_only[0],
+                                product=product_label(watch),
                                 version=watch.version, repository=watch.latest_release,
                                 release_behind=True, tag=tag)
                     engine._event(watch.id, record_id, 'release_behind', 1, body)

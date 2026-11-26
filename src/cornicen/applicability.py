@@ -7,11 +7,11 @@ import re
 
 from cornicen.identity import AliasMap, is_placeholder, normalise, normalise_identity
 from cornicen.versions import Scheme, compare, parse_constraint, python_successor
-from cornicen.watchlist import Watch
+from cornicen.watchlist import Watch, normalise_package_name, package_key
 
 
 # Bump by hand whenever applicability, version comparison or identity matching changes.
-MATCHING_REVISION = 2
+MATCHING_REVISION = 3
 
 
 class State(str, Enum):
@@ -426,8 +426,40 @@ def rejected(record: dict) -> bool:
     return isinstance(state, str) and state.upper() == 'REJECTED'
 
 
+def matching_entries(record, watch, aliases, prepared=None, identities=None, *, packages=False):
+    """Return only the entries at the highest CNA identity tier."""
+    if not isinstance(record, dict):
+        return None, []
+    containers = record.get('containers', {})
+    cna = containers.get('cna', {}) if isinstance(containers, dict) else None
+    entries = cna.get('affected', []) if isinstance(cna, dict) else None
+    if not isinstance(entries, list):
+        return None, []
+    selectors = {(s.collection_url, s.package_name) for s in watch.package} if packages is True else ()
+    matches = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        vendor, product = entry.get('vendor', ''), entry.get('product', '')
+        kind = _identity_match(vendor, product, watch, aliases, prepared, identities)
+        if kind != 'exact' and selectors and package_key(entry) in selectors:
+            vendorless = any(not isinstance(part, str) or is_placeholder(part)
+                             for part in (vendor, product))
+            if vendorless:
+                kind = 'package'
+            elif kind is None:
+                kind = 'package_scoped'
+        if kind:
+            matches.setdefault(kind, []).append(entry)
+    for tier in ('exact', 'package', 'product_only', 'package_scoped'):
+        if tier in matches:
+            return tier, matches[tier]
+    return None, []
+
+
 def resolve(record: dict, kev_entry: dict | None, watch: Watch,
-            aliases: AliasMap, prepared=None, identities=None) -> Result | None:
+            aliases: AliasMap, prepared=None, identities=None, packages: bool = False) -> Result | None:
+    """Evaluate CNA and KEV evidence, using package selectors only when enabled."""
     if not isinstance(record, dict):
         return None
     metadata = record.get('cveMetadata', {})
@@ -441,25 +473,13 @@ def resolve(record: dict, kev_entry: dict | None, watch: Watch,
             and all(isinstance(kev_entry.get(field, ''), str)
                     for field in ('vendorProject', 'product'))):
         kev_entry = None
-    containers = record.get('containers', {})
-    cna = containers.get('cna', {}) if isinstance(containers, dict) else None
-    entries = cna.get('affected', []) if isinstance(cna, dict) else None
-    if not isinstance(entries, list):
-        entries = []
-    matches = []
-    for entry in entries:
-        if not isinstance(entry, dict):
-            continue
-        kind = _identity_match(entry.get('vendor', ''), entry.get('product', ''), watch, aliases,
-                               prepared, identities)
-        if kind:
-            matches.append((entry, kind))
+    tier, entries = matching_entries(record, watch, aliases, prepared, identities, packages=packages)
     kev_kind = None
     if kev_entry is not None:
         kev_kind = _identity_match(kev_entry.get('vendorProject', ''),
                                    kev_entry.get('product', ''), watch, aliases, prepared, identities)
 
-    if not matches and not kev_kind:
+    if not tier and not kev_kind:
         return None
 
     if not valid_metadata:
@@ -467,9 +487,8 @@ def resolve(record: dict, kev_entry: dict | None, watch: Watch,
     if rejected(record) or metadata.get('state', '').upper() == 'WITHDRAWN':
         return Result(State.NOT_AFFECTED, kev_entry is not None, 'CNA record rejected or withdrawn',
                       'high')
-    exact = [entry for entry, kind in matches if kind == 'exact']
-    if exact:
-        evaluated = [(entry, *_evaluate(entry, watch)) for entry in exact]
+    if tier in ('exact', 'package'):
+        evaluated = [(entry, *_evaluate(entry, watch)) for entry in entries]
         # Malformed parent version fields block all exclusions; other uncertainty
         # blocks only history-inferred exclusions. Affected evidence still wins.
         malformed = any(item[1] == State.UNKNOWN and item[3] for item in evaluated)
@@ -478,11 +497,16 @@ def resolve(record: dict, kev_entry: dict | None, watch: Watch,
         state = _combine([item[1] for item in decisive]) if decisive else State.NOT_AFFECTED
         entry, _, detail, _ = next(item for item in (decisive or evaluated) if item[1] == state)
         label = 'unaffected' if state == State.NOT_AFFECTED else state.value
-        evidence = f'CNA {label} {normalise_identity(entry["product"])}: {detail}'
+        name = (normalise_package_name(entry['packageName']) if tier == 'package'
+                else normalise_identity(entry['product']))
+        evidence = f'CNA {label} {name}: {detail}'
         return Result(state, kev_entry is not None, evidence,
                       'medium' if state == State.UNKNOWN else 'high')
-    if matches or kev_kind == 'product_only':
+    if tier == 'product_only' or kev_kind == 'product_only':
         return Result(State.UNKNOWN, kev_entry is not None,
                       'Product-only identity match; version applicability unknown', 'low')
+    if tier == 'package_scoped':
+        return Result(State.UNKNOWN, kev_entry is not None,
+                      'Package identity match only; version applicability unknown', 'low')
     return Result(State.UNKNOWN, True, 'KEV identity match; CNA version applicability unknown',
                   'medium')

@@ -283,7 +283,7 @@ class UnknownPrivacyTests(unittest.TestCase):
     def test_T12_vocabulary_and_redaction_are_unchanged(self):
         vocabulary = ROOT / 'src/cornicen/vocabulary.py'
         self.assertEqual(hashlib.sha256(vocabulary.read_bytes()).hexdigest(),
-                         'e7213282052ff938273165d07797b5e053624021c8e80eac483d066f764d6391')
+                         '31eddfb0d84e4a4ff5020a475fde263267a4e94e4dba01f1cf2d5e02e53e4385')
         checked = subprocess.run([sys.executable, str(ROOT / 'tools/gen_vocabulary.py'), '--check'],
                                  cwd=ROOT, capture_output=True, text=True)
         self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
