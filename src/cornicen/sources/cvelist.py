@@ -17,12 +17,12 @@ import zipfile as z
 from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
-from http.client import HTTPException
+from http.client import HTTPException, IncompleteRead
 import json
 import logging
 import re
 import tempfile
-from time import monotonic
+from time import monotonic, sleep
 import weakref
 from urllib.parse import urlsplit
 import zlib
@@ -170,6 +170,7 @@ _stamp = validate.release_stamp
 class CveListSource:
     def __init__(self, http, store, github_token_problem=None, *, ntfy_token=None, deadman_url=None, webhook_url=None, webhook_secret=None):
         self.http, self.store = http, store
+        self._retry_sleep = sleep
         self.gap_audit = GapAudit(http)
         self._listing_tag_counts = {}
         self._redaction_tokens = (http.github_token, ntfy_token, deadman_url, webhook_url, webhook_secret)
@@ -401,9 +402,36 @@ class CveListSource:
         return self._get('https://api.github.com/repos/' + repository + '/releases/latest',
                          now, allowed=(404,), deadline_at=deadline_at)
 
+    # GitHub sometimes cuts a large listing page short; the same request
+    # normally succeeds when repeated. Each attempt is an ordinary _get.
+    # Waits share one budget per listing, so a bad hour cannot stall a poll.
+    LISTING_ATTEMPTS = 3
+    LISTING_WAIT_SECONDS = 3
+
+    def _listing_page(self, url, now):
+        for attempt in range(1, self.LISTING_ATTEMPTS + 1):
+            try:
+                # Date each attempt by the poll time plus the seconds already waited,
+                # so a rate-limit deferral is measured from when the request went out.
+                waited = self.LISTING_WAIT_SECONDS - self._listing_wait_left
+                return self._get(url, now + timedelta(seconds=waited), allowed=(422,))
+            except (EOFError, IncompleteRead) as error:
+                try:
+                    status = error.truncated_body
+                except AttributeError:
+                    status = None
+                wait = attempt
+                if status != 200 or attempt == self.LISTING_ATTEMPTS or wait > self._listing_wait_left:
+                    raise
+                self._listing_wait_left -= wait
+                logging.getLogger(__name__).info('GitHub response truncated; retry (%d of %d)',
+                                                 attempt + 1, self.LISTING_ATTEMPTS)
+                self._retry_sleep(wait)
+
     def _listing(self, cursor, now):
         releases = []
         self._listing_tag_counts = {}
+        self._listing_wait_left = self.LISTING_WAIT_SECONDS
         entries_seen = 0
         exhausted = False
         url = RELEASES_URL
@@ -416,7 +444,7 @@ class CveListSource:
             if len(visited) >= MAX_RELEASE_PAGES:
                 raise ValueError('GitHub pagination page limit exceeded')
             visited.add(url)
-            response = self._get(url, now, allowed=(422,))
+            response = self._listing_page(url, now)
             if response.status == 422:
                 error = json.loads(response.body)
                 if not isinstance(error, dict):

@@ -11,7 +11,7 @@ Library API with no process exit codes; request failures raise exceptions.
 from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import partial
-from http.client import HTTPResponse, HTTPSConnection
+from http.client import HTTPResponse, HTTPSConnection, IncompleteRead
 from io import BytesIO
 import ipaddress
 from pathlib import Path
@@ -311,6 +311,19 @@ class Http:
                     target = BytesIO()
                     self._copy(response, target, limit, deadline)
                     return Response(status, received, target.getvalue(), None, url)
+                except (EOFError, IncompleteRead) as error:
+                    if path is not None:
+                        path.unlink(missing_ok=True)
+                    # _copy marks a body cut short; record the response status on it.
+                    try:
+                        error.truncated_body
+                    except AttributeError:
+                        marked = False
+                    else:
+                        marked = True
+                    if marked:
+                        error.truncated_body = status
+                    raise
                 except BaseException:
                     if path is not None:
                         path.unlink(missing_ok=True)
@@ -325,11 +338,18 @@ class Http:
         read = response.read1 if isinstance(response, HTTPResponse) else response.read
         while True:
             deadline.check()
-            chunk = read(min(CHUNK_BYTES, limit - total + 1))
+            try:
+                chunk = read(min(CHUNK_BYTES, limit - total + 1))
+            except IncompleteRead as error:
+                # Keep the original error; only mark it as a body cut short.
+                error.truncated_body = True
+                raise
             deadline.check()
             if not chunk:
                 if isinstance(response, HTTPResponse) and response.length:
-                    raise EOFError('Truncated HTTP response body')
+                    error = EOFError('Truncated HTTP response body')
+                    error.truncated_body = True
+                    raise error
                 return
             total += len(chunk)
             if total > limit:

@@ -811,8 +811,9 @@ class GapAudit:
         with store.transaction():
             days = _read_days(store)
             before = json.dumps(days)
-            _register(store, days, now.date())
+            # Collect finished work before registering: registering can expire a day.
             self._collect(store, days)
+            _register(store, days, now.date())
             started = self._launch(store, days, now)
             if json.dumps(days) != before:
                 _save_days(store, days)

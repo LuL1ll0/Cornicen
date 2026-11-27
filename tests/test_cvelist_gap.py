@@ -935,6 +935,16 @@ scheme = "dotted"
         self.assertEqual(sorted(json.loads(self.store.get_meta(gap.DAYS))),
                          [D, '2099-01-03', '2099-01-04'])
 
+    def test_finished_work_is_collected_before_days_can_expire(self):
+        # A poll that crosses UTC midnight must not expire a day whose result is
+        # already queued: collect first, then register (which may expire it).
+        calls = []
+        real_register = gap._register
+        with patch.object(self.audit, '_collect', side_effect=lambda *a: calls.append('collect')), \
+                patch.object(gap, '_register', side_effect=lambda *a: (calls.append('register'), real_register(*a))[1]):
+            self.tick()
+        self.assertEqual(calls[:2], ['collect', 'register'])
+
     def test_expired_day_is_retained_for_14_utc_dates(self):
         self.tick()
         self.clock = NOW + timedelta(days=14)
