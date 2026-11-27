@@ -98,8 +98,8 @@ class FoundationTests(unittest.TestCase):
             # Projection cannot hide illicit additions or changed old cells.
             changed = json.loads(json.dumps(actual))
             changed['tables']['unapproved'] = {'columns': [], 'rows': []}
-            with self.assertRaises(AssertionError):
-                h.assert_additions(changed, expected, foundation=False)
+            with self.assertRaisesRegex(AssertionError, 'unexpected added tables: .*unapproved'):
+                h.assert_additions(changed, expected, foundation=h.FOUNDATION_TASK != 'F0')
             with self.assertRaises(AssertionError):
                 h.assert_additions(actual, expected, foundation=h.FOUNDATION_TASK == 'F0')
         finally:

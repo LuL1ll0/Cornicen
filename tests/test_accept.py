@@ -518,6 +518,16 @@ class AcceptTests(unittest.TestCase):
         self.assertTrue(json.loads(pending[0][0])['accepted']['held'])
 
     def test_acceptance_changes_no_ingest_state(self):  # T15
+        def ingest_snapshot(db):
+            # R-SK5: the outbox side table is delivery state just like outbox.
+            tables = [r[0] for r in db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name NOT IN ('outbox','sqlite_sequence','outbox_event_keys')")]
+            snapshot = {t: [dict(r) for r in db.execute(f'SELECT * FROM {t}')] for t in tables}
+            for row in snapshot['pairs']:
+                row.pop('notified')
+            return snapshot
+
         snapshots = []
         for accepted in (False, True):
             store = Store(':memory:')
@@ -530,11 +540,12 @@ class AcceptTests(unittest.TestCase):
             engine.run_cycle([self.ingest([self.record()])])
             self.clock.now = self.clock.now.replace(hour=8)
             engine.run_cycle(self.fresh_sources())
-            tables = [r[0] for r in store.connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT IN ('outbox','sqlite_sequence')")]
-            snapshot = {t: [dict(r) for r in store.connection.execute(f'SELECT * FROM {t}')] for t in tables}
-            for row in snapshot['pairs']:
-                row.pop('notified')
-            snapshots.append(snapshot)
+            snapshots.append(ingest_snapshot(store.connection))
+            if accepted:
+                store.connection.execute('CREATE TABLE outbox_event_keys_unapproved (id INTEGER)')
+                with self.assertRaisesRegex(AssertionError, 'outbox_event_keys_unapproved'):
+                    self.assertEqual(snapshots[0], ingest_snapshot(store.connection))
+                store.connection.execute('DROP TABLE outbox_event_keys_unapproved')
             engine.accepts = ()
             self.clock.now += timedelta(days=1)
             engine.run_cycle(self.fresh_sources())

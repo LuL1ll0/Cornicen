@@ -1,4 +1,11 @@
-"""Report, exact transport boundaries and public-diagnostic guards."""
+# script-purpose: Verify report rendering, transport boundaries and public diagnostics.
+# script-class: harness
+# script-trigger: unittest discovery and make gate.
+# script-tests: tests/test_unknown_digest_outputs.py
+"""Read local fixtures and vocabulary; write only temporary test data.
+
+Unittest exits 0 on success and 1 on test failure.
+"""
 
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime
@@ -18,6 +25,7 @@ from cornicen.notify import ntfy, webhook
 from cornicen.public_text import public_text
 from cornicen.vocabulary import WORDS
 
+from tests.test_package_matching import STORED_EVENT_KEY_WORDS
 from tests.test_unknown_digest import (
     ACCEPTS, ACCEPT_TEXT, Install, MEDIA, NOW, ROOT, WATCH_TEXT, Opener, entry, record,
 )
@@ -282,8 +290,21 @@ class UnknownPrivacyTests(unittest.TestCase):
 
     def test_T12_vocabulary_and_redaction_are_unchanged(self):
         vocabulary = ROOT / 'src/cornicen/vocabulary.py'
-        self.assertEqual(hashlib.sha256(vocabulary.read_bytes()).hexdigest(),
-                         '31eddfb0d84e4a4ff5020a475fde263267a4e94e4dba01f1cf2d5e02e53e4385')
+
+        def assert_previous_checksum(content):
+            # R-SK5: remove only the exact new generated lines before checking the old bytes.
+            added = {f'    {word!r},\n'.encode() for word in STORED_EVENT_KEY_WORDS}
+            lines = content.splitlines(keepends=True)
+            self.assertEqual(added - set(lines), set())
+            previous = b''.join(line for line in lines if line not in added)
+            self.assertEqual(hashlib.sha256(previous).hexdigest(),
+                             '31eddfb0d84e4a4ff5020a475fde263267a4e94e4dba01f1cf2d5e02e53e4385')
+
+        content = vocabulary.read_bytes()
+        assert_previous_checksum(content)
+        changed = content.replace(b'\n})\n', b"\n    'outbox_event_keys_version_unapproved',\n})\n")
+        with self.assertRaises(AssertionError):
+            assert_previous_checksum(changed)
         checked = subprocess.run([sys.executable, str(ROOT / 'tools/gen_vocabulary.py'), '--check'],
                                  cwd=ROOT, capture_output=True, text=True)
         self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)

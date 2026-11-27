@@ -66,6 +66,12 @@ class F4Tests(unittest.TestCase):
         self.assertEqual(len(ADDITIONS), 18)
         capture = capture_module()
         from tests.replay import harness as v1
+
+        def assert_table_additions(actual, frozen):
+            # R-SK5: retain the exact foundation set, plus the outbox side table.
+            self.assertEqual(set(actual['tables']) - set(frozen['tables']),
+                             ADDITIONS | {'outbox_event_keys'})
+
         for path in sorted(v1.SCENARIOS.rglob('*.input.jsonl')):
             name = str(path.relative_to(v1.SCENARIOS)).removesuffix('.input.jsonl')
             with self.subTest(scenario=name):
@@ -73,7 +79,10 @@ class F4Tests(unittest.TestCase):
                 store, notifications = capture.replay_capture(name)
                 try:
                     actual = h.dump_database(store.connection)
-                    self.assertEqual(set(actual['tables']) - set(frozen['database']['tables']), ADDITIONS)
+                    assert_table_additions(actual, frozen['database'])
+                    changed = dict(actual, tables=dict(actual['tables'], outbox_event_keys_unapproved={}))
+                    with self.assertRaisesRegex(AssertionError, 'outbox_event_keys_unapproved'):
+                        assert_table_additions(changed, frozen['database'])
                     from tests.replay_v11.cycle_capture import current_projection, frozen_projection
                     self.assertEqual(current_projection(actual, frozen['database'], name),
                                      frozen_projection(frozen['database'], name))
@@ -108,7 +117,7 @@ class F4Tests(unittest.TestCase):
         self.assertTrue(all(not hasattr(entry, 'factory') for entry in adapters.REGISTRY.values()))
 
     def test_release_version_pinned(self):
-        self.assertEqual(__version__, '0.10.1')
+        self.assertEqual(__version__, '0.10.2')
 
     def test_cli_status_lists_six_and_pins_f06_adapters(self):
         from tests.test_goal_features_a import GoalFeaturesATests

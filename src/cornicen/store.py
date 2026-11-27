@@ -1,7 +1,7 @@
 # script-purpose: Persist Cornicen state and migrate its additive SQLite schema.
 # script-class: pipeline-tool
 # script-trigger: Cornicen startup and persistence callers.
-# script-tests: tests/test_store.py, tests/test_f1.py, tests/test_f2a.py, tests/test_r11_shells.py, tests/test_r11_integration.py, tests/test_task4_b1.py
+# script-tests: tests/test_store.py, tests/test_f1.py, tests/test_f2a.py, tests/test_r11_shells.py, tests/test_r11_integration.py, tests/test_task4_b1.py, tests/test_stored_event_keys.py
 """Read/write SQLite state; library callers handle errors (CLI exit codes 0/1)."""
 
 from contextlib import contextmanager
@@ -215,6 +215,16 @@ class Store:
                 self.connection.execute('ALTER TABLE outbox ADD COLUMN enqueued_at TEXT')
             if 'dirty' not in columns:
                 self.connection.execute('ALTER TABLE outbox ADD COLUMN dirty INTEGER NOT NULL DEFAULT 1')
+            self.connection.execute('''CREATE TABLE IF NOT EXISTS outbox_event_keys(
+                outbox_id INTEGER NOT NULL REFERENCES outbox(id) ON DELETE CASCADE,
+                reason TEXT NOT NULL, key TEXT NOT NULL, legacy INTEGER NOT NULL,
+                PRIMARY KEY(outbox_id,reason,key,legacy)) WITHOUT ROWID''')
+            if self.get_meta('outbox_event_keys_version') != '1':
+                # The old ledger cannot distinguish queued, delivered and detached keys.
+                self.connection.execute("""INSERT OR IGNORE INTO outbox_event_keys
+                    SELECT outbox.id, reason.value, '', 1 FROM outbox,json_each(reasons_json) reason
+                    WHERE sent_at IS NULL AND json_extract(body_json,'$.watch_id') NOT IN ('',0)""")
+                self.set_meta('outbox_event_keys_version', '1')
             self.connection.execute('''CREATE INDEX IF NOT EXISTS outbox_ready
                 ON outbox(max(due_at,coalesce(next_attempt_at,due_at))) WHERE sent_at IS NULL''')
             self.connection.execute('CREATE INDEX IF NOT EXISTS outbox_dirty ON outbox(id) WHERE sent_at IS NULL AND dirty=1')
@@ -386,8 +396,50 @@ class Store:
         self.connection.execute('INSERT INTO meta VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v',
                                 (key, str(value)))
 
-    def queue(self, pair_key, urgency, reasons, body, due_at, enqueued_at=None):
+    def union(self, row_id, entries):
+        """Add ownership without replacing the row's existing entries."""
+        self.connection.executemany('INSERT OR IGNORE INTO outbox_event_keys VALUES (?,?,?,?)',
+                                    ((row_id, reason, key, legacy) for reason, key, legacy in entries))
+
+    def attach_event_key(self, row, reason, key):
+        self.union(row['id'], [(reason, key, 0)])
+
+    def event_ownership(self, row_id):
+        """Capture ownership before an outbox row is deleted."""
+        return self.connection.execute('SELECT reason,key,legacy FROM outbox_event_keys WHERE outbox_id=?',
+                                       (row_id,)).fetchall()
+
+    def transfer(self, row_id, entries, reasons):
+        """Move only ownership that survived the identity link, without changing the ledger."""
+        surviving = set(reasons)
+        self.union(row_id, (entry for entry in entries if entry['reason'] in surviving))
+
+    def detach(self, row_id, reason):
+        """Drop ownership of a discarded reason without changing the event ledger."""
+        self.connection.execute('DELETE FROM outbox_event_keys WHERE outbox_id = ? AND reason = ?',
+                                (row_id, reason))
+
+    def delete_owned(self, row, *, activation=None):
+        """Delete a pending row and its keys; reconstruct only reasons inherited from v1."""
+        ownership = self.event_ownership(row['id'])
+        keys = {key for _, key, legacy in ownership if not legacy}
+        legacy = {reason for reason, _, legacy in ownership if legacy}.intersection(json.loads(row['reasons_json']))
+        if legacy:
+            body = json.loads(row['body_json'])
+            watch_id, record_id = activation or (body['watch_id'], body['record_id'])
+            for reason in legacy:
+                episode = body.get('episode', 1) - int(activation is None and reason == 'correction')
+                keys.add(f'{watch_id}|{record_id}|{reason}|{episode}')
+        self.connection.executemany('DELETE FROM events WHERE key=?', ((key,) for key in keys))
+        self.connection.execute('DELETE FROM outbox WHERE id=?', (row['id'],))
+
+    def mark_sent(self, row_id, sent_at):
+        self.connection.execute('UPDATE outbox SET sent_at=?,attempts=attempts+1 WHERE id=?', (sent_at, row_id))
+        self.connection.execute('DELETE FROM outbox_event_keys WHERE outbox_id=?', (row_id,))
+
+    def queue(self, pair_key, urgency, reasons, body, due_at, enqueued_at=None, *, event_keys=()):
         """Caller owns the transaction that also writes the associated event."""
+        event_keys = event_keys if body.get('watch_id') else ()
         row = self.connection.execute(
             'SELECT * FROM outbox WHERE pair_key=? AND sent_at IS NULL', (pair_key,)).fetchone()
         if row:
@@ -395,13 +447,17 @@ class Store:
             due = (min(due_at, row['due_at']) if row['urgency'] == urgency
                    else row['due_at'] if row['urgency'] == 'urgent' else due_at)
             urgency = 'urgent' if 'urgent' in (urgency, row['urgency']) else urgency
+            row_id = row['id']
             self.connection.execute(
                 'UPDATE outbox SET urgency=?, reasons_json=?, body_json=?, due_at=?,dirty=1 WHERE id=?',
-                (urgency, json.dumps(merged), json.dumps(body), due, row['id']))
-            return row['id']
-        return self.connection.execute(
-            'INSERT INTO outbox(pair_key,urgency,reasons_json,body_json,due_at,enqueued_at) VALUES (?,?,?,?,?,?)',
-            (pair_key, urgency, json.dumps(list(reasons)), json.dumps(body), due_at, enqueued_at or due_at)).lastrowid
+                (urgency, json.dumps(merged), json.dumps(body), due, row_id))
+        else:
+            row_id = self.connection.execute(
+                'INSERT INTO outbox(pair_key,urgency,reasons_json,body_json,due_at,enqueued_at) VALUES (?,?,?,?,?,?)',
+                (pair_key, urgency, json.dumps(list(reasons)), json.dumps(body), due_at, enqueued_at or due_at)).lastrowid
+        if event_keys:
+            self.union(row_id, ((reason, key, 0) for reason, key in event_keys))
+        return row_id
 
     def put_record(self, record_id, record, ingested_at):
         self.connection.execute('INSERT OR REPLACE INTO records VALUES (?,?,?)',

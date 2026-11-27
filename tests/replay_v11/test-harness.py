@@ -176,10 +176,25 @@ class HarnessTests(unittest.TestCase):
                   'meta_keys': ['schema_version']}
         actual = deepcopy(frozen)
         actual['tables'].update({name: {'columns': ['test_column'], 'rows': []} for name in h.NEW_TABLES})
+        actual['tables']['outbox_event_keys'] = {
+            'columns': ['outbox_id', 'reason', 'key', 'legacy'], 'rows': [[1, 'new match', '', 1]]}
         actual['tables']['meta']['rows'].append(['adapter_schema_version', '1'])
+        actual['tables']['meta']['rows'].append(['outbox_event_keys_version', '1'])
         actual['meta_keys'].insert(0, 'adapter_schema_version')
+        actual['meta_keys'].insert(1, 'outbox_event_keys_version')
         self.assertEqual(h.project_frozen(actual, frozen), frozen)
         h.assert_additions(actual, frozen)
+        with self.assertRaisesRegex(AssertionError, 'unexpected added tables: .*outbox_event_keys_unapproved'):
+            changed = dict(actual, tables=dict(actual['tables'], outbox_event_keys_unapproved={}))
+            h.assert_additions(changed, frozen)
+        with self.assertRaisesRegex(AssertionError, 'unexpected meta keys'):
+            changed = dict(actual, meta_keys=sorted(
+                [*actual['meta_keys'], 'outbox_event_keys_version_unapproved']))
+            h.assert_additions(changed, frozen)
+        actual['tables']['meta']['rows'][-1][1] = '2'
+        with self.assertRaisesRegex(AssertionError, 'outbox_event_keys_version must be 1'):
+            h.assert_additions(actual, frozen)
+        actual['tables']['meta']['rows'][-1][1] = '1'
         actual['tables']['affected_latches']['rows'].append(['w', 'CVE-2099-0001', 1, 1])
         with self.assertRaises(AssertionError):
             h.assert_additions(actual, frozen)

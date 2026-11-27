@@ -1,7 +1,7 @@
 # script-purpose: Reconcile permanent advisory facets and merge explicit identity links.
 # script-class: pipeline-tool
 # script-trigger: Validated advisory commits.
-# script-tests: tests/test_f3b.py, tests/test_replay_v11.py, tests/test_task1_b1.py
+# script-tests: tests/test_f3b.py, tests/test_replay_v11.py, tests/test_task1_b1.py, tests/test_stored_event_keys.py
 """Read SQLite histories and normalized facets; write atomic identity mappings.
 
 Library functions have no process exit codes. Invalid identity changes raise ValueError.
@@ -181,10 +181,17 @@ def _link(engine, old_id, new_id, tick):
             body.update(record_id=target, also_known_as=sorted(set(aliases + body.get('also_known_as', []))))
             if not suffix:
                 body['episode'] = episode
+            ownership = []
+            if reasons:
+                for row in pending:
+                    row_reasons = set(json.loads(row['reasons_json']))
+                    ownership.extend(entry for entry in engine.store.event_ownership(row['id'])
+                                     if entry['reason'] in row_reasons)
             db.executemany('DELETE FROM outbox WHERE id=?', [(r['id'],) for r in pending])
             if reasons:
                 urgency = max((r['urgency'] for r in pending),key=lambda u:{'normal':0,'urgent':1,'health':2}[u])
-                engine.store.queue(watch+'|'+target+suffix,urgency,reasons,body,min((r['due_at'] for r in pending), key=datetime.fromisoformat),min((r['enqueued_at'] for r in pending), key=datetime.fromisoformat))
+                row_id = engine.store.queue(watch+'|'+target+suffix,urgency,reasons,body,min((r['due_at'] for r in pending), key=datetime.fromisoformat),min((r['enqueued_at'] for r in pending), key=datetime.fromisoformat))
+                engine.store.transfer(row_id, ownership, reasons)
                 db.execute('UPDATE outbox SET attempts=?,next_attempt_at=? WHERE pair_key=? AND sent_at IS NULL',
                            (chosen['attempts'],chosen['next_attempt_at'],watch+'|'+target+suffix))
     # Defensive chain collapse: production links go from advisory IDs to CVEs,

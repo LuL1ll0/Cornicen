@@ -486,21 +486,25 @@ def project_frozen(actual, frozen):
 def assert_additions(actual, frozen, *, foundation=True):
     """Separately enforce the exact allowed additive schema and empty data."""
     additions = set(actual['tables']) - set(frozen['tables'])
-    if additions != (NEW_TABLES if foundation else set()):
+    # R-SK5: the side table alone may add rows to the frozen comparison.
+    expected_tables = NEW_TABLES | {'outbox_event_keys'} if foundation else set()
+    if additions != expected_tables:
         raise AssertionError(f'unexpected added tables: {additions!r}')
-    for name in additions:
+    for name in additions - {'outbox_event_keys'}:
         if actual['tables'][name]['rows'] != []:
             raise AssertionError(f'added table is not empty: {name}')
     for name, old in frozen['tables'].items():
         table = actual['tables'][name]
         if table['columns'] != old['columns']:
             raise AssertionError(f'unexpected columns: {name}')
-    if actual['meta_keys'] != sorted(frozen['meta_keys'] + (['adapter_schema_version'] if foundation else [])):
+    # R-SK5: admit exactly the new migration marker alongside the foundation marker.
+    expected_markers = {'adapter_schema_version': '1', 'outbox_event_keys_version': '1'} if foundation else {}
+    if actual['meta_keys'] != sorted([*frozen['meta_keys'], *expected_markers]):
         raise AssertionError('unexpected meta keys')
-    if foundation:
+    for marker, version in expected_markers.items():
         meta = actual['tables']['meta']
-        if [r for r in meta['rows'] if r[meta['columns'].index('k')] == 'adapter_schema_version'] != [['adapter_schema_version', '1']]:
-            raise AssertionError('adapter_schema_version must be 1')
+        if [r for r in meta['rows'] if r[meta['columns'].index('k')] == marker] != [[marker, version]]:
+            raise AssertionError(f'{marker} must be {version}')
 
 
 def run_crash_scenario(name, crash_index=None):

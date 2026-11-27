@@ -1,7 +1,7 @@
 # script-purpose: Evaluate local feed evidence and deliver durable notifications.
 # script-class: pipeline-tool
 # script-trigger: Cornicen scheduler cycles and local command paths.
-# script-tests: tests/test_engine.py, tests/test_f3a.py, tests/test_f3b.py, tests/test_r11_differential.py, tests/test_r11_shells.py, tests/test_r11_integration.py, tests/test_task1_b1.py, tests/test_task1_b2.py, tests/test_task3_a.py, tests/test_task4_a.py, tests/test_cvelist_gap.py, tests/test_package_matching.py
+# script-tests: tests/test_engine.py, tests/test_f3a.py, tests/test_f3b.py, tests/test_r11_differential.py, tests/test_r11_shells.py, tests/test_r11_integration.py, tests/test_task1_b1.py, tests/test_task1_b2.py, tests/test_task3_a.py, tests/test_task4_a.py, tests/test_cvelist_gap.py, tests/test_package_matching.py, tests/test_stored_event_keys.py
 """Read feed results and stored evidence; write SQLite state and notification outbox.
 
 Library API with no process exit codes; callers report operational failures.
@@ -445,7 +445,7 @@ class Engine:
             pair_key += '|correction'
         elif kind in ('healthy', 'unhealthy'):
             pair_key += f'|health|{episode}'
-        self.store.queue(pair_key, urgency, [kind], body, due, now)
+        self.store.queue(pair_key, urgency, [kind], body, due, now, event_keys=[(kind, key)])
         self.report.events.append(key)
 
     @staticmethod
@@ -948,11 +948,7 @@ class Engine:
             body = json.loads(row['body_json'])
             watch_id = body.get('watch_id')
             if watch_id and watch_id not in active_ids:
-                for reason in json.loads(row['reasons_json']):
-                    episode = body.get('episode', 1) - int(reason == 'correction')
-                    key = f"{body['watch_id']}|{body['record_id']}|{reason}|{episode}"
-                    self.db.execute('DELETE FROM events WHERE key=?', (key,))
-                self.db.execute('DELETE FROM outbox WHERE id=?', (row['id'],))
+                self.store.delete_owned(row)
 
     def reload_watches(self, watches: tuple[Watch, ...], *, force_all=False, previous_ids=None) -> None:
         validate_watch_transition(self.store, watches, previous=self.watches)
@@ -1057,11 +1053,7 @@ class Engine:
         row = self.db.execute('SELECT * FROM outbox WHERE pair_key=? AND sent_at IS NULL',
                               (f'{watch_id}|{record_id}',)).fetchone()
         if row:
-            body = json.loads(row['body_json'])
-            for reason in json.loads(row['reasons_json']):
-                key = f"{watch_id}|{record_id}|{reason}|{body.get('episode', 1)}"
-                self.db.execute('DELETE FROM events WHERE key=?', (key,))
-            self.db.execute('DELETE FROM outbox WHERE id=?', (row['id'],))
+            self.store.delete_owned(row, activation=(watch_id, record_id))
 
     def _revalidate(self, row, persist=True):
         body = json.loads(row['body_json'])
@@ -1152,6 +1144,8 @@ class Engine:
                 if persist:
                     self.db.execute('DELETE FROM outbox WHERE id=?', (row['id'],))
                 return None
+            if persist:
+                self.store.detach(row['id'], 'epss_crossed')
             urgency = 'urgent' if self._urgent(body, reasons) else 'normal'
             due = self._now().isoformat() if urgency == 'urgent' else self._digest()
         if current == 'active':
@@ -1168,8 +1162,10 @@ class Engine:
                 if 'acceptance lapsed' not in reasons:
                     reasons.append('acceptance lapsed')
                 key = f"{watch.id}|{body['record_id']}|acceptance lapsed|{episode}"
-                self.db.execute('INSERT OR IGNORE INTO events VALUES (?,?,?,?,?,?)',
-                    (key, watch.id, body['record_id'], 'acceptance lapsed', episode, self._now().isoformat()))
+                added = self.db.execute('INSERT OR IGNORE INTO events VALUES (?,?,?,?,?,?)',
+                    (key, watch.id, body['record_id'], 'acceptance lapsed', episode, self._now().isoformat())).rowcount
+                if added:
+                    self.store.attach_event_key(row, 'acceptance lapsed', key)
         elif 'acceptance_lapsed' in previous_body:
             body['acceptance_lapsed'] = previous_body['acceptance_lapsed']
         if not persist:

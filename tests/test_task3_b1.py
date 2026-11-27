@@ -57,7 +57,19 @@ def microsoft_snapshot():
 
 class Task3B1Tests(unittest.TestCase):
     def test_t12_microsoft_literals(self):
-        self.assertEqual(microsoft_snapshot(), MICROSOFT_LITERALS)
+        def assert_literals(actual):
+            # R-SK5: omit exactly the outbox migration marker from the meta rows.
+            cycles = [dict(cycle, meta=[row for row in cycle['meta']
+                                       if row != ('outbox_event_keys_version', '1')])
+                      for cycle in actual['cycles']]
+            self.assertEqual(dict(actual, cycles=cycles), MICROSOFT_LITERALS)
+
+        actual = microsoft_snapshot()
+        assert_literals(actual)
+        first, *rest = actual['cycles']
+        changed = dict(first, meta=[*first['meta'], ('outbox_event_keys_version_unapproved', '1')])
+        with self.assertRaisesRegex(AssertionError, 'outbox_event_keys_version_unapproved'):
+            assert_literals(dict(actual, cycles=[changed, *rest]))
 
     def test_t10_index(self):
         from cornicen.sources.cisco_csaf import parse_index

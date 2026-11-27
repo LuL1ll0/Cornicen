@@ -12,7 +12,9 @@ import json
 import unittest
 
 from cornicen import __version__
-from tests.replay_v11.cycle_capture import REFERENCE, ROOT, current_projection, digest, frozen_projection
+from tests.replay_v11.cycle_capture import (
+    REFERENCE, ROOT, current_projection, cycle_meta_keys, digest, frozen_projection,
+)
 
 
 class WriterVersionTests(unittest.TestCase):
@@ -56,6 +58,14 @@ class WriterVersionTests(unittest.TestCase):
                 self.assertNotEqual(projected, expected)
                 self.assertNotEqual(digest(projected), digest(expected))
         self.assertEqual(self.frozen['tables']['dead_letters']['columns'], ['id', 'version', 'detail'])
+
+    def test_unrelated_meta_key_changes_cycle_hash(self):
+        keys = ['adapter_schema_version', 'outbox_event_keys_version', 'schema_version']
+        expected = digest(['schema_version'])
+        self.assertEqual(digest(cycle_meta_keys({'meta_keys': keys})), expected)
+        keys.insert(2, 'outbox_event_keys_version_unapproved')
+        with self.assertRaises(AssertionError):
+            self.assertEqual(digest(cycle_meta_keys({'meta_keys': keys})), expected)
 
 
 if __name__ == '__main__':

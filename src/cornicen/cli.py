@@ -1,7 +1,7 @@
 # script-purpose: Run Cornicen and expose its local state and maintenance commands.
 # script-class: pipeline-tool
 # script-trigger: The cornicen command entry point.
-# script-tests: tests/test_cli.py, tests/test_cvelist_gap.py, tests/test_f2a.py, tests/test_f3a.py, tests/test_r11_differential.py, tests/test_package_matching.py
+# script-tests: tests/test_cli.py, tests/test_cvelist_gap.py, tests/test_f2a.py, tests/test_f3a.py, tests/test_r11_differential.py, tests/test_package_matching.py, tests/test_stored_event_keys.py
 """Operator commands; read configuration, watches and the local database.
 
 Run and maintenance commands write database state; diagnostics read stored state.
@@ -688,6 +688,7 @@ def main(argv=None):
             from cornicen.adapterstore import AdapterStore
             if args.name not in REGISTRY:
                 raise ValueError('unknown adapter')
+            store.migrate()
             AdapterStore(store, Path(config.db_path).parent).rebaseline(args.name, now().isoformat().replace('+00:00', 'Z'))
             print('Adapter rebaselined; permanent gap history retained')
             return 0

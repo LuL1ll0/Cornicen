@@ -84,7 +84,8 @@ class F1Tests(unittest.TestCase):
         frozen = json.loads((ROOT / (name + '.database.json')).read_text())
         store = Store(':memory:')
         store.migrate()
-        for table in h.NEW_TABLES:
+        # R-SK5: restore pre-migration state without the new side table.
+        for table in h.NEW_TABLES | {'outbox_event_keys'}:
             store.connection.execute(f'DROP TABLE "{table}"')
         for table, data in frozen['tables'].items():
             store.connection.execute(f'DELETE FROM "{table}"')
@@ -126,6 +127,9 @@ class F1Tests(unittest.TestCase):
             actual = h.dump_database(store.connection)
             self.assertEqual(h.project_frozen(actual, frozen), frozen)
             h.assert_additions(actual, frozen)
+            with self.assertRaisesRegex(AssertionError, 'unexpected meta keys'):
+                h.assert_additions(dict(actual, meta_keys=sorted(
+                    [*actual['meta_keys'], 'outbox_event_keys_version_unapproved'])), frozen)
             self.assertEqual(len(h.NEW_TABLES), 18)
             self.assertEqual(actual['tables']['pairs']['columns'], frozen['tables']['pairs']['columns'])
             self.assertEqual(actual['tables']['affected_latches']['rows'], [])
@@ -134,9 +138,10 @@ class F1Tests(unittest.TestCase):
             self.assertEqual(h.dump_database(store.connection), actual)
             # Also cover durable work absent from the captured status example.
             # Keep the frozen files intact and take an in-memory pre-migration dump.
-            for table in h.NEW_TABLES:
+            # R-SK5: model the old schema without the side table or its marker.
+            for table in h.NEW_TABLES | {'outbox_event_keys'}:
                 store.connection.execute(f'DROP TABLE "{table}"')
-            store.connection.execute("DELETE FROM meta WHERE k='adapter_schema_version'")
+            store.connection.execute("DELETE FROM meta WHERE k IN ('adapter_schema_version','outbox_event_keys_version')")
             for identity, attempts in [('CVE-2099-0001', 0), ('CVE-2099-0002', 5)]:
                 store.connection.execute('''INSERT INTO outbox
                     (pair_key,urgency,reasons_json,body_json,due_at,attempts,enqueued_at,dirty)

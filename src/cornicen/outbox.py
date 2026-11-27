@@ -1,3 +1,7 @@
+# script-purpose: Deliver due notifications with bounded exponential retries.
+# script-class: pipeline-tool
+# script-trigger: Engine and outbox flushes.
+# script-tests: tests/test_stored_event_keys.py
 """Durable delivery of due notifications with bounded exponential retries."""
 
 from datetime import timedelta
@@ -73,8 +77,7 @@ def deliver(store, notifier, clock, ready, *, revalidate=None, unknown_section=N
                             AND EXISTS (SELECT 1 FROM epss_crossing_scores e
                                 WHERE e.cve=record_id AND e.score>=threshold)''',
                                    (item.watch_id, item.record_id, item.body.get('epss_threshold', .10)))
-                    db.execute('UPDATE outbox SET sent_at=?,attempts=attempts+1 WHERE id=?',
-                                    (clock().isoformat(), row['id']))
+                    store.mark_sent(row['id'], clock().isoformat())
                     if item.watch_id and set(item.reasons) & {'new match', 'KEV added', 'acceptance lapsed'}:
                         db.execute('UPDATE pairs SET notified=1 WHERE watch_id=? AND record_id=?',
                                         (item.watch_id, item.record_id))
@@ -89,6 +92,11 @@ def deliver(store, notifier, clock, ready, *, revalidate=None, unknown_section=N
 
 
 class Outbox:
+    """Read due notifications and write delivery state in SQLite.
+
+    Flushing returns the send count. This library has no process exit codes.
+    """
+
     def __init__(self, store, notifier, clock, *, engine=None):
         self.store, self.notifier, self.clock = store, notifier, clock
         self.engine = engine

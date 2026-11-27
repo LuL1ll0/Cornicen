@@ -60,6 +60,11 @@ def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
 
+def cycle_meta_keys(actual):
+    # R-SK5: the new migration marker alone is omitted from the old meta-key hash.
+    return [k for k in actual['meta_keys'] if k not in ('adapter_schema_version', 'outbox_event_keys_version')]
+
+
 def capture_cycles(mode='absent', check=None, *, expected_revision='3'):
     from cornicen.engine import Engine
     from tests.replay import harness as v1
@@ -80,7 +85,7 @@ def capture_cycles(mode='absent', check=None, *, expected_revision='3'):
         def cycle(engine, *args, **kwargs):
             report = original(engine, *args, **kwargs)
             actual = h.dump_database(engine.store.connection)
-            keys = [k for k in actual['meta_keys'] if k != 'adapter_schema_version']
+            keys = cycle_meta_keys(actual)
             schema = dict(frozen['database'], meta_keys=keys)
             projected = current_projection(actual, schema, name, expected_revision=expected_revision)
             observed = dict(meta_keys=digest(keys), database=digest(projected),

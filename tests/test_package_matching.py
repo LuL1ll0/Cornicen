@@ -39,6 +39,14 @@ from tests.package_parity import (BASELINE, DISTRO, EXACT, EXACT_TEXT, NAME, NOW
     UPSTREAM, acceptance_outputs, cve, kev, outputs, record, scoped, seed_adapter,
     source_pins, upstream, watch_check_outputs)
 
+# R-SK5: exact additions since the vocabulary pinned by T31.
+STORED_EVENT_KEY_WORDS = frozenset({
+    'cascade', "json_extract(body_json,'$.watch_id", 'key(outbox_id,reason,key,legacy',
+    'legacy', 'outbox,json_each(reasons_json', 'outbox.id', 'outbox_event_keys',
+    'outbox_event_keys_version', 'outbox_id', 'outbox_id=', 'reason,key,legacy',
+    'reason.value',
+})
+
 EXAMPLE = '''[[watch]]
 id = "example-console-host"
 name = "Example Console on a test host"
@@ -464,11 +472,21 @@ class PackageMatchingTests(unittest.TestCase):
 
     def test_t31_vocabulary_diff(self):
         old = set(json.loads(BASELINE.read_text())['words'])
-        self.assertEqual(old - WORDS, set())
-        self.assertEqual(WORDS - old, {
+        t31 = {
             'collection_url', 'collectionurl', 'package_name', 'package_scoped',
             'packagename', 'packageselector',
-        })
+        }
+        previous = old | t31
+
+        def assert_delta(words):
+            # R-SK5: preserve the old T31 pin and compare the new delta separately.
+            self.assertSetEqual((words - STORED_EVENT_KEY_WORDS) - old, t31)
+            self.assertSetEqual(previous - words, set())
+            self.assertSetEqual(words - previous, STORED_EVENT_KEY_WORDS)
+
+        assert_delta(WORDS)
+        with self.assertRaisesRegex(AssertionError, 'outbox_event_keys_version_unapproved'):
+            assert_delta(WORDS | {'outbox_event_keys_version_unapproved'})
 
     def test_t32_shared_identity_cache_keeps_package_rows_separate(self):
         first, second = (replace(WATCH, package=(WATCH.package[0],)),
