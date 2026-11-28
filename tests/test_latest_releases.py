@@ -119,13 +119,17 @@ class LatestReleaseTests(unittest.TestCase):
         self.assertEqual(len(self.events()), 2)
 
     def test_latest_release_watch_updated_clears_quietly(self):
+        self.engine._health('records', 'unhealthy', 'Invented unrelated event')
+        self.engine._flush()
         self.enabled()
         self.cycle()
         self.engine.reload_watches(tuple(replace(w, version='4.3.0') for w in self.engine.watches))
-        before = len(self.events())
+        ledger = lambda: {tuple(row) for row in self.store.connection.execute('SELECT * FROM events')}
+        before, own = ledger(), tuple(self.events()[0])
         self.cycle()
         self.assertEqual(self.pending(), [])
-        self.assertEqual(len(self.events()), before)
+        # R-DK1: A discarded release notice leaves every other event intact.
+        self.assertEqual(ledger(), before - {own})
         self.assertFalse(any('release_behind' in n['reasons'] for n in self.notifier.delivered))
 
     def test_latest_release_unparseable_draft_prerelease(self):
@@ -321,9 +325,17 @@ class LatestReleaseTests(unittest.TestCase):
         self.response('widget-4.2.0-8')
         self.cycle()
         self.assertEqual(len(self.events()), 1)
+        ledger = lambda: {tuple(row) for row in self.store.connection.execute('SELECT * FROM events')}
+        before, own = ledger(), tuple(self.events()[0])
+        sent = len(self.notifier.delivered)
         self.engine.reload_watches((replace(watch, scheme=Scheme.OPAQUE),))
         self.cycle(1)
-        self.assertEqual(len(self.events()), 1)
+        # R-DK1: Only the release key disappears, and the one-day cycle sends CVE List health.
+        health = ('|cvelist|unhealthy|1', '', 'cvelist', 'unhealthy', 1, self.clock().isoformat())
+        self.assertEqual(
+            (ledger(), [(n['record'], n['reasons']) for n in self.notifier.delivered[sent:]]),
+            ((before - {own}) | {health}, [('cvelist', ['unhealthy'])]),
+        )
 
     def test_latest_release_upgrade_original_database_no_rematch(self):
         db = self.root / 'original.db'

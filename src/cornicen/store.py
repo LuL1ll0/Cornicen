@@ -433,6 +433,25 @@ class Store:
         self.connection.executemany('DELETE FROM events WHERE key=?', ((key,) for key in keys))
         self.connection.execute('DELETE FROM outbox WHERE id=?', (row['id'],))
 
+    def discard_owned(self, row):
+        """Discard a stale release row, returning the number of event keys deleted."""
+        reason = 'release_behind'
+        ownership = self.event_ownership(row['id'])
+        keys = {key for owned_reason, key, legacy in ownership if owned_reason == reason and not legacy}
+        if (list(map(tuple, ownership)) == [(reason, '', 1)]
+                and json.loads(row['reasons_json']) == [reason]):
+            body = json.loads(row['body_json'])
+            watch_id, repository, tag = (body.get(field) for field in ('watch_id', 'repository', 'tag'))
+            if all(isinstance(value, str) and value for value in (watch_id, repository, tag)):
+                record_id = 'release:' + sha256((repository.lower() + '\0' + tag).encode()).hexdigest()
+                pair_key = f'{watch_id}|{record_id}'
+                if body.get('record_id') == record_id and row['pair_key'] == pair_key:
+                    keys.add(f'{pair_key}|{reason}|1')
+        # Deleting the outbox row cascades to its ownership entries.
+        deleted = self.connection.executemany('DELETE FROM events WHERE key=?', ((key,) for key in keys)).rowcount
+        self.connection.execute('DELETE FROM outbox WHERE id=?', (row['id'],))
+        return deleted
+
     def mark_sent(self, row_id, sent_at):
         self.connection.execute('UPDATE outbox SET sent_at=?,attempts=attempts+1 WHERE id=?', (sent_at, row_id))
         self.connection.execute('DELETE FROM outbox_event_keys WHERE outbox_id=?', (row_id,))

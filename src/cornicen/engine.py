@@ -1082,7 +1082,8 @@ class Engine:
                     or watch.latest_release.lower() != body.get('repository', '').lower()
                     or not release_behind(watch, body['tag'])):
                 if persist:
-                    self.db.execute('DELETE FROM outbox WHERE id=?', (row['id'],))
+                    if self.store.discard_owned(row) and self.release_checker is not None:
+                        self.release_checker.applied = None
                 return None
             body.update(name=watch.name, version=watch.version, product=product_label(watch))
             if persist:

@@ -522,7 +522,7 @@ class Task2B2Tests(unittest.TestCase):
 
     def test_t23_watch_independent_requests(self):
         from cornicen import __version__
-        self.assertEqual(__version__, '0.10.2')
+        self.assertEqual(__version__, '0.10.3')
         from tests.replay_v11 import harness as h
         from tests.replay_v11.msrc_backend import MsrcBackend
         rows=h.load_timeline('csaf')
